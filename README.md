@@ -1,4 +1,5 @@
 # Crack Analysis Tool in Python - CrackPy 
+[![DOI](https://zenodo.org/badge/554689806.svg)](https://zenodo.org/badge/latestdoi/554689806)
 
 The methodology for fatigue crack growth (fcg) experiments has not changed for decades and usually still relies on the concept that a 
 theoretical stress intensity factor is calculated with respect to a standardized specimen geometry, applied load, 
