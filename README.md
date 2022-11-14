@@ -141,7 +141,7 @@ Licensed under MIT License (see LICENSE file)
 Please cite as\
 _Strohmann T, Melching D, Paysan F, Klein A, Dietrich E, Requena G and Breitbarth E_\
 **Crack Analysis Tool in Python - CrackPy** (2022)\
-[version in zenodo]()
+[DOI: 10.5281/zenodo.7319653](https://doi.org/10.5281/zenodo.7319653)
 
 ## Get in touch 
 If you are interested in the code, or in our work in general, feel free to contact us.
