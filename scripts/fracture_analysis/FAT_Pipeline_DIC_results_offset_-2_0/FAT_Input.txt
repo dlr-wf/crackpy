@@ -1,0 +1,21 @@
+                                                    Filename, Crack Tip x [mm], Crack Tip y [mm], Crack Angle,  Side
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_200.txt,            30.69,            -4.37,      -32.48, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_201.txt,            30.69,            -4.37,      -32.48, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_202.txt,            30.82,            -4.48,      -32.69, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_203.txt,            30.82,            -4.48,      -32.69, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_204.txt,            30.82,            -4.48,      -32.69, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_205.txt,            31.02,            -4.60,      -33.06, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_206.txt,            31.02,            -4.60,      -33.06, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_207.txt,            31.02,            -4.60,      -33.06, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_208.txt,            31.36,            -4.80,      -33.25, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_209.txt,            31.36,            -4.80,      -33.25, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_210.txt,            31.36,            -4.80,      -33.25, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_211.txt,            31.36,            -4.80,      -33.25, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_212.txt,            31.36,            -4.80,      -33.25, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_213.txt,            31.36,            -4.80,      -33.25, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_214.txt,            31.36,            -4.80,      -33.25, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_215.txt,            31.36,            -4.80,      -33.25, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_216.txt,            31.36,            -4.80,      -33.25, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_217.txt,            31.36,            -4.80,      -33.25, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_218.txt,            31.36,            -4.80,      -33.25, right
+       ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_219.txt,            31.36,            -4.80,      -33.25, right

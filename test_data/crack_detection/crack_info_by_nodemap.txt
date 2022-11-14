@@ -1,0 +1,5 @@
+                                                    Filename, Crack Tip x [mm], Crack Tip y [mm], Crack Angle,  Side
+            Dummy2_WPXXX_DummyVersuch_2_dic_results_1_52.txt,           -15.43,             0.41,      181.88,  left
+            Dummy2_WPXXX_DummyVersuch_2_dic_results_1_53.txt,           -15.77,             0.41,      181.88,  left
+            Dummy2_WPXXX_DummyVersuch_2_dic_results_1_54.txt,           -15.77,             0.41,      181.88,  left
+            Dummy2_WPXXX_DummyVersuch_2_dic_results_1_55.txt,           -15.77,             0.41,      181.88,  left

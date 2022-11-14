@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this package, please cite it as below."
+authors:
+- family-names: "Strohmann"
+  given-names: "Tobias"
+  orcid: "https://orcid.org/0000-0002-9277-1376"
+- family-names: "Melching"
+  given-names: "David"
+  orcid: "https://orcid.org/0000-0001-5111-6511"
+- family-names: "Florian"
+  given-names: "Paysan"
+- family-names: "Klein"
+  given-names: "Alina"
+- family-names: "Eric"
+  given-names: "Dietrich"
+- family-names: "Requena"
+  given-names: "Guillermo"
+  orcid: "https://orcid.org/0000-0001-5682-1404"
+- family-names: "Breitbarth"
+  given-names: "Eric"
+  orcid: "https://orcid.org/0000-0002-3479-9143"
+title: "Crack Analysis Tool in Python - CrackPy"
+version: 1.0.0
+doi: tbd
+date-released: 2022-11-14
+url: "https://github.com/dlr-wf/crackpy"

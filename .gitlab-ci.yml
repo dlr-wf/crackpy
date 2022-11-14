@@ -1,0 +1,111 @@
+# Official language image. Look for the different tagged releases at:
+# https://hub.docker.com/r/library/python/tags/
+image: python:latest
+
+# Change pip's cache directory to be inside the project directory since we can
+# only cache local items.
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+# Pip's cache doesn't store the python packages
+# https://pip.pypa.io/en/stable/reference/pip_install/#caching
+# If you want to also cache the installed packages, you have to install
+# them in a virtualenv and cache it as well.
+#cache:
+  #paths:
+    #- .cache/pip
+    #- venv/
+
+# This script gets executed before every job.
+before_script:
+  # Initialize and activate virtual environment
+  - which virtualenv
+  - virtualenv --python=/opt/anaconda3/bin/python venv
+  - source venv/bin/activate
+  # Install required packages
+  - pip install --upgrade pip
+  - pip list
+  - pip install -r requirements.txt --quiet
+  - pip list
+
+stages:
+  - Build
+  - Static Code Analysis
+  - Unit Tests
+  - Integration Tests
+
+building:
+  stage: Build
+  script:
+    # Check Python version and installed packages
+    - python --version
+    - which python
+    - which pip
+    - pip list
+
+# Check PEP-8-Guidelines with Pylint
+lint_analysis:
+  stage: Static Code Analysis
+  allow_failure: true
+  script:
+    - pip install pylint --quiet
+    - pylint crackpy/fracture_analysis --rcfile='.pylintrc'
+    - pylint crackpy/tests/test_fracture_analysis --rcfile='.pylintrc'
+
+lint_crack_detection:
+  stage: Static Code Analysis
+  allow_failure: true
+  script:
+    - pip install pylint --quiet
+    - pylint crackpy/crack_detection --rcfile='.pylintrc'
+    - pylint crackpy/tests/test_crack_detection --rcfile='.pylintrc'
+
+lint_dic:
+  stage: Static Code Analysis
+  allow_failure: true
+  script:
+    - pip install pylint --quiet
+    - pylint crackpy/dic_control --rcfile='.pylintrc'
+
+
+# Run Unit Tests
+crack_detection:
+  stage: Unit Tests
+  script:
+    - pip install pytest --quiet
+    - pytest crackpy/tests/test_crack_detection --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+
+fracture_analysis:
+  stage: Unit Tests
+  script:
+    - pip install pytest --quiet
+    - pytest crackpy/tests/test_fracture_analysis --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+
+# Run test scripts
+test_crack_detection:
+  stage: Integration Tests
+  script:
+    - pip install pytest --quiet
+    - pytest test_scripts/test_crack_detection.py --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+
+test_fracture_analysis:
+  stage: Integration Tests
+  script:
+    - pip install pytest --quiet
+    - pytest test_scripts/test_fracture_analysis.py --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml

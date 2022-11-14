@@ -1,0 +1,4 @@
+Filename,Crack Tip x [mm],Crack Tip y [mm],Crack Angle,Side
+File_F_10000.0_a_0.3_B_200.0_H_200.0.txt,30.0,0.0,0.0,right
+File_F_10000.0_a_0.4_B_200.0_H_200.0.txt,40.0,0.0,0.0,right
+File_F_10000.0_a_0.5_B_200.0_H_200.0.txt,50.0,0.0,0.0,right
