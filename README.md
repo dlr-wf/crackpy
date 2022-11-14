@@ -69,7 +69,7 @@ Here is an example for the output plot of one single time step...
 
 For us, it was important that all these methods are implemented independent of the source of 
 displacement and strain data, i.e. you can also apply all these methods on data from other sources such as finite element simulations, as long as the format of displacements
-and strains matches the one used here (Checkout our [Wiki](https://gitlab.dlr.de/wf_mhw/tom/-/wikis/home) 
+and strains matches the one used here (Checkout our [Wiki](https://github.com/dlr-wf/crackpy/wiki) 
 for detailed information) and fulfills the plane stress condition. We believe that a wider availability of 
 automated analysis - and, therefore, more **data-driven methods** -  will be very beneficial for the experimental
 mechanics community. This is why we aim to make them easily accessible and applicable. However, this package only covers the topic of 
