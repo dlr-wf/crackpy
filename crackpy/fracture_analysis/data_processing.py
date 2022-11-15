@@ -230,8 +230,9 @@ class InputData:
         Reference: https://en.wikipedia.org/wiki/Infinitesimal_strain_theory#Equivalent_strain
 
         """
-        # plane stress assumption with nu = 0.5
-        eps_z = -(self.eps_x + self.eps_y) / 2
+        # under plane stress assumption with nu = 0.5
+        nu = 0.5
+        eps_z = -nu/(1-nu)*(self.eps_x + self.eps_y)
 
         # total strain: eps = [[eps_x, eps_xy, 0], [eps_xy, eps_y, 0], [0, 0, eps_z]]
         eps = np.array([[self.eps_x, self.eps_xy, np.zeros_like(self.eps_x)],
