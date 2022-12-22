@@ -33,7 +33,7 @@ setuptools.setup(
         'scikit_learn>=1.1.2',
         'scipy>=1.9.0',
         'seaborn>=0.11.2',
-        'torch>=1.12.1',
+        'torch>=1.13.1',
         'torchvision>=0.13.1',
         'rich>=12.5.1'
     ]
