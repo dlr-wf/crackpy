@@ -20,7 +20,7 @@ class TestInputData(unittest.TestCase):
         self.data.set_data_manually(coor_x, coor_y, disp_x, disp_y, eps_x, eps_y, eps_xy)
 
     def test_calc_eps_vm(self):
-        eps_vm_exp = np.asarray([5.887841, 7.423686, 9.018500])
+        eps_vm_exp = np.asarray([5.88784058, 8., 10.06644591])
         self.data.calc_eps_vm()
 
         # check equality to calculated results

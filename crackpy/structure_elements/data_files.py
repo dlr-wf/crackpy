@@ -12,10 +12,13 @@ class NodemapStructure(FileStructure):
     def __init__(
             self,
             row_length=10,
+            index_facet_id=0,
             index_coor_x=1,
             index_coor_y=2,
+            index_coor_z=3,
             index_disp_x=4,
             index_disp_y=5,
+            index_disp_z=6,
             index_eps_x=7,
             index_eps_y=8,
             index_eps_xy=9,
@@ -24,10 +27,13 @@ class NodemapStructure(FileStructure):
     ):
         super().__init__()
         self.row_length = row_length
+        self.index_facet_id = index_facet_id
         self.index_coor_x = index_coor_x
         self.index_coor_y = index_coor_y
+        self.index_coor_z = index_coor_z
         self.index_disp_x = index_disp_x
         self.index_disp_y = index_disp_y
+        self.index_disp_z = index_disp_z
         self.index_eps_x = index_eps_x
         self.index_eps_y = index_eps_y
         self.index_eps_xy = index_eps_xy
