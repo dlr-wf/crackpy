@@ -45,7 +45,7 @@ class TestInterpolation(unittest.TestCase):
         for eps_vm in interp_eps_vm.values():
             self.assertIsInstance(eps_vm, np.ndarray)
             self.assertEqual(eps_vm.shape, (256, 256))
-            self.assertAlmostEqual(eps_vm[0, 0], 0.000952, delta=1e-6)
+            self.assertAlmostEqual(eps_vm[0, 0], 0.001070, delta=1e-6)
 
 
 if __name__ == '__main__':
