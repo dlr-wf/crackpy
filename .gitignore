@@ -12,7 +12,13 @@ tom.egg-info
 /videos/
 /dist/
 /build/
-/tom/crack_detection/models/
+
+# Ignore downloaded crack detection models
+/crackpy/crack_detection/models/
+
+# Ignore all files in the scripts folder except for python files
+/scripts/**/*.*
+!/scripts/**/*.py
 
 __pycache__
 *.xml
