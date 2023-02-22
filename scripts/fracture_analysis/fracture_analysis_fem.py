@@ -19,6 +19,11 @@
 
 import os
 
+import numpy as np
+from matplotlib import pyplot as plt
+from matplotlib import cm
+from matplotlib.colors import ListedColormap
+
 from crackpy.fracture_analysis.analysis import FractureAnalysis
 from crackpy.fracture_analysis.data_processing import InputData, CrackTipInfo
 from crackpy.fracture_analysis.line_integration import IntegralProperties
@@ -89,7 +94,12 @@ analysis = FractureAnalysis(
 )
 analysis.run()
 
-plot_sets = PlotSettings(background='eps_vm', cmap='jet', dpi=300)
+# Set colormap
+plt.rcParams['image.cmap'] = 'coolwarm'
+plt.rcParams['figure.dpi'] = 100
+
+# Plotting
+plot_sets = PlotSettings(background='eps_vm')
 plotter = Plotter(path=os.path.join(OUT_FOLDER, 'plots'), fracture_analysis=analysis, plot_sets=plot_sets)
 plotter.plot()
 
