@@ -97,7 +97,7 @@ class TestFractureAnalysis(unittest.TestCase):
             # test plotter
             plot_sets = PlotSettings(ylim_down=-20, ylim_up=20,
                                      xlim_down=-20, xlim_up=20,
-                                     background='sig_vm', cmap='jet')
+                                     background='sig_vm')
             plotter = Plotter(path=temp_dir, fracture_analysis=analysis, plot_sets=plot_sets)
             plotter.plot()
         finally:
@@ -163,7 +163,7 @@ class TestFractureAnalysis(unittest.TestCase):
             # test plotter
             plot_sets = PlotSettings(ylim_down=-20, ylim_up=20,
                                      xlim_down=-20, xlim_up=20,
-                                     background='sig_vm', cmap='jet')
+                                     background='sig_vm')
             plotter = Plotter(path=temp_dir, fracture_analysis=analysis, plot_sets=plot_sets)
             plotter.plot()
         finally:

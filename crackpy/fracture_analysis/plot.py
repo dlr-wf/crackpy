@@ -10,8 +10,7 @@ from crackpy.fracture_analysis.crack_tip import cjp_displ_field, williams_displ_
 
 class PlotSettings:
     def __init__(self, xlim_down: float = None, xlim_up: float = None, ylim_down: float = None, ylim_up: float = None,
-                 background: str = 'eps_vm', min_value: float = None, max_value: float = None, extend: str = None,
-                 cmap='jet', dpi: int = 300):
+                 background: str = 'eps_vm', min_value: float = None, max_value: float = None, extend: str = None):
         """Define plot settings for Plotter class object.
 
         Args:
@@ -23,8 +22,6 @@ class PlotSettings:
             min_value: minimum value of background
             max_value: maximum value of background
             extend: extend of background (e.g. 'neither', 'min', 'max')
-            cmap: obj of the class ColorMap or str, color map for the plot
-            dpi: resolution of the plot
 
         """
         self.ylim_down = ylim_down
@@ -37,9 +34,6 @@ class PlotSettings:
         self.max_value = max_value
         self.extend = extend
         self.legend_label = self._keyword_to_legend_label(background)
-
-        self.cmap = cmap
-        self.dpi = dpi
 
     def _keyword_to_legend_label(self, keyword: str = 'sig_vm') -> str:
         """Convert keyword to legend label.
@@ -128,7 +122,7 @@ class Plotter:
 
         # Save figure
         save_path = os.path.join(self.path, self.filename)
-        plt.savefig(save_path + '.png', bbox_inches='tight', dpi=self.plot_sets.dpi)
+        plt.savefig(save_path + '.png', bbox_inches='tight')
         plt.clf()
         plt.close()
 
@@ -176,7 +170,7 @@ class Plotter:
         plt.rcParams['font.size'] = '16'
 
         plot = self.ax_int.tricontourf(self.analysis.data.coor_x, self.analysis.data.coor_y, background,
-                                       contour_vector, extend=extend, cmap=self.plot_sets.cmap)
+                                       contour_vector, extend=extend)
         ct_plot = self.ax_int.scatter(0, 0, marker='x', color='black', s=100, linewidth=3)
         self.ax_int.legend(handles=[ct_plot],
                            labels=[f'$x_{{tip}}$ = {self.analysis.crack_tip.crack_tip_x:.2f} mm\n'
@@ -237,7 +231,7 @@ class Plotter:
         if self.analysis.integral_properties is not None:
 
             # J integral result
-            props = dict(boxstyle='round', facecolor='green', alpha=0.2)
+            props = dict(boxstyle='round', facecolor='gray', alpha=0.4)
             text = "J-integral\n\n" + \
                    f"$J$ = {self.analysis.sifs_int['rej_out_mean']['j']:.2f} $N*mm^{{-1}}$\n" + \
                    f"$K_J$ = {self.analysis.sifs_int['rej_out_mean']['sif_j']:.2f} $MPa*m^{{1/2}}$"
@@ -246,7 +240,7 @@ class Plotter:
                                  verticalalignment='top', bbox=props)
 
             # Williams integration results
-            props = dict(boxstyle='round', facecolor='green', alpha=0.3)
+            props = dict(boxstyle='round', facecolor='gray', alpha=0.4)
             text = "Interaction integral\n\n" + \
                    f"$K_I$ = {self.analysis.sifs_int['rej_out_mean']['sif_k_i']:.2f} $MPa*m^{{1/2}}$\n" + \
                    f"$K_{{II}}$ = {self.analysis.sifs_int['rej_out_mean']['sif_k_ii']:.2f} $MPa*m^{{1/2}}$\n" + \
@@ -255,7 +249,7 @@ class Plotter:
                                  transform=self.ax_results.transAxes, fontsize=14,
                                  verticalalignment='top', bbox=props)
 
-            props = dict(boxstyle='round', facecolor='green', alpha=0.4)
+            props = dict(boxstyle='round', facecolor='gray', alpha=0.4)
             text = "Bueckner integral\n\n" + \
                    f"$K_I$ = {self.analysis.sifs_int['rej_out_mean']['k_i_chen']:.2f} $MPa*m^{{1/2}}$\n" + \
                    f"$K_{{II}}$ = {self.analysis.sifs_int['rej_out_mean']['k_ii_chen']:.2f} $MPa*m^{{1/2}}$\n" + \
@@ -269,7 +263,7 @@ class Plotter:
                 and self.analysis.res_cjp is not None:
 
             # Williams fitting results
-            props = dict(boxstyle='round', facecolor='red', alpha=0.2)
+            props = dict(boxstyle='round', facecolor='gray', alpha=0.4)
             text = "Williams fitting\n\n" + \
                    f"$K_I$ = {self.analysis.sifs_fit['K_I']:.2f} $MPa*m^{{1/2}}$\n" + \
                    f"$K_{{II}}$ = {self.analysis.sifs_fit['K_II']:.2f} $MPa*m^{{1/2}}$\n" + \
@@ -279,7 +273,7 @@ class Plotter:
                                  verticalalignment='top', bbox=props)
 
             # CJP fitting results
-            props = dict(boxstyle='round', facecolor='red', alpha=0.4)
+            props = dict(boxstyle='round', facecolor='gray', alpha=0.4)
             text = "CJP fitting\n\n" + \
                    f"$K_F$ = {self.analysis.res_cjp['K_F']:.2f} $MPa*m^{{1/2}}$\n" + \
                    f"$K_R$ = {self.analysis.res_cjp['K_R']:.2f} $MPa*m^{{1/2}}$\n" + \
@@ -301,8 +295,7 @@ class Plotter:
         # Set general font size
         plt.rcParams['font.size'] = '16'
 
-        plot = self.ax_cjp_opt.scatter(opt.x_grid.flatten(), opt.y_grid.flatten(), c=error,
-                                       cmap='jet', marker='.')
+        plot = self.ax_cjp_opt.scatter(opt.x_grid.flatten(), opt.y_grid.flatten(), c=error, marker='.')
 
         # Set tick font size
         for label in (self.ax_cjp_opt.get_xticklabels() + self.ax_cjp_opt.get_yticklabels()):
@@ -331,8 +324,7 @@ class Plotter:
         # Set general font size
         plt.rcParams['font.size'] = '16'
 
-        plot = self.ax_williams_opt.scatter(opt.x_grid.flatten(), opt.y_grid.flatten(), c=error,
-                                            cmap='jet', marker='.')
+        plot = self.ax_williams_opt.scatter(opt.x_grid.flatten(), opt.y_grid.flatten(), c=error, marker='.')
 
         # Set tick font size
         for label in (self.ax_williams_opt.get_xticklabels() + self.ax_williams_opt.get_yticklabels()):

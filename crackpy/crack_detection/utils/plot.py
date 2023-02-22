@@ -8,17 +8,17 @@ from matplotlib.colors import ListedColormap
 def plot_prediction(
         background: np.array,
         interp_size: float or int,
-        offset: tuple=(0, 0),
-        crack_tip_prediction: np.array=None,
-        crack_tip_seg: np.array=None,
-        crack_tip_label: np.array=None,
-        crack_path: np.array=None,
-        f_min: float=None,
-        f_max: float=None,
-        save_name: str=None,
-        path: str=None,
-        title: str='',
-        label: str='Plot of Data [Unit]'
+        offset: tuple = (0, 0),
+        crack_tip_prediction: np.array = None,
+        crack_tip_seg: np.array = None,
+        crack_tip_label: np.array = None,
+        crack_path: np.array = None,
+        f_min: float = None,
+        f_max: float = None,
+        save_name: str = None,
+        path: str = None,
+        title: str = '',
+        label: str = 'Plot of Data [Unit]'
 ):
     """Plots crack tip labels and predictions over background.
 
@@ -49,9 +49,6 @@ def plot_prediction(
     num_colors = 120
     contour_vector = np.linspace(f_min, f_max, num_colors, endpoint=True)
     label_vector = np.linspace(f_min, f_max, 10, endpoint=True)
-    # Colormap similar to Aramis
-    cm_jet = cm.get_cmap('jet', 512)
-    my_cmap = ListedColormap(cm_jet(np.linspace(0.1, 0.9, 256)))
 
     fig = plt.figure(1)
     ax = fig.add_subplot(111)
@@ -73,7 +70,7 @@ def plot_prediction(
     triang.set_mask(mask)
     plot = ax.tricontourf(triang,
                           background.flatten(), contour_vector,
-                          extend=extend, cmap=my_cmap)
+                          extend=extend)
     ax.autoscale(False)
     # ax.axis('off')  # uncomment to turn of axis and labels
 
@@ -113,7 +110,7 @@ def plot_prediction(
     if path is not None:
         if not os.path.exists(path):
             os.makedirs(path)
-        plt.savefig(os.path.join(path, save_name + '.png'), bbox_inches='tight', dpi=300)
+        plt.savefig(os.path.join(path, save_name + '.png'), bbox_inches='tight')
     else:
         plt.show()
 
