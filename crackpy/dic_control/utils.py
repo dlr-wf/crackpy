@@ -293,11 +293,7 @@ class DicToCrackPy:
         if is_constant:
             self.script.sys.edit_creation_parameters(
                 element=self.gom_app.project.inspection[name],
-                type={'abbreviation': 'Benutzer', 'actual_expression': value,
-                      'base_type': 'construct_user_defined',
-                      'geometry': 'scalar', 'inputs': [],
-                      'nominal_expression': '0.0', 'reduce_to_scalar': False,
-                      'type_name': 'Benutzer', 'unit': 'UNIT_NONE'})
+                value=value)
 
     def get_result_dict(self, current_stage_index: int) -> dict:
         """Gets all results as np.arrays and save to a dictionary.
