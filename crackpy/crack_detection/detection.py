@@ -26,7 +26,7 @@ class CrackDetection:
 
         Args:
             side: of the specimen ('left' or 'right')
-            window: size of the detection window in mm
+            detection_window_size: size of the detection window in mm
             offset: tuple of (x,y)-offset in mm
             angle_det_radius: radius in mm around crack tip considered for angle detection
             device: (torch.device)
@@ -54,6 +54,13 @@ class CrackDetection:
 
         """
         input_ch = torch.tensor(interp_disps, dtype=torch.float32)
+
+        # check if NaNs are present
+        if torch.isnan(input_ch).any():
+            print('NaNs in displacement data! '
+                  'Please make sure that no NaNs are present '
+                  'E.g. make the detection_window_boundary smaller.')
+
         input_ch = preprocess.normalize(input_ch).unsqueeze(0)
 
         return input_ch
@@ -105,7 +112,8 @@ class CrackTipDetection:
         """
         # Transform to global coordinate system
         crack_tip_x = crack_tip_px[1] * self.detection.detection_window_size / 255
-        crack_tip_y = crack_tip_px[0] * self.detection.detection_window_size / 255 - self.detection.detection_window_size / 2
+        crack_tip_y = crack_tip_px[0] * self.detection.detection_window_size / 255 \
+                      - self.detection.detection_window_size / 2
         if self.detection.side == 'left':  # mirror x-value of crack tip position to left-hand side
             crack_tip_x *= -1
         crack_tip_x += self.detection.offset[0]
@@ -159,6 +167,7 @@ class CrackPathDetection:
         * predict_path - predict the crack path and return the segmentation and skeletonized path
 
     """
+
     def __init__(self, detection: CrackDetection, path_detector: UNet):
         """Initialize class arguments.
 
@@ -221,6 +230,7 @@ class CrackAngleEstimation:
         * predict_angle - estimate the crack tip angle by means of a linear regression
 
     """
+
     def __init__(self, detection: CrackDetection, crack_tip_in_px: list):
         """Initialize class arguments.
 
