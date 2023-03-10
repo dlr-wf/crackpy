@@ -14,8 +14,13 @@
 # imports
 import os
 
+from matplotlib import pyplot as plt
+
 from crackpy.crack_detection.model import get_model
 from crackpy.crack_detection.pipeline.pipeline import CrackDetectionSetup, CrackDetectionPipeline
+
+plt.rcParams['image.cmap'] = 'coolwarm'
+plt.rcParams['figure.dpi'] = 100
 
 # paths
 DATA_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Nodemaps')
@@ -30,9 +35,10 @@ path_detector = get_model('UNetPath')
 # setup
 det_setup = CrackDetectionSetup(
     specimen_size=160,
-    sides=['right'],
-    detection_window_size=None,
-    start_offset=(0, 0)
+    sides=['left', 'right'],
+    detection_window_size=40,
+    detection_boundary=(0, 70, -35, 35),
+    start_offset=(5, 0)
 )
 
 # pipeline
