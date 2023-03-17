@@ -44,7 +44,7 @@ def interpolate_on_array(input_by_nodemap, interp_size, offset=(0, 0), pixels=25
     return interp_coors_by_nodemap, interp_disps_by_nodemap, interp_eps_vm_by_nodemap
 
 
-def interpolate(input_data_object: InputData, size: int, offset=(0, 0), pixels: int=256):
+def interpolate(input_data_object: InputData, size: int or float, offset=(0, 0), pixels: int=256):
     """Extracts and interpolates Coors, Disps and EpsVonMises
     from an InputData object onto arrays of size pixels x pixels.
 

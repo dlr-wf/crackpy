@@ -3,6 +3,7 @@ import os
 import numpy as np
 import torch
 
+from crackpy.crack_detection.utils.plot import plot_prediction
 from crackpy.crack_detection.utils.utilityfunctions import get_nodemaps_and_stage_nums
 from crackpy.crack_detection.detection import CrackTipDetection, CrackPathDetection, CrackAngleEstimation, CrackDetection
 from crackpy.fracture_analysis.data_processing import InputData
@@ -17,6 +18,7 @@ class CrackDetectionSetup:
             sides: list = None,
             stage_nums: range = 'All',
             detection_window_size: float = None,
+            detection_boundary: tuple = None,
             start_offset: tuple = (0, 0),
             angle_det_radius: float = 10
     ):
@@ -28,6 +30,11 @@ class CrackDetectionSetup:
             stage_nums: numbers of stages to predict the crack tip (Default: 'All' uses all files of later given path)
             detection_window_size: window size used to predict the crack tip
                                    (if None: detection_window_size is equal to specimen_size / 2 - 10)
+            detection_boundary: (x_min, x_max, y_min, y_max) hard boundary of the crack detection window (to avoid NaNs)
+                                The 'left' side is mirrored to the 'right' side.
+                                Example: (0, 70, -35, 35) for MT160 specimen
+                                If None: detection_boundary is set to
+                                (0, specimen_size / 2, -specimen_size / 4, specimen_size / 4)
             start_offset: (offset_x, offset_y) offset from the standard starting window
                                                adapted automatically during the pipeline
             angle_det_radius: radius (in mm) around the crack tip
@@ -38,6 +45,10 @@ class CrackDetectionSetup:
 
         self.window_size = detection_window_size if detection_window_size is not None else (specimen_size / 2 - 10)
         self.start_offset = start_offset
+        if detection_boundary is not None:
+            self.detection_boundary = detection_boundary
+        else:
+            self.detection_boundary = (0, specimen_size / 2, -specimen_size / 4, specimen_size / 4)
         self.angle_det_radius = angle_det_radius
 
         self.stage_nums = stage_nums
@@ -155,9 +166,7 @@ class CrackDetectionPipeline:
                 offset_x *= -1   # left side: offset in negative x-direction
             stages_to_results = {}
 
-            for i, stage in enumerate(self.detection_stages):
-                print(f'\r Progress... {i+1}/{len(self.detection_stages)}', end='')
-
+            for stage in sorted(self.detection_stages):
                 # Init
                 results = {}
 
@@ -176,7 +185,7 @@ class CrackDetectionPipeline:
                 )
 
                 # Interpolate data on arrays (256 x 256 pixels)
-                interp_disps, _ = det.interpolate(data)
+                interp_disps, interp_eps_vm = det.interpolate(data)
 
                 # Preprocess input
                 input_ch = det.preprocess(interp_disps)
@@ -189,6 +198,7 @@ class CrackDetectionPipeline:
 
                 # Make prediction
                 pred = ct_det.make_prediction(input_ch)
+                crack_tip_seg = ct_det.calculate_segmentation(pred)
 
                 # Calculate segmentation and most likely crack tip position
                 crack_tip_pixels = ct_det.find_most_likely_tip_pos(pred)
@@ -203,7 +213,7 @@ class CrackDetectionPipeline:
                 cp_det = CrackPathDetection(detection=det, path_detector=self.path_detector)
 
                 # predict segmentation and path skeleton
-                cp_segmentation, _ = cp_det.predict_path(input_ch)
+                cp_segmentation, cp_skeleton = cp_det.predict_path(input_ch)
 
                 ##########################
                 # Crack angle estimation
@@ -224,12 +234,13 @@ class CrackDetectionPipeline:
 
                 # Adjust crack detection window
                 ###############################
-                if np.abs(offset_x) < self.setup.specimen_size / 2 - self.setup.window_size - 10:
+                x_min, x_max, y_min, y_max = self.setup.detection_boundary
+                if np.abs(offset_x) < x_max - self.setup.window_size:
                     if side == 'right' and crack_tip_x > offset_x + self.setup.window_size / 2:
                         offset_x += (crack_tip_x - offset_x - self.setup.window_size / 2)
                     if side == 'left' and crack_tip_x < offset_x - self.setup.window_size / 2:
                         offset_x -= (offset_x - self.setup.window_size / 2 - crack_tip_x)
-                if np.abs(offset_y) < self.setup.specimen_size / 2 - self.setup.window_size / 2 - 10:
+                if np.abs(offset_y) < np.minimum(y_min, y_max) - self.setup.window_size / 2:
                     if crack_tip_y > offset_y + self.setup.window_size / 4:
                         offset_y += (crack_tip_y - offset_y - self.setup.window_size / 4)
                     if crack_tip_y < offset_y - self.setup.window_size / 4:
@@ -240,6 +251,24 @@ class CrackDetectionPipeline:
                 results['crack_tip_y'] = crack_tip_y
                 results['angle'] = angle
                 stages_to_results[stage] = results
+                print(f'Stage {stage}/{sorted(self.detection_stages)[-1]}'
+                      f' - crack tip: {crack_tip_x:.2f} mm, {crack_tip_y:.2f} mm, angle: {angle:.2f}°')
+
+                # Plot crack detection
+                plot_prediction(background=interp_eps_vm * 100,
+                                interp_size=self.setup.window_size,
+                                offset=(offset_x, offset_y),
+                                save_name=nodemap[:-4],
+                                crack_tip_prediction=np.asarray([crack_tip_pixels]),
+                                crack_tip_seg=crack_tip_seg,
+                                crack_tip_label=None,
+                                crack_path=cp_skeleton,
+                                f_min=0,
+                                f_max=0.68,
+                                title=nodemap[:-4] + f' - {side} side',
+                                path=os.path.join(self.output_path, "plots", f"{side}"),
+                                label='Von Mises strain [%]')
+
             sides_to_results[side] = stages_to_results
         self.sides_to_results = sides_to_results
 

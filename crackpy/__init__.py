@@ -5,4 +5,4 @@ import crackpy.crack_detection.utils
 import crackpy.structure_elements
 
 # package information
-__version__ = "1.0.4"
+__version__ = "1.1.0"

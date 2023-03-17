@@ -323,7 +323,7 @@ class SegGradCAM:
         triang.set_mask(mask)
         plot = ax.tricontourf(triang,
                               heatmap.flatten(), contour_vector,
-                              extend='neither', cmap='jet')
+                              extend='neither')
         ax.autoscale(False)
         # ax.axis('off')  # uncomment to turn off axis labels and ticks
 
@@ -431,7 +431,7 @@ def plot_overview(output, maps, side: str, scale: str = 'QUALITATIVE'):
         # plot heatmap
         plot = ax.tricontourf(coor_x.flatten(), coor_y.flatten(),
                               heatmap.flatten(), contour_vector,
-                              extend='neither', cmap='jet')
+                              extend='neither')
         ax.autoscale(False)
 
         # calculate crack tip segmentation

@@ -16,6 +16,8 @@
 
 import os
 
+from matplotlib import pyplot as plt
+
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.fracture_analysis.read import OutputReader
@@ -24,6 +26,9 @@ from crackpy.crack_detection.pipeline.pipeline import CrackDetectionSetup, Crack
 from crackpy.fracture_analysis.pipeline import FractureAnalysisPipeline
 from crackpy.fracture_analysis.plot import PlotSettings
 from crackpy.structure_elements.material import Material
+
+plt.rcParams['image.cmap'] = 'coolwarm'
+plt.rcParams['figure.dpi'] = 300
 
 # Paths
 DATA_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Nodemaps')
@@ -38,6 +43,7 @@ det_setup = CrackDetectionSetup(
     specimen_size=160,
     sides=['right'],
     detection_window_size=50,
+    detection_boundary=(0, 70, -35, 35),
     start_offset=(0, 0)
 )
 
@@ -87,11 +93,9 @@ opt_props = OptimizationProperties(
 )
 
 material = Material(E=72000, nu_xy=0.33, sig_yield=350)
-plot_sets = PlotSettings(background='eps_vm',
-                         min_value=0, max_value=0.0068,
-                         extend='max',
-                         cmap='jet',
-                         dpi=300)
+
+# Plot settings
+plot_sets = PlotSettings(background='eps_vm', min_value=0, max_value=0.0068, extend='max')
 
 fa_pipeline = FractureAnalysisPipeline(
     material=material,
