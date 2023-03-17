@@ -67,6 +67,7 @@ sgc = attention.SegGradCAM(setup, model_with_hooks)
 output, heatmap = sgc(input_ch)
 
 # Plot and save heatmap
+plt.rcParams['image.cmap'] = 'coolwarm'
 fig = sgc.plot(output, heatmap)
 plt.savefig(os.path.join(OUTPUT_PATH, NODEMAP_FILE[:-4] + '_attention.png'), dpi=300)
 plt.close(fig)

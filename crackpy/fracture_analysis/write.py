@@ -1,5 +1,7 @@
 import os
 
+import numpy as np
+
 from crackpy.fracture_analysis.analysis import FractureAnalysis
 from crackpy.fracture_analysis.crack_tip import unit_of_williams_coefficients
 
@@ -68,40 +70,38 @@ class OutputWriter:
 
             if self.analysis.optimization_properties is not None:
 
-                if self.analysis.res_cjp is not None:
-                    file.write('\n')
-                    file.write("#############################\n")
-                    file.write("#         CJP model         #\n")
-                    file.write("#############################\n")
-                    file.write('\n')
-                    file.write('<CJP_results>\n')
-                    file.write(f'{"Param":>10}, {"Unit":>20}, {"Result":>20} \n')
-                    file.write(f'{"Error":>10}, {"1":>20}, {self.analysis.res_cjp["Error"]:20.10f} \n')
-                    file.write(f'{"K_F":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.res_cjp["K_F"]:20.10f} \n')
-                    file.write(f'{"K_R":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.res_cjp["K_R"]:20.10f} \n')
-                    file.write(f'{"K_S":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.res_cjp["K_S"]:20.10f} \n')
-                    file.write(f'{"K_II":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.res_cjp["K_II"]:20.10f} \n')
-                    file.write(f'{"T":>10}, {"MPa":>20}, {self.analysis.res_cjp["T"]:20.10f} \n')
-                    file.write('</CJP_results>\n')
-                    file.write('\n')
+                file.write('\n')
+                file.write("#############################\n")
+                file.write("#         CJP model         #\n")
+                file.write("#############################\n")
+                file.write('\n')
+                file.write('<CJP_results>\n')
+                file.write(f'{"Param":>10}, {"Unit":>20}, {"Result":>20} \n')
+                file.write(f'{"Error":>10}, {"1":>20}, {self.analysis.res_cjp["Error"]:20.10f} \n')
+                file.write(f'{"K_F":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.res_cjp["K_F"]:20.10f} \n')
+                file.write(f'{"K_R":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.res_cjp["K_R"]:20.10f} \n')
+                file.write(f'{"K_S":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.res_cjp["K_S"]:20.10f} \n')
+                file.write(f'{"K_II":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.res_cjp["K_II"]:20.10f} \n')
+                file.write(f'{"T":>10}, {"MPa":>20}, {self.analysis.res_cjp["T"]:20.10f} \n')
+                file.write('</CJP_results>\n')
+                file.write('\n')
 
-                if self.analysis.sifs_fit is not None:
-                    file.write("#############################\n")
-                    file.write("#      Williams fitting     #\n")
-                    file.write("#############################\n")
-                    file.write('\n')
-                    file.write('<Williams_fit_results>\n')
-                    file.write(f'{"Param":>10}, {"Unit":>20}, {"Result":>20} \n')
-                    file.write(f'{"Error":>10}, {"1":>20}, {self.analysis.sifs_fit["Error"]:20.10f} \n')
-                    file.write(f'{"K_I":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.sifs_fit["K_I"]:20.10f} \n')
-                    file.write(f'{"K_II":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.sifs_fit["K_II"]:20.10f} \n')
-                    file.write(f'{"T":>10}, {"MPa":>20}, {self.analysis.sifs_fit["T"]:20.10f} \n')
-                    for n, a in self.analysis.williams_fit_a_n.items():
-                        file.write(f'{f"a_{n}":>10}, {unit_of_williams_coefficients(n):>20}, {a:20.10f} \n')
-                    for n, b in self.analysis.williams_fit_b_n.items():
-                        file.write(f'{f"b_{n}":>10}, {unit_of_williams_coefficients(n):>20}, {b:20.10f} \n')
-                    file.write('</Williams_fit_results>\n')
-                    file.write('\n')
+                file.write("#############################\n")
+                file.write("#      Williams fitting     #\n")
+                file.write("#############################\n")
+                file.write('\n')
+                file.write('<Williams_fit_results>\n')
+                file.write(f'{"Param":>10}, {"Unit":>20}, {"Result":>20} \n')
+                file.write(f'{"Error":>10}, {"1":>20}, {self.analysis.sifs_fit["Error"]:20.10f} \n')
+                file.write(f'{"K_I":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.sifs_fit["K_I"]:20.10f} \n')
+                file.write(f'{"K_II":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.sifs_fit["K_II"]:20.10f} \n')
+                file.write(f'{"T":>10}, {"MPa":>20}, {self.analysis.sifs_fit["T"]:20.10f} \n')
+                for n, a in self.analysis.williams_fit_a_n.items():
+                    file.write(f'{f"a_{n}":>10}, {unit_of_williams_coefficients(n):>20}, {a:20.10f} \n')
+                for n, b in self.analysis.williams_fit_b_n.items():
+                    file.write(f'{f"b_{n}":>10}, {unit_of_williams_coefficients(n):>20}, {b:20.10f} \n')
+                file.write('</Williams_fit_results>\n')
+                file.write('\n')
 
             if self.analysis.integral_properties is not None:
                 file.write("###################################\n")

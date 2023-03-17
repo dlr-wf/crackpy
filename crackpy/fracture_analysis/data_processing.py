@@ -336,15 +336,23 @@ class InputData:
         self.sig_1 = principal_stresses[:, 0]
         self.sig_2 = principal_stresses[:, 1]
 
-    def _renumber_nodes(self, node_number: int, mapping: dict):
+    def _renumber_nodes(self, old_node_number: int, mapping: dict):
         """Renumber nodes according to mapping table.
 
         Args:
-            node_number: node number
+            old_node_number: node number
             mapping: mapping of old node numbers to new node numbers
 
+        Returns:
+            new_node_number: it is -1 if the node number is not in the mapping table
+
         """
-        return mapping[node_number]
+        try:
+            new_node_number = mapping[old_node_number]
+        except KeyError:
+            new_node_number = -1
+
+        return new_node_number
 
     def to_vtk(self, output_folder: str = None):
         """Returns a vtk file of the DIC data.
@@ -357,7 +365,7 @@ class InputData:
             PyVista mesh object
         """
         # create node
-        nodes = np.stack((self.coor_x, self.coor_y, np.zeros_like(self.coor_x)), axis=1)
+        nodes = np.stack((self.coor_x, self.coor_y, self.coor_z), axis=1)
 
         # remap node numbers
         old_facet_id = self.facet_id - 1
@@ -365,22 +373,28 @@ class InputData:
         mapping = dict(zip(old_facet_id, new_facet_id))
         renumber_nodes_vec = np.vectorize(self._renumber_nodes)
 
-        # define elements
-        elements = self.connections[:, 1:5]
-        elements[:, 0] = 3
-        elements[:, 1:] = renumber_nodes_vec(elements[:, 1:], mapping)
+        # create mesh
+        if self.connections is not None:
+            # define elements
+            elements = self.connections[:, 1:5]
+            elements[:, 0] = 3
+            elements[:, 1:] = renumber_nodes_vec(elements[:, 1:], mapping)
 
-        # define cell types
-        cell_types = np.full(len(elements[:, 0]), fill_value=CellType.TRIANGLE, dtype=np.uint8)
+            # Check if there are any elements with -1 as node number
+            mask = np.any(elements[:, 1:] == -1, axis=1)
+            elements = elements[~mask]
 
-        # define mesh
-        mesh = pyvista.UnstructuredGrid(elements, cell_types, nodes)
+            # define cell types
+            cell_types = np.full(len(elements[:, 0]), fill_value=CellType.TRIANGLE, dtype=np.uint8)
 
-        # Check if input data is 2D
-        if self.coor_z is None:
-            self.coor_z = np.zeros_like(self.coor_x)
-        if self.disp_z is None:
-            self.disp_z = np.zeros_like(self.coor_x)
+            # define mesh
+            mesh = pyvista.UnstructuredGrid(elements, cell_types, nodes)
+
+        else:
+            print(f'No connectivity data provided for {self.nodemap_name}. Reconstructing a mesh from the nodes using Delaunay triangulation.')
+            cloud = pyvista.wrap(nodes)
+            mesh = cloud.delaunay_2d(alpha=1.0)
+
 
         # add data
         mesh.point_data['x [mm]'] = self.coor_x
@@ -389,6 +403,7 @@ class InputData:
         mesh.point_data['u_x [mm]'] = self.disp_x
         mesh.point_data['u_y [mm]'] = self.disp_y
         mesh.point_data['u_z [mm]'] = self.disp_z
+        mesh.point_data['u_sum [mm]'] = np.sqrt(self.disp_x ** 2 + self.disp_y ** 2 + self.disp_z ** 2)
         mesh.point_data['eps_x [%]'] = self.eps_x * 100.0
         mesh.point_data['eps_y [%]'] = self.eps_y * 100.0
         mesh.point_data['eps_xy [1]'] = self.eps_xy

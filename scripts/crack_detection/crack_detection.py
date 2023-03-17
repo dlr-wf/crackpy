@@ -19,6 +19,7 @@ import os
 
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
 
 from crackpy.crack_detection.model import get_model
 from crackpy.crack_detection.utils.plot import plot_prediction
@@ -97,6 +98,12 @@ print(f"Crack angle [deg]: {angle}")
 #####################
 # Plot predictions
 #####################
+
+# Set colormap and resolution
+plt.rcParams['image.cmap'] = 'coolwarm'
+plt.rcParams['figure.dpi'] = 300
+
+# Plot
 plot_prediction(background=interp_eps_vm * 100,
                 interp_size=det.interp_size,
                 offset=det.offset,

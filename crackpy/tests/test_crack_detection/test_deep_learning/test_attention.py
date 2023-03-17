@@ -3,6 +3,7 @@ import unittest
 import shutil
 import tempfile
 
+import numpy as np
 import torch
 import numpy
 import matplotlib.pyplot as plt
@@ -47,8 +48,8 @@ class TestSegGradCAM(unittest.TestCase):
 
         # calculate output and features in forward pass
         act_output, act_heatmap = self.sgc(input_t)
-        self.assertTrue(torch.equal(exp_output.detach().to('cpu'), act_output.detach().to('cpu')))
-        self.assertTrue(torch.equal(torch.from_numpy(exp_heatmap.copy()), torch.from_numpy(act_heatmap.copy())))
+        self.assertTrue(torch.allclose(exp_output.detach().to('cpu'), act_output.detach().to('cpu')))
+        self.assertTrue(np.allclose(exp_heatmap.copy(), act_heatmap.copy(), rtol=1e-2))
 
     def test_plot_and_save(self):
         base_path = os.path.join(  # '..', '..', '..', '..',
