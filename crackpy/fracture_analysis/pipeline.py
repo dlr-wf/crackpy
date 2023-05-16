@@ -3,6 +3,8 @@ import os
 import multiprocessing
 import warnings
 from concurrent.futures import ProcessPoolExecutor
+from copy import deepcopy
+
 from rich import progress as progress_rich
 import numpy as np
 import pandas as pd
@@ -176,7 +178,7 @@ class FractureAnalysisPipeline:
             int_props: one integral property that is set for all nodemaps of the pipeline
 
         """
-        self.integral_props = {index: int_props for index, _ in self.input_df.iterrows()}
+        self.integral_props = {index: deepcopy(int_props) for index, _ in self.input_df.iterrows()}
 
     def find_max_force_stages(self, max_force: float, tol: float = 20) -> dict:
         """Find stages of maximal force and store as dictionary stages_to_max_force_stages.
@@ -281,16 +283,14 @@ class FractureAnalysisPipeline:
                 integral_properties.set_automatically(input_data, auto_detect_threshold=self.material.sig_yield)
             except ValueError:
                 print(f'Could not find integral properties automatically for stage {stage}.')
-            self.integral_props[index] = integral_properties
 
         # assign integral properties to missing stages
         for index, data in self.input_df.iterrows():
-            if index not in self.integral_props.keys():
-                stage = index_to_stage[index]
-                side = index_to_side[index]
-                max_force_stage = stages_to_max_force_stages[stage]
-                corr_index = side_to_stage_to_index[side][max_force_stage]
-                self.integral_props[index] = self.integral_props[corr_index]
+            stage = index_to_stage[index]
+            side = index_to_side[index]
+            max_force_stage = stages_to_max_force_stages[stage]
+            corr_index = side_to_stage_to_index[side][max_force_stage]
+            self.integral_props[index] = deepcopy(self.integral_props[corr_index])
 
     def run(self, num_of_kernels: int = 1):
         """Run fracture analysis pipeline. This method is the main method of the pipeline.
@@ -333,7 +333,7 @@ class FractureAnalysisPipeline:
                             total = update_data["total"]
                             # update the progress bar for this task
                             progress.update(task_id, completed=latest, total=total, visible=latest < total)
-                    progress.update(overall_progress_task, completed=n_finished, total=len(futures))
+                        progress.update(overall_progress_task, completed=n_finished+1, total=len(futures))
 
                     # raise any errors
                     for future in futures:
