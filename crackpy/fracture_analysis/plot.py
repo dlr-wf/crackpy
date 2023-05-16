@@ -7,6 +7,11 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from crackpy.fracture_analysis.analysis import FractureAnalysis
 from crackpy.fracture_analysis.crack_tip import cjp_displ_field, williams_displ_field
 
+# Fix error issued by multiprocessing + matplotlib
+# https://stackoverflow.com/questions/28903969/python-multiprocessingsavefig-leads-to-error-or-system-lockup
+import matplotlib
+matplotlib.use('Agg')
+
 
 class PlotSettings:
     def __init__(self, xlim_down: float = None, xlim_up: float = None, ylim_down: float = None, ylim_up: float = None,

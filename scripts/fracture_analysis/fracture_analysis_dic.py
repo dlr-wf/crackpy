@@ -95,7 +95,7 @@ plt.rcParams['image.cmap'] = 'coolwarm'
 plt.rcParams['figure.dpi'] = 100
 
 # Plotting
-plot_sets = PlotSettings(background='eps_vm', min_value=0, max_value=0.0068, extend='max')
+plot_sets = PlotSettings(background='sig_vm', min_value=0, max_value=material.sig_yield, extend='max')
 plotter = Plotter(path=os.path.join(OUT_FOLDER, 'plots'), fracture_analysis=analysis, plot_sets=plot_sets)
 plotter.plot()
 

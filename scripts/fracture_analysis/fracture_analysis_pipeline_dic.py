@@ -95,7 +95,7 @@ opt_props = OptimizationProperties(
 material = Material(E=72000, nu_xy=0.33, sig_yield=350)
 
 # Plot settings
-plot_sets = PlotSettings(background='eps_vm', min_value=0, max_value=0.0068, extend='max')
+plot_sets = PlotSettings(background='sig_vm', min_value=0, max_value=material.sig_yield, extend='max')
 
 fa_pipeline = FractureAnalysisPipeline(
     material=material,

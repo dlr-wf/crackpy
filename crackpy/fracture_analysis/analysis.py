@@ -111,7 +111,7 @@ class FractureAnalysis:
             self.tick_sizes = []
             self.num_of_path_nodes = []
 
-    def run(self, progress=None, task_id=None):
+    def run(self, progress='off', task_id=None):
         """Run fracture analysis with the provided data, crack_tip_info, and integral_properties.
         Results are stored as class instance attributes 'results', 'sifs', 'int_sizes', and 'path_nodes'.
 
@@ -216,7 +216,7 @@ class FractureAnalysis:
                 current_size_top += self.integral_properties.paths_distance_top
 
                 # Update progress bar
-                if progress is not None and not "off":
+                if progress != "off":
                     progress[task_id] = {"progress": n + 1, "total": self.integral_properties.number_of_paths}
 
             # catch RuntimeWarnings originating from np.nanmean having no valid values
