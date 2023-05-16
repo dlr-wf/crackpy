@@ -235,16 +235,20 @@ class CrackDetectionPipeline:
                 # Adjust crack detection window
                 ###############################
                 x_min, x_max, y_min, y_max = self.setup.detection_boundary
-                if np.abs(offset_x) < x_max - self.setup.window_size:
-                    if side == 'right' and crack_tip_x > offset_x + self.setup.window_size / 2:
-                        offset_x += (crack_tip_x - offset_x - self.setup.window_size / 2)
-                    if side == 'left' and crack_tip_x < offset_x - self.setup.window_size / 2:
-                        offset_x -= (offset_x - self.setup.window_size / 2 - crack_tip_x)
-                if np.abs(offset_y) < np.minimum(y_min, y_max) - self.setup.window_size / 2:
-                    if crack_tip_y > offset_y + self.setup.window_size / 4:
-                        offset_y += (crack_tip_y - offset_y - self.setup.window_size / 4)
-                    if crack_tip_y < offset_y - self.setup.window_size / 4:
-                        offset_y -= (offset_y - self.setup.window_size / 4 - crack_tip_y)
+                # Case distinction for left and right side
+                if side == 'right':
+                    if offset_x <= x_max - self.setup.window_size:  # check detection boundary
+                        if crack_tip_x > offset_x + self.setup.window_size / 2:  # check if crack tip passed middle
+                            offset_x += (crack_tip_x - offset_x - self.setup.window_size / 2)
+                if side == 'left':  # offset is negative
+                    if offset_x >= x_min + self.setup.window_size:  # check detection boundary
+                        if crack_tip_x < offset_x - self.setup.window_size / 2:
+                            offset_x -= (offset_x - self.setup.window_size / 2 - crack_tip_x)
+                if y_min + self.setup.window_size / 2 <= offset_y <= y_max - self.setup.window_size / 2:
+                    if crack_tip_y > offset_y + self.setup.window_size / 8:
+                        offset_y += (crack_tip_y - offset_y - self.setup.window_size / 8)
+                    if crack_tip_y < offset_y - self.setup.window_size / 8:
+                        offset_y -= (offset_y - self.setup.window_size / 8 - crack_tip_y)
 
                 # Write results to dictionary
                 results['crack_tip_x'] = crack_tip_x
@@ -256,7 +260,7 @@ class CrackDetectionPipeline:
 
                 # Plot crack detection
                 plot_prediction(background=interp_eps_vm * 100,
-                                interp_size=self.setup.window_size,
+                                interp_size=self.setup.window_size if side == 'right' else -self.setup.window_size,
                                 offset=(offset_x, offset_y),
                                 save_name=nodemap[:-4],
                                 crack_tip_prediction=np.asarray([crack_tip_pixels]),
