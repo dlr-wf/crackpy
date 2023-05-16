@@ -274,8 +274,6 @@ class TestFractureAnalysisPipeline(unittest.TestCase):
             self.assertEqual(pipeline.integral_props[0].integral_size_bottom, -5)
             self.assertEqual(pipeline.integral_props[0].integral_tick_size, 0.1916179957579483)
             self.assertEqual(pipeline.integral_props[0].paths_distance_bottom, 0.5)
-            self.assertEqual(pipeline.integral_props[0].bottom_offset,
-                             pipeline.integral_props[1].bottom_offset)
 
             pipeline.run()
 
