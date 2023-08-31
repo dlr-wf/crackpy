@@ -66,17 +66,23 @@ class InputNormalization:
 
 
 class EnhanceTip:
-    """Enhance the crack tip position with width 1.
+    """
+    Enhance the crack tip position with width 1.
     This is necessary because otherwise the crack tip position might vanish with the
-    transformations 'Resize' or 'RandomRotation' which involve interpolation."""
+    transformations 'Resize' or 'RandomRotation' which involve interpolation.
+    """
+
+    def __init__(self, width=1):
+        self.width = width
+
     def __call__(self, sample):
         target, tip = sample['target'], sample['tip']
 
-        # Write '2's of width 1 indicating crack tip around the target tip position
-        # This produces 3x3=9 crack tip pixels instead of just 1
-        target[int(tip[0].item() - 1), int(tip[1].item() - 1):int(tip[1].item() + 2)] = 2
-        target[int(tip[0].item()), int(tip[1].item() - 1):int(tip[1].item() + 2)] = 2
-        target[int(tip[0].item() + 1), int(tip[1].item() - 1):int(tip[1].item() + 2)] = 2
+        # Write '2's of width 'self.width' indicating crack tip around the target tip position
+        # This produces 1+2*width x 1+2*width crack tip pixels instead of just 1
+        for i in range(-self.width, self.width + 1):
+            for j in range(-self.width, self.width + 1):
+                target[int(tip[0].item() + i), int(tip[1].item() + j)] = 2
 
         sample['target'] = target
 
@@ -103,7 +109,7 @@ class EnhancePath:
 
 class RandomCrop:
     """Crop randomly the image & labels in a sample."""
-    def __init__(self, size: int or tuple or list, left: list or None=None):
+    def __init__(self, size: int or tuple or list, left: list = None):
         """Crop randomly the image & labels in a sample.
 
         Args:
@@ -143,7 +149,7 @@ class RandomCrop:
 
         top = np.random.randint(0, height - new_height)
         if self.left is not None:
-            left = np.random.randint(self.left[0], self.left[1])
+            left = np.random.randint(self.left[0], min(self.left[1], width - new_width))
         else:
             left = np.random.randint(0, width - new_width)
 
@@ -174,7 +180,7 @@ class RandomFlip:
         return sample
 
 
-def rotate_point(origin: list, point: list, angle_rad: float) -> list:
+def rotate_point(origin: tuple, point: tuple, angle_rad: float) -> list:
     """Rotate a point counterclockwise by an angle around an origin.
 
     Args:
