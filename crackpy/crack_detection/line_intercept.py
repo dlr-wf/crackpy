@@ -48,6 +48,10 @@ class CrackDetectionLineIntercept:
             angle_estimation_mm_radius: mm radius used for crack angle estimation
 
         """
+        self.tip_index = 0
+        self.eps_vm_crack_path = None
+        self.y_path = None
+        self.coefficients_fitted = None
         self.data = data
         self.x_min = x_min
         self.x_max = x_max
@@ -71,6 +75,7 @@ class CrackDetectionLineIntercept:
         self.ct_corr_opt = None
         self.df_grid_errors = None
 
+        # map displacements to separate grid
         self._map_data_to_grid()
 
     def run(self):
@@ -90,23 +95,23 @@ class CrackDetectionLineIntercept:
             fitted_coefficients = res.x
             init_coeff = fitted_coefficients[1]
             coefficients_fitted.append(fitted_coefficients)
-        coefficients_fitted = np.asarray(coefficients_fitted)
 
-        y_path = np.asarray(coefficients_fitted[:, 1])
+        self.coefficients_fitted = np.asarray(coefficients_fitted).T
+        self.y_path = np.asarray(self.coefficients_fitted[1, :])
 
         # Find the crack tip
-        eps_vm_crack_path = scipy.interpolate.griddata((self.data.coor_x, self.data.coor_y), self.data.eps_vm,
-                                                       (self.x_coords, y_path), method='linear')
-        tip_index = 0
+        self.eps_vm_crack_path = scipy.interpolate.griddata((self.data.coor_x, self.data.coor_y), self.data.eps_vm,
+                                                       (self.x_coords, self.y_path), method='linear')
+        self.tip_index = 0
         window_size = 3
-        reversed_eps_vm_crack_path = eps_vm_crack_path[::-1]
+        reversed_eps_vm_crack_path = self.eps_vm_crack_path[::-1]
         for i in range(len(reversed_eps_vm_crack_path) - window_size + 1):
             if np.all(reversed_eps_vm_crack_path[i:i + window_size] > self.eps_vm_threshold):
-                tip_index = len(reversed_eps_vm_crack_path) - i - 1
+                self.tip_index = len(reversed_eps_vm_crack_path) - i - 1
                 break
 
-        self.crack_tip = np.asarray([self.x_coords[tip_index], y_path[tip_index]])
-        self.crack_path = np.stack([self.x_coords[0:tip_index], y_path[0:tip_index]], axis=-1)
+        self.crack_tip = np.asarray([self.x_coords[self.tip_index], self.y_path[self.tip_index]])
+        self.crack_path = np.stack([self.x_coords[0:self.tip_index], self.y_path[0:self.tip_index]], axis=-1)
 
         # crack angle estimation
         angle_estimation_px_radius = int(self.angle_estimation_mm_radius / self.tick_size_x)
@@ -120,7 +125,8 @@ class CrackDetectionLineIntercept:
         yy = m * x + c
         self.crack_angle = np.arctan2(yy[-1] - yy[0], x[-1] - x[0]) * 180.0 / np.pi
 
-    def plot(self, fname: str, folder: str, crack_tip_results: dict, fmin: float = 0, fmax: float = 0.0068, plot_window: list = None):
+    def plot(self, fname: str, folder: str, crack_tip_results: dict= None,
+             crack_tip_position: dict = None, fmin: float = 0, fmax: float = 0.0068, plot_window: list = None):
         """Plot the von Mises strain and the corresponding crack detection results and save under `fname` in `folder`.
 
         Args:
@@ -128,6 +134,7 @@ class CrackDetectionLineIntercept:
             folder: folder
             crack_tip_results: crack tip correction results (e.g. from Rethore method, optimization, or grid search)
                             Example: {'Rethore': [dx, dy], 'Grid Search': [dx, dy], 'Optimization': [dx, dy]}
+            crack_tip_position: crack tip position (e.g. absolute crack tip position)
             fmin: minimum value for the colorbar
             fmax: maximum value for the colorbar
             plot_window: list with [x_min, x_max, y_min, y_max] to plot a window.
@@ -152,9 +159,15 @@ class CrackDetectionLineIntercept:
             ax.scatter(self.crack_path[:, 0], self.crack_path[:, 1], color='black', s=1, marker='.')
         ax.scatter(self.crack_tip[0], self.crack_tip[1], color='black', linewidths=1, marker='x', label='Crack tip')
 
-        for method, ct_corr in crack_tip_results.items():
-            ax.scatter(self.crack_tip[0] + ct_corr[0], self.crack_tip[1] + ct_corr[1],
-                       linewidths=1, marker='x', label=method)
+        if crack_tip_results is not None:
+            for method, ct_corr in crack_tip_results.items():
+                ax.scatter(self.crack_tip[0] + ct_corr[0], self.crack_tip[1] + ct_corr[1],
+                           linewidths=1, marker='x', label=method)
+
+        if crack_tip_position is not None:
+            for method, ct_pos in crack_tip_position.items():
+                ax.scatter(ct_pos[0], ct_pos[1],
+                           linewidths=1, marker='x', label=method)
 
         ax.legend(loc='upper left')
         ax.set_xlabel('x [mm]')

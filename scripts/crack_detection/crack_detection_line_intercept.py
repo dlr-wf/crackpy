@@ -17,11 +17,10 @@
 
 # Imports
 import os
-
 import matplotlib.pyplot as plt
 
-from crackpy.crack_detection.detection_line_intercept import \
-    CrackDetectionLineIntercept, CrackTipCorrection, CrackTipCorrectionGridSearch, plot_grid_errors
+from crackpy.crack_detection.line_intercept import CrackDetectionLineIntercept,plot_grid_errors
+from crackpy.crack_detection.correction import CrackTipCorrection, CrackTipCorrectionGridSearch
 from crackpy.fracture_analysis.data_processing import InputData
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.structure_elements.data_files import Nodemap
@@ -36,7 +35,7 @@ plt.rcParams['figure.dpi'] = 300
 NODEMAP_FILE = 'Dummy2_WPXXX_DummyVersuch_2_dic_results_1_52.txt'
 DATA_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Nodemaps')
 
-OUTPUT_PATH = 'test'
+OUTPUT_PATH = 'line_intercept'
 if not os.path.exists(OUTPUT_PATH):
     os.makedirs(OUTPUT_PATH)
 
@@ -53,14 +52,13 @@ data.calc_stresses(material)
 # Crack detection with line intercept
 ######################################
 cd = CrackDetectionLineIntercept(
-    x_min=10.0,
-    x_max=60.0,
-    y_min=-20.0,
-    y_max=20.0,
+    x_min=0.0,
+    x_max=25.0,
+    y_min=-10.0,
+    y_max=10.0,
     data=data,
     tick_size_x=0.1,
     tick_size_y=0.1,
-    material=material,
     grid_component='uy',
     eps_vm_threshold=0.01,
     window_size=3,
@@ -123,7 +121,8 @@ results = {
     'Rethore': crack_tip_corr_rethore,
     'Grid search': crack_tip_corr_grid
 }
-cd.plot(fname=NODEMAP_FILE[:-4] + '.png', folder=os.path.join(OUTPUT_PATH, 'plots'), crack_tip_results=results)
+cd.plot(fname=NODEMAP_FILE[:-4] + '.png', folder=os.path.join(OUTPUT_PATH, 'plots'),
+        fmin=0, fmax=350, crack_tip_results=results)
 
 # Print results
 print(f"\nLine Intercept:\n"

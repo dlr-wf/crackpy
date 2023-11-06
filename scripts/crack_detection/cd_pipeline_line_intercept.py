@@ -30,11 +30,9 @@ plt.rcParams['image.cmap'] = 'coolwarm'
 plt.rcParams['figure.dpi'] = 300
 
 # Settings
-DATA_PATH = '/mnt/10_21_68_20_WMP_Storage/WMP_1221_ATON/Rifo_MT160_AA2024T3/1221EBr0007/01_3D_DIC/00_ALL/Nodemaps'
-# DATA_PATH = '/mnt/10_21_68_20_WMP_Storage/WMP_1221_ATON/Rifo_CT75_AA7010/1222FPa0009/01_3D_DIC/Nodemaps'
+DATA_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Nodemaps')
 
-OUTPUT_PATH = 'ATON_1221EBr0007_crack_detection_line_intercept'
-# OUTPUT_PATH = 'ATON_1221FPa0009_crack_detection_line_intercept'
+OUTPUT_PATH = 'line_intercept_pipeline'
 if not os.path.exists(OUTPUT_PATH):
     os.makedirs(OUTPUT_PATH)
 
@@ -80,10 +78,10 @@ with open(os.path.join(OUTPUT_PATH, f"{OUTPUT_PATH}.txt"), "w") as out_file:
                 # Run crack detection
                 print(f"Crack detection for {file} ...")
                 cd = CrackDetectionLineIntercept(
-                    x_min=5,
-                    x_max=65.0,
-                    y_min=-20.0,
-                    y_max=20.0,
+                    x_min=0,
+                    x_max=25.0,
+                    y_min=-10.0,
+                    y_max=10.0,
                     data=data,
                     tick_size_x=0.1,
                     tick_size_y=0.1,

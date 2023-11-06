@@ -19,15 +19,16 @@ from crackpy.structure_elements.material import Material
 plt.rcParams['image.cmap'] = 'coolwarm'
 plt.rcParams['figure.dpi'] = 300
 
-NODEMAP_FILE = '2BE17F_GOM_90deg_19_15_Stufe_0_10.txt'
-#NODEMAP_FILE = 'ATON_FPa0009_WP1222_1222FPa0009_dic_results_0_609.txt'
-DATA_PATH = os.path.abspath('/home/melc_da/PycharmProjects/dic-crack-detection/data/2BE17F_90deg/Nodemaps')
-#DATA_PATH = os.path.abspath('/mnt/10_21_68_20_WMP_Storage/WMP_1221_ATON/Rifo_CT75_AA7010/1222FPa0009/01_3D_DIC/Nodemaps')
-#OUTPUT_PATH = '1222FPa0009_ai_prediction_corrected'
-OUTPUT_PATH = "2BE17F_90deg_ai_prediction_corrected"
+# settings
+NODEMAP_FILE = 'Dummy2_WPXXX_DummyVersuch_2_dic_results_1_52.txt'
+DATA_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Nodemaps')
+OUTPUT_PATH = "cd_ai_plus_correction"
+if not os.path.exists(OUTPUT_PATH):
+    os.makedirs(OUTPUT_PATH)
 
 material = Material(E=72000, nu_xy=0.33, sig_yield=350)
 
+# Crack detection
 det = CrackDetection(
     side='right',
     detection_window_size=40,
@@ -105,10 +106,10 @@ print(f"Time AI-CrackDetection: {(time.time() - starttime):.2f} s")
 
 starttime = time.time()
 cd = CrackDetectionLineIntercept(
-    x_min=-15.0,
-    x_max=15.0,
-    y_min=-15,
-    y_max=15,
+    x_min=0.0,
+    x_max=25.0,
+    y_min=-10,
+    y_max=10,
     data=data,
     tick_size_x=0.1,
     tick_size_y=0.1,
@@ -149,9 +150,9 @@ crack_tip_corr = correction.correct_crack_tip(
 print(f"Time CrackTipCorrection: {(time.time() - starttime):.2f} s")
 
 # Plot prediction
-results = {
-    'SymReg': crack_tip_corr
+results_corr = {
+    'SymReg': crack_tip_corr,
 }
 
 cd.plot(fname=NODEMAP_FILE[:-4] + '.png', folder=os.path.join(OUTPUT_PATH, 'crack_tip_correction'),
-        crack_tip_results=results, fmax=material.sig_yield)
+        crack_tip_results=results_corr, fmax=material.sig_yield)
