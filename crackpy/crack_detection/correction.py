@@ -118,9 +118,10 @@ class CrackTipCorrection:
                 d_x = -2 * williams_fit_a_n[-1] / williams_fit_a_n[1]
                 d_y = 0
             elif method == 'symbolic_regression':
-                # Symbolic regression method
-                d_x = - williams_fit_a_n[-1] / (williams_fit_a_n[1] + williams_fit_b_n[1])
-                d_y = - williams_fit_b_n[-1] / (williams_fit_a_n[1] - williams_fit_b_n[1])
+                # Symbolic regression method (learned correction function for mode I & mixed mode)
+                # does not work for pure mode II
+                d_x = - williams_fit_a_n[-1] / williams_fit_a_n[1]
+                d_y = - williams_fit_b_n[-1] / williams_fit_a_n[1]
             elif method == 'custom_function':
                 if d_x_str is None or d_y_str is None:
                     raise ValueError('Please provide a function for the correction in x and y as d_x_str and d_y_str.')
@@ -447,3 +448,143 @@ class CrackTipCorrectionGridSearch:
             output.append(williams_fit_b_n[int(term)])
         output = np.array(output)
         return output
+
+
+class CustomCorrection(CrackTipCorrection):
+    def __init__(self, data, crack_tip, crack_angle, material):
+        super().__init__(data, crack_tip, crack_angle, material)
+
+    def custom_correct_crack_tip(
+            self,
+            opt_props,
+            dx_lambdified,
+            dy_lambdified,
+            max_iter=100,
+            step_tol=1e-3,
+            damper=1,
+            verbose=False,
+            plot_intermediate_results=False,
+            cd=None,
+            folder=None,
+    ):
+        """Find exact crack tip position iteratively using the Williams coefficient together with the provided
+        sympy formulas for the correction in x and y.
+
+        Important remark: The formulas are based on the Williams coefficients $A_{-3}$ to
+        $A_7$ and $B_{-3}$ to $B_7$. Therefore skipping some of these terms in the Optimization Properties might lead to
+        wrong correction results in the case when Williams coefficients used in the formulas are missing.
+
+        Args:
+            plot_intermediate_results:
+            opt_props: OptimizationProperties
+            dx_lambdified: lambdified sympy formula for the correction in x
+            dy_lambdified: lambdified sympy formula for the correction in y
+            max_iter: maximum number of iterations
+            step_tol: tolerance for the step :math:`\\Delta x`
+            damper: damper for the step size
+            verbose: If True, print the current iteration
+            folder: Plot folder
+            cd: CrackDetectionIntercept object
+
+        Returns:
+            corrected crack tip position as list of x and y coordinates
+
+        """
+        if not opt_props.terms == [-3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7]:
+            print('Warning: The formulas are based on the Williams coefficients A_-3 to A_7 and B_-3 to B_7. '
+                  'Therefore skipping some of these terms in the Optimization Properties might lead to'
+                  'wrong correction results in case coefficients used in the formulas are missing.')
+            missing_terms = list({-3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7} - set(opt_props.terms))
+            print(f'Missing terms: {missing_terms}')
+        else:
+            missing_terms = []
+
+        # Initialize
+        crack_tip_x = self.crack_tip[0]
+        crack_tip_y = self.crack_tip[1]
+
+        # iterate x-direction until convergence
+        for i in range(max_iter):
+            data_copy = copy.deepcopy(self.data)
+            data_copy.transform_data(crack_tip_x, crack_tip_y, self.crack_angle)
+            # Fit Williams expansion
+            try:
+                williams_fit_a_n, williams_fit_b_n, cost = run_williams_optimization(
+                    data_copy, self.material, opt_props)
+            except:
+                print('Williams fit failed. No correction applied.')
+                ct_corr = [0, 0]
+                return ct_corr
+
+            for term in missing_terms:
+                # fill with zeros
+                williams_fit_a_n[term] = 0
+                williams_fit_b_n[term] = 0
+
+            # custom function from input string
+            d_x = dx_lambdified(
+                williams_fit_a_n[-3], williams_fit_a_n[-2], williams_fit_a_n[-1], williams_fit_a_n[0],
+                williams_fit_a_n[1], williams_fit_a_n[2], williams_fit_a_n[3], williams_fit_a_n[4],
+                williams_fit_a_n[5], williams_fit_a_n[6], williams_fit_a_n[7],
+                williams_fit_b_n[-3], williams_fit_b_n[-2], williams_fit_b_n[-1], williams_fit_b_n[0],
+                williams_fit_b_n[1], williams_fit_b_n[2], williams_fit_b_n[3], williams_fit_b_n[4],
+                williams_fit_b_n[5], williams_fit_b_n[6], williams_fit_b_n[7]
+            )
+            d_y = dy_lambdified(
+                williams_fit_a_n[-3], williams_fit_a_n[-2], williams_fit_a_n[-1], williams_fit_a_n[0],
+                williams_fit_a_n[1], williams_fit_a_n[2], williams_fit_a_n[3], williams_fit_a_n[4],
+                williams_fit_a_n[5], williams_fit_a_n[6], williams_fit_a_n[7],
+                williams_fit_b_n[-3], williams_fit_b_n[-2], williams_fit_b_n[-1], williams_fit_b_n[0],
+                williams_fit_b_n[1], williams_fit_b_n[2], williams_fit_b_n[3], williams_fit_b_n[4],
+                williams_fit_b_n[5], williams_fit_b_n[6], williams_fit_b_n[7]
+            )
+
+            # damper
+            d_x *= damper
+            d_y *= damper
+
+            # rotate shift vector
+            d_x_rot, d_y_rot = self._rotate_data(d_x, d_y)
+
+            # update crack tip position
+            crack_tip_x += d_x_rot
+            crack_tip_y += d_y_rot
+
+            # plot intermediate results
+            if plot_intermediate_results:
+                assert folder is not None, 'Please provide a folder to save the plots.'
+                assert cd is not None, 'Please provide a CrackDetectionIntercept object.'
+                res = {
+                    f"$a_{{-1}} = {williams_fit_a_n[-1]:.2f}, b_{{-1}} = {williams_fit_b_n[-1]:.2f}$":
+                        [crack_tip_x - self.crack_tip[0], crack_tip_y - self.crack_tip[1]]
+                }
+                cd.plot(fname=f'iteration_{i}.png', folder=folder, crack_tip_results=res, fmax=self.material.sig_yield)
+
+            if verbose:
+                print(f"Iteration {i}: dx = {d_x_rot:+.4f}, dy = {d_y_rot:+.4f}, "
+                      f"a_-1 = {williams_fit_a_n[-1]:.4f}, b_-1 = {williams_fit_b_n[-1]:.4f}, "
+                      f"a_1 = {williams_fit_a_n[1]:.4f}, b_1 = {williams_fit_b_n[1]:.4f}, "
+                      f"crack_tip_corrected = ({crack_tip_x:.4f}, {crack_tip_y:.4f})")
+
+            # log iteration
+            williams_dict = {}
+            for key in williams_fit_a_n.keys():
+                williams_dict[f'a_{key}'] = williams_fit_a_n[key]
+            for key in williams_fit_b_n.keys():
+                williams_dict[f'b_{key}'] = williams_fit_b_n[key]
+            williams_df = pd.DataFrame(williams_dict, index=[i])
+
+            process_log = pd.DataFrame({'Iteration': i, 'dx': d_x_rot, 'dy': d_y_rot,
+                                        'crack_tip_x': crack_tip_x,
+                                        'crack_tip_y': crack_tip_y}, index=[i])
+            step_log = pd.concat([process_log, williams_df], axis=1)
+            self.iteration_log = pd.concat([self.iteration_log, step_log], axis=0)
+
+            # stop as soon as correction is smaller than the tolerance
+            if np.sqrt(d_x_rot ** 2 + d_y_rot ** 2) < step_tol:
+                break
+
+        ct_corr = [crack_tip_x - self.crack_tip[0], crack_tip_y - self.crack_tip[1]]
+        print(ct_corr)
+        print('------------------------------------')
+        return ct_corr
