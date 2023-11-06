@@ -86,6 +86,7 @@ class FractureAnalysis:
             self.williams_coeffs = None
             self.williams_fit_a_n = None
             self.williams_fit_b_n = None
+            self.williams_fit_c_n = None
             self.sifs_fit = None
 
         self.integral_properties = integral_properties
@@ -149,19 +150,36 @@ class FractureAnalysis:
 
             try:
                 # calculate Williams coefficients with fitting method
-                williams_results = self.optimization.optimize_williams_displacements()
-                self.williams_coeffs = williams_results.x
-                a_n = self.williams_coeffs[:len(self.optimization.terms)]
-                b_n = self.williams_coeffs[len(self.optimization.terms):]
-                self.williams_fit_a_n = {n: a_n[index] for index, n in enumerate(self.optimization.terms)}
-                self.williams_fit_b_n = {n: b_n[index] for index, n in enumerate(self.optimization.terms)}
+                if self.optimization_properties.dimensions == 2:
+                    williams_results = self.optimization.optimize_williams_displacements()
+                    self.williams_coeffs = williams_results.x
+                    a_n = self.williams_coeffs[:len(self.optimization.terms)]
+                    b_n = self.williams_coeffs[len(self.optimization.terms):]
+                    self.williams_fit_a_n = {n: a_n[index] for index, n in enumerate(self.optimization.terms)}
+                    self.williams_fit_b_n = {n: b_n[index] for index, n in enumerate(self.optimization.terms)}
 
-                # derive stress intensity factors and T-stress [Kuna formula 3.45]
-                K_I = np.sqrt(2 * np.pi) * self.williams_fit_a_n[1] / np.sqrt(1000)
-                K_II = -np.sqrt(2 * np.pi) * self.williams_fit_b_n[1] / np.sqrt(1000)
-                T = 4 * self.williams_fit_a_n[2]
+                    # derive stress intensity factors and T-stress [Kuna formula 3.45]
+                    K_I = np.sqrt(2 * np.pi) * self.williams_fit_a_n[1] / np.sqrt(1000)
+                    K_II = -np.sqrt(2 * np.pi) * self.williams_fit_b_n[1] / np.sqrt(1000)
+                    K_III = 0
+                    T = 4 * self.williams_fit_a_n[2]
+                else:
+                    williams_results = self.optimization.optimize_williams_displacements_3d()
+                    self.williams_coeffs = williams_results.x
+                    a_n = self.williams_coeffs[:len(self.optimization.terms)]
+                    b_n = self.williams_coeffs[len(self.optimization.terms):2 * len(self.optimization.terms)]
+                    c_n = self.williams_coeffs[2 * len(self.optimization.terms):]
+                    self.williams_fit_a_n = {n: a_n[index] for index, n in enumerate(self.optimization.terms)}
+                    self.williams_fit_b_n = {n: b_n[index] for index, n in enumerate(self.optimization.terms)}
+                    self.williams_fit_c_n = {n: c_n[index] for index, n in enumerate(self.optimization.terms)}
 
-                self.sifs_fit = {'Error': williams_results.cost, 'K_I': K_I, 'K_II': K_II, 'T': T}
+                    # derive stress intensity factors and T-stress [Kuna formula 3.45]
+                    K_I = np.sqrt(2 * np.pi) * self.williams_fit_a_n[1] / np.sqrt(1000)
+                    K_II = -np.sqrt(2 * np.pi) * self.williams_fit_b_n[1] / np.sqrt(1000)
+                    K_III = self.williams_fit_c_n[1] * np.sqrt(np.pi / 2) / np.sqrt(1000)
+                    T = 4 * self.williams_fit_a_n[2]
+
+                self.sifs_fit = {'Error': williams_results.cost, 'K_I': K_I, 'K_II': K_II, 'K_III': K_III, 'T': T}
 
             except:
                 print('Williams optimization failed.')

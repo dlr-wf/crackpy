@@ -40,6 +40,56 @@ def williams_stress_field(a: list or np.array, b: list or np.array, terms: list 
     return [sigma_x, sigma_y, sigma_xy]
 
 
+def williams_stress_field_3d(a: list or np.array, b: list or np.array, c: list or np.array, terms: list or np.array,
+                             phi: float, r: float) -> list:
+    """Formula for the stress field around the crack tip in polar coordinates by Williams.
+    [Meinhard Kuna - Numerische Beanspruchungsanalyse formulas (3.41)-(3.55)]
+
+    Args:
+        a: Williams coefficient
+        b: Williams coefficient
+        c: Williams coefficient
+        terms: defines the used Williams coefficients
+        phi: angle from polar coordinates [rad]
+        r: radius from polar coordinates [mm]
+
+    Returns:
+        stresses sigma_x, sigma_y, sigma_xy, sigma_xz, and sigma_yz,
+
+    """
+    sigma_x = 0.0
+    sigma_y = 0.0
+    sigma_xy = 0.0
+    sigma_xz = 0.0
+    sigma_yz = 0.0
+    for index, n in enumerate(terms):
+        sigma_x += n/2 * r**(n/2 - 1) * (a[index] * ((2 + n/2 + (-1)**n) * np.cos((n/2 - 1) * phi)
+                                                 - (n / 2 - 1) * np.cos((n / 2 - 3) * phi))
+                                         - b[index] * ((2 + n/2 - (-1)**n) * np.sin((n/2 - 1) * phi)
+                                                   - (n/2 - 1) * np.sin((n/2 - 3) * phi)))
+        sigma_y += n/2 * r**(n/2 - 1) * (a[index] * ((2 - n/2 - (-1)**n) * np.cos((n/2 - 1) * phi)
+                                                 + (n/2 - 1) * np.cos((n/2 - 3) * phi))
+                                         - b[index] * ((2 - n/2 + (-1)**n) * np.sin((n/2 - 1) * phi)
+                                                   + (n/2 - 1) * np.sin((n/2 - 3) * phi)))
+        sigma_xy += n/2 * r**(n/2 - 1) * (a[index] * ((n/2 - 1) * np.sin((n/2 - 3) * phi)
+                                                  - (n/2 + (-1)**n) * np.sin((n/2 - 1) * phi))
+                                          - b[index] * ((n/2 - 1) * np.cos((n/2 - 3) * phi)
+                                                    - (n/2 - (-1)**n) * np.cos((n/2 - 1) * phi)))
+
+        if n % 2 == 0:
+            L_13 = n / 2 * np.cos(n / 2 - 1) * phi
+            L_23 = -n / 2 * np.sin(n / 2 - 1) * phi
+
+        else:
+            L_13 = n / 2 * np.sin(n / 2 - 1) * phi
+            L_23 = n / 2 * np.cos(n / 2 - 1) * phi
+
+        sigma_xz += n / 2 * r ** (n / 2 - 1) * c[index] * L_13
+        sigma_yz += n / 2 * r ** (n / 2 - 1) * c[index] * L_23
+
+    return [sigma_x, sigma_y, sigma_xy, sigma_xz, sigma_yz]
+
+
 def cjp_displ_field(coeffs: list or np.array, phi: float, r: float, material: Material) -> tuple:
     """Displacement fields around the crack tip in real polar coordinates by means of the **five-parameter CJP model**.
     [see formulas 10 and 11 in Christopher et al. Extension of the CJP model to mixed mode I and mode II (2013)]
@@ -102,6 +152,47 @@ def williams_displ_field(a: list or np.array, b: list or np.array, terms: list o
         disp_y += 1 / (2 * material.G) * r ** (n / 2) * (a[index] * F_2 + b[index] * G_2)
 
     return disp_x, disp_y
+
+
+def williams_displ_field_3d(a: list or np.array, b: list or np.array, c: list or np.array, terms: list or np.array,
+                            phi: float, r: float, material: Material) -> tuple:
+    """Formula for the displacement fields around the crack tip in polar coordinates by Williams.
+    [Meinhard Kuna - Numerische Beanspruchungsanalyse formulas (3.52)-(3.55)]
+
+    Args:
+        a: Williams coefficient
+        b: Williams coefficient
+        c: Williams coefficient
+        terms: defines the used Williams coefficients
+        phi: angle from polar coordinates [rad]
+        r: radius from polar coordinates [mm]
+        material: obj of class Material used to calculate *kappa*
+
+    Returns:
+        displacements disp_x, disp_y, disp_z
+
+    """
+    kappa = material.kappa
+    disp_x = 0.0
+    disp_y = 0.0
+    disp_z = 0.0
+    for index, n in enumerate(terms):
+        F_1 = (kappa + (-1.0) ** n + n / 2) * np.cos(n / 2 * phi) - n / 2 * np.cos((n / 2 - 2) * phi)
+        G_1 = (-kappa + (-1.0) ** n - n / 2) * np.sin(n / 2 * phi) + n / 2 * np.sin((n / 2 - 2) * phi)
+        F_2 = (kappa - (-1.0) ** n - n / 2) * np.sin(n / 2 * phi) + n / 2 * np.sin((n / 2 - 2) * phi)
+        G_2 = (kappa + (-1.0) ** n - n / 2) * np.cos(n / 2 * phi) + n / 2 * np.cos((n / 2 - 2) * phi)
+
+        if n % 2 == 0:
+            H_3 = 2 * np.cos(n / 2 * phi)
+
+        else:
+            H_3 = 2 * np.sin(n / 2 * phi)
+
+        disp_x += 1 / (2 * material.G) * r ** (n / 2) * (a[index] * F_1 + b[index] * G_1)
+        disp_y += 1 / (2 * material.G) * r ** (n / 2) * (a[index] * F_2 + b[index] * G_2)
+        disp_z += 1 / (2 * material.G) * r ** (n / 2) * (c[index] * H_3)
+
+    return disp_x, disp_y, disp_z
 
 
 def eigenfunction(n: int, a_n: float, b_n: float, r: float, theta: float, material: Material) -> tuple:

@@ -95,11 +95,14 @@ class OutputWriter:
                 file.write(f'{"Error":>10}, {"1":>20}, {self.analysis.sifs_fit["Error"]:20.10f} \n')
                 file.write(f'{"K_I":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.sifs_fit["K_I"]:20.10f} \n')
                 file.write(f'{"K_II":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.sifs_fit["K_II"]:20.10f} \n')
+                file.write(f'{"K_III":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.sifs_fit["K_III"]:20.10f} \n')
                 file.write(f'{"T":>10}, {"MPa":>20}, {self.analysis.sifs_fit["T"]:20.10f} \n')
                 for n, a in self.analysis.williams_fit_a_n.items():
                     file.write(f'{f"a_{n}":>10}, {unit_of_williams_coefficients(n):>20}, {a:20.10f} \n')
                 for n, b in self.analysis.williams_fit_b_n.items():
                     file.write(f'{f"b_{n}":>10}, {unit_of_williams_coefficients(n):>20}, {b:20.10f} \n')
+                for n, c in self.analysis.williams_fit_c_n.items():
+                    file.write(f'{f"c_{n}":>10}, {unit_of_williams_coefficients(n):>20}, {c:20.10f} \n')
                 file.write('</Williams_fit_results>\n')
                 file.write('\n')
 
