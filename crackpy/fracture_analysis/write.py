@@ -410,6 +410,9 @@ class OutputWriter:
                                                         "result": self.analysis.sifs_fit["K_I"]}
             json_dict['Williams_fit_results']['K_II'] = {"unit": "MPa*m^{1/2}",
                                                          "result": self.analysis.sifs_fit["K_II"]}
+            json_dict['Williams_fit_results']['K_III'] = {"unit": "MPa*m^{1/2}",
+                                                          "result": self.analysis.sifs_fit["K_III"]}
+
             json_dict['Williams_fit_results']['T'] = {"unit": "MPa",
                                                       "result": self.analysis.sifs_fit["T"]}
             for n, a in self.analysis.williams_fit_a_n.items():
@@ -418,6 +421,9 @@ class OutputWriter:
             for n, b in self.analysis.williams_fit_b_n.items():
                 json_dict['Williams_fit_results'][f'b_{n}'] = {"unit": unit_of_williams_coefficients(n),
                                                                "result": b}
+            for n, c in self.analysis.williams_fit_c_n.items():
+                json_dict['Williams_fit_results'][f'c_{n}'] = {"unit": unit_of_williams_coefficients(n),
+                                                               "result": c}
         if self.analysis.integral_properties is not None:
             json_dict['SIFs_integral'] = {}
             json_dict['SIFs_integral']['J'] = {"unit": "N/mm",

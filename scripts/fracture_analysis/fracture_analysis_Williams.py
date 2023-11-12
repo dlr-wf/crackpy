@@ -94,7 +94,7 @@ eps_xy[:, int(steps / 2):] = 0.5 * (np.gradient(disp_u_mesh[:, int(steps / 2):],
                                     np.gradient(disp_v_mesh[:, int(steps / 2):], dist, axis=1))
 
 int_props = IntegralProperties(
-    number_of_paths=2,
+    number_of_paths=10,
     number_of_nodes=100,
 
     bottom_offset=-0.05,
@@ -120,7 +120,8 @@ opt_props = OptimizationProperties(
     min_radius=5,
     max_radius=10,
     tick_size=0.01,
-    terms=[-1, 0, 1, 2, 3, 4, 5]
+    terms=[-1, 0, 1, 2, 3, 4, 5],
+    dimensions=3
 )
 
 ct = CrackTipInfo(0, 0, 0, 'right')
