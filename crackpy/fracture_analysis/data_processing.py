@@ -70,6 +70,12 @@ class InputData:
         self.sig_2 = None
         self.connections = None
 
+        #Mode III
+        self.eps_xz = None
+        self.eps_yz = None
+        self.sigma_xz = None
+        self.sigma_yz = None
+
         # meta data attributes
         self.meta_attributes = [
             'force',
