@@ -293,11 +293,7 @@ class DicToCrackPy:
         if is_constant:
             self.script.sys.edit_creation_parameters(
                 element=self.gom_app.project.inspection[name],
-                type={'abbreviation': 'Benutzer', 'actual_expression': value,
-                      'base_type': 'construct_user_defined',
-                      'geometry': 'scalar', 'inputs': [],
-                      'nominal_expression': '0.0', 'reduce_to_scalar': False,
-                      'type_name': 'Benutzer', 'unit': 'UNIT_NONE'})
+                value=value)
 
     def get_result_dict(self, current_stage_index: int) -> dict:
         """Gets all results as np.arrays and save to a dictionary.
@@ -427,7 +423,7 @@ class DicToCrackPy:
         return stage_process_data, rmbc_data
 
     # Crack Tip Detection
-    def setup_cracktip_detection(self, side: str, interp_size: float, offset: tuple,
+    def setup_cracktip_detection(self, side: str, interp_size: float, offset: tuple, find_path: bool = False,
                                  crack_path_radius: float or None = 50, export_folder: str or None = None):
         """Function to setup the parameters for crack tip detection method.
 
@@ -444,6 +440,7 @@ class DicToCrackPy:
 
         self.cracktip_detection_setup = AramisCrackDetectionSetup(side=side, interp_size=interp_size,
                                                                   offset=offset,
+                                                                  find_path=find_path,
                                                                   angle_det_radius=crack_path_radius,
                                                                   export_folder=export_folder)
         print(f"Setup crack tip detection:\n"
@@ -498,34 +495,39 @@ class DicToCrackPy:
         print(f"Crack tip y [mm]: {crack_tip_y}")
 
         # path detection
-        cp_segmentation, cp_skeleton = self.cracktip_detection_setup.cp_det.predict_path(input_ch)
+        if self.cracktip_detection_setup.cp_det:
+            cp_segmentation, cp_skeleton = self.cracktip_detection_setup.cp_det.predict_path(input_ch)
 
-        # Angle estimation
-        angle_est = crack_detection.detection.CrackAngleEstimation(detection=self.cracktip_detection_setup.det,
-                                                                   crack_tip_in_px=crack_tip_pixels)
+            # Angle estimation
+            angle_est = crack_detection.detection.CrackAngleEstimation(detection=self.cracktip_detection_setup.det,
+                                                                       crack_tip_in_px=crack_tip_pixels)
 
-        # Consider only crack path close to crack tip
-        cp_segmentation_masked = angle_est.apply_circular_mask(cp_segmentation)
+            # Consider only crack path close to crack tip
+            cp_segmentation_masked = angle_est.apply_circular_mask(cp_segmentation)
 
-        # Filter for largest connected crack path
-        cp_segmentation_largest_region = angle_est.get_largest_region(cp_segmentation_masked)
+            # Filter for largest connected crack path
+            cp_segmentation_largest_region = angle_est.get_largest_region(cp_segmentation_masked)
 
-        # Estimate the angle
-        angle = angle_est.predict_angle(cp_segmentation_largest_region)
-        print(f"Crack angle [deg]: {angle}")
+            # Estimate the angle
+            angle = angle_est.predict_angle(cp_segmentation_largest_region)
+            print(f"Crack angle [deg]: {angle}")
+
+        else:
+            cp_skeleton = None
+            angle = None
 
         # Plot predictions
         crack_detection.utils.plot.plot_prediction(background=interp_eps_vm * 100,
                                                    interp_size=det.interp_size,
                                                    offset=det.offset,
-                                                   save_name=f"{self.project.stages[self._get_current_stage_indx()].name}_crack_detection",
+                                                   save_name=f"{self.project.stages[self._get_current_stage_indx()].name}_crack_detection_{det.side}",
                                                    crack_tip_prediction=np.asarray([crack_tip_pixels]),
                                                    crack_tip_seg=crack_tip_seg,
                                                    crack_tip_label=None,
                                                    crack_path=cp_skeleton,
                                                    f_min=0,
                                                    f_max=100.0*(self.material.sig_yield / self.material.E) + 0.2,
-                                                   title=f"{self.project.stages[self._get_current_stage_indx()].name}_crack_detection",
+                                                   title=f"{self.project.stages[self._get_current_stage_indx()].name}_crack_detection_{det.side}",
                                                    path=self.cracktip_detection_setup.export_folder,
                                                    label='Eqv strain [%]')
 
@@ -735,6 +737,13 @@ class DicToCrackPy:
 
         # get input signals
         out_file.write("# SIGNALS:\n")
+        gom_value_elements = self.project.inspection.filter('type', 'inspection_value_element')
+        for gom_value_element in gom_value_elements:
+            out_file.write(
+                f"# {str(gom_value_element.get('name')).ljust(30)}: "
+                f"{str(gom_value_element.get('type')).ljust(20)}: "
+                f"{str(gom_value_element.get('input_value'))}\n")
+        out_file.write('#\n')
         gom_value_elements = self.project.actual_elements.filter('type', 'value_element')
         for gom_value_element in gom_value_elements:
             out_file.write(
@@ -893,7 +902,7 @@ class DicToCrackPy:
 
 class AramisCrackDetectionSetup:
     """Setup class for Crack Detector. Must be initialized to define the crack detection settings."""
-    def __init__(self, side: str, interp_size: float, angle_det_radius: float or None,
+    def __init__(self, side: str, interp_size: float, find_path: bool, angle_det_radius: float or None,
                  offset: tuple, export_folder: os.path = None):
         """Initialize class arguments.
 
@@ -921,7 +930,11 @@ class AramisCrackDetectionSetup:
 
         # load crack detection models
         self.tip_detector = crack_detection.model.get_model('ParallelNets')
-        self.path_detector = crack_detection.model.get_model('UNetPath')
-
         self.ct_det = crack_detection.detection.CrackTipDetection(detection=self.det, tip_detector=self.tip_detector)
-        self.cp_det = crack_detection.detection.CrackPathDetection(detection=self.det, path_detector=self.path_detector)
+
+        if find_path:
+            self.path_detector = crack_detection.model.get_model('UNetPath')
+            self.cp_det = crack_detection.detection.CrackPathDetection(detection=self.det,
+                                                                       path_detector=self.path_detector)
+        else:
+            self.cp_det = None
