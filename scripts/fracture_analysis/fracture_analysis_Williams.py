@@ -21,9 +21,6 @@ import os
 
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib import cm
-from matplotlib.colors import ListedColormap
-
 from crackpy.fracture_analysis.analysis import FractureAnalysis
 from crackpy.fracture_analysis.data_processing import InputData, CrackTipInfo
 from crackpy.fracture_analysis.line_integration import IntegralProperties
@@ -32,7 +29,7 @@ from crackpy.fracture_analysis.plot import PlotSettings, Plotter
 from crackpy.fracture_analysis.write import OutputWriter
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
-from crackpy.fracture_analysis.crack_tip import williams_displ_field, williams_stress_field
+from crackpy.fracture_analysis.crack_tip import williams_displ_field
 
 ########################
 # INPUT specifications #
@@ -94,7 +91,7 @@ eps_xy[:, int(steps / 2):] = 0.5 * (np.gradient(disp_u_mesh[:, int(steps / 2):],
                                     np.gradient(disp_v_mesh[:, int(steps / 2):], dist, axis=1))
 
 int_props = IntegralProperties(
-    number_of_paths=10,
+    number_of_paths=1,
     number_of_nodes=100,
 
     bottom_offset=-0.05,
