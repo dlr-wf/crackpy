@@ -50,6 +50,7 @@ class CrackDetectionLineIntercept:
         """
         self.tip_index = 0
         self.eps_vm_crack_path = None
+        self.x_path = None
         self.y_path = None
         self.coefficients_fitted = None
         self.data = data
@@ -83,47 +84,55 @@ class CrackDetectionLineIntercept:
         # Fit a Formula to each slice of the grid
         coefficients_fitted = []
         init_coeff = 0.0
-        for step in range(len(self.x_coords)):
-            init_coeffs = [1.0, init_coeff, 1.0, 0.0, 0.0]
-            res = optimize.least_squares(
-                fun=self._residuals_tanh,
-                x0=init_coeffs,
-                args=(self.y_coords, self.disp_grid[:, step]),
-                bounds=([-np.inf, self.y_min, -np.inf, -np.inf, -np.inf], [np.inf, self.y_max, np.inf, np.inf, np.inf]),
-                method='trf'
-            )
-            fitted_coefficients = res.x
-            init_coeff = fitted_coefficients[1]
-            coefficients_fitted.append(fitted_coefficients)
+        self.x_path = []
+        for step, x_coordinate in enumerate(self.x_coords):
+            if not np.isnan(self.disp_grid[:, step]).all():
+                init_coeffs = [1.0, init_coeff, 1.0, 0.0, 0.0]
+                res = optimize.least_squares(
+                    fun=self._residuals_tanh,
+                    x0=init_coeffs,
+                    args=(self.y_coords, self.disp_grid[:, step]),
+                    bounds=([-np.inf, self.y_min, -np.inf, -np.inf, -np.inf], [np.inf, self.y_max, np.inf, np.inf, np.inf]),
+                    method='trf'
+                )
+                fitted_coefficients = res.x
+                init_coeff = fitted_coefficients[1]
+                coefficients_fitted.append(fitted_coefficients)
+                self.x_path.append(x_coordinate)
 
         self.coefficients_fitted = np.asarray(coefficients_fitted).T
         self.y_path = np.asarray(self.coefficients_fitted[1, :])
 
+
         # Find the crack tip
         self.eps_vm_crack_path = scipy.interpolate.griddata((self.data.coor_x, self.data.coor_y), self.data.eps_vm,
-                                                       (self.x_coords, self.y_path), method='linear')
+                                                       (self.x_path, self.y_path), method='linear')
         self.tip_index = 0
-        window_size = 3
         reversed_eps_vm_crack_path = self.eps_vm_crack_path[::-1]
-        for i in range(len(reversed_eps_vm_crack_path) - window_size + 1):
-            if np.all(reversed_eps_vm_crack_path[i:i + window_size] > self.eps_vm_threshold):
+        for i in range(len(reversed_eps_vm_crack_path) - self.window_size + 1):
+            if np.all(reversed_eps_vm_crack_path[i:i + self.window_size] > self.eps_vm_threshold):
                 self.tip_index = len(reversed_eps_vm_crack_path) - i - 1
                 break
+        if self.tip_index > 0:
+            self.crack_tip = np.asarray([self.x_path[self.tip_index], self.y_path[self.tip_index]])
+            self.crack_path = np.stack([self.x_path[0:self.tip_index], self.y_path[0:self.tip_index]], axis=-1)
 
-        self.crack_tip = np.asarray([self.x_coords[self.tip_index], self.y_path[self.tip_index]])
-        self.crack_path = np.stack([self.x_coords[0:self.tip_index], self.y_path[0:self.tip_index]], axis=-1)
+            # crack angle estimation
+            angle_estimation_px_radius = int(self.angle_estimation_mm_radius / self.tick_size_x)
 
-        # crack angle estimation
-        angle_estimation_px_radius = int(self.angle_estimation_mm_radius / self.tick_size_x)
-
-        # linear fit near crack tip
-        x = self.crack_path[-angle_estimation_px_radius:-1, 0]
-        y = self.crack_path[-angle_estimation_px_radius:-1, 1]
-        line_coeffs = np.polyfit(x, y, 1)
-        m = line_coeffs[0]
-        c = line_coeffs[1]
-        yy = m * x + c
-        self.crack_angle = np.arctan2(yy[-1] - yy[0], x[-1] - x[0]) * 180.0 / np.pi
+            # linear fit near crack tip
+            x = self.crack_path[-angle_estimation_px_radius:-1, 0]
+            y = self.crack_path[-angle_estimation_px_radius:-1, 1]
+            line_coeffs = np.polyfit(x, y, 1)
+            m = line_coeffs[0]
+            c = line_coeffs[1]
+            yy = m * x + c
+            self.crack_angle = np.arctan2(yy[-1] - yy[0], x[-1] - x[0]) * 180.0 / np.pi
+        else:
+            self.crack_tip = np.asarray([np.nan, np.nan])
+            self.crack_path = np.stack([np.nan, np.nan], axis=-1)
+            self.crack_angle = np.nan
+            print('No crack tip detected')
 
     def plot(self, fname: str, folder: str, crack_tip_results: dict= None,
              crack_tip_position: dict = None, fmin: float = 0, fmax: float = 0.0068, plot_window: list = None):
