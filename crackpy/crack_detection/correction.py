@@ -433,12 +433,12 @@ class CrackTipCorrectionGridSearch:
         """
         dx, dy = shift_x_y
         data_copy = copy.deepcopy(self.data)
-        data_copy.transform_data(self.crack_tip[0] + dx, self.crack_tip[1] + dy, self.crack_angle)
+        data_copy.transform_data(self.crack_tip[0] + dx, self.crack_tip[1] + dy, self.crack_angle + delta_phi)
 
         williams_fit_a_n, williams_fit_b_n, error = run_williams_optimization(data_copy, self.material, opt_props)
 
         if verbose:
-            print(f"Iteration: dx = {dx:+.4f}, dy = {dy:+.4f}, error = {error:.8f}, "
+            print(f"Iteration: dx = {dx:+.4f}, dy = {dy:+.4f}, dphi = {delta_phi:+.4f} deg, error = {error:.8f}, "
                   f"a_-1 = {williams_fit_a_n[-1]}, b_-1 = {williams_fit_b_n[-1]}")
 
         output = [dx, dy, delta_phi, error]
