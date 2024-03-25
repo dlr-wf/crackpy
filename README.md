@@ -32,6 +32,7 @@ stress intensity factors which take effects of plasticity into account.
 
 The following graph shows an overview over the main CrackPy modules **structure elements**, **dic**, **simulation**, **crack detection**, and 
 **fracture analysis**.
+
 | ![CrackPy](./example_images/overview_package.png) |
 |:--:|
 | **_Overview of main modules, functions and files in CrackPy_** |
@@ -44,12 +45,12 @@ specific software. Therefore, these modules can only be used if CrackPy is insta
 an actual GOM Aramis Professional software >v2020 (in case of **dic**) or if a valid version and license of Ansys is available 
 (in case of **simulation**). For more details, we refer to our Wiki. Once you have stored your nodemap files either from dic, 
 simulation or from a different source, you reach the heart of our fracture analysis. You can detect crack paths and crack tips fully automatically
-using our **crack detection** module. This module provides a line intersection method together with an iterative crack tip correction algorithm based on the Williams expansion and our trained convolutional neural networks [**4**, **9**]. 
+using our **crack detection** module. This module provides a line intersection method together with an iterative crack tip correction algorithm based on the Williams expansion [**15**] and our trained convolutional neural networks [**4**, **9**]. 
 We store the crack tip information in a file (this can also be generated manually) and use it as input for 
 the **fracture analysis** pipeline. Here we offer a wide range of methods and algorithms: 
 1. Calculate _J-integral_ [**5**, **10**]
 2. Calculate stress intensity factors (mode I, mode II) by _interaction integral technique_ [**11**, **12**]
-3. Calculate stress intensity factors and Williams series coefficients using _Bueckner's conjugate work integral_ [**6**]
+3. Calculate stress intensity factors and Williams series coefficients using _Bueckner's conjugate work integral_ [**6**, **14**]
 4. Calculate _higher order singular terms (HOSTs)_ or _higher order regular terms (HORTs)_ of the Williams series [**7**] by fitting the 
    theoretical displacement field to the experimental (or simulated) data.
 5. Calculate CJP stress intensity factors which may take effects of plasticity into account by fitting the theoretical displacement field of the _CJP model_ [**8**] the experimental (or simulated) data [**13**]   
@@ -118,6 +119,12 @@ References:
 13. **Christopher C et al. (2007)** Towards a new model of crack tip stress fields.
     _International Journal of Fracture 148(4): 361-371_
     [https://doi.org/10.1007/s10704-008-9209-3](https://doi.org/10.1007/s10704-008-9209-3)
+14. **Melching D et al. (2023)** Advanced crack tip field characterization using conjugate work integrals.
+    _International Journal of Fatigue 107501, 169_
+    [https://doi.org/10.1016/j.ijfatigue.2023.107501](https://doi.org/10.1016/j.ijfatigue.2023.107501)
+15. **Melching D et al. (2024)** A universal crack tip correction algorithm discovered by physical deep symbolic regression.
+    _Preprint_
+    [https://arxiv.org/abs/2403.10320](https://arxiv.org/abs/2403.10320)
 
 
 ## Installation
