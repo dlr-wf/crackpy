@@ -84,6 +84,7 @@ def single_run(
     writer = OutputWriter(path=os.path.join(output_path, 'txt-files'), fracture_analysis=analysis)
     writer.write_header()
     writer.write_results()
+    writer.write_json(path=os.path.join(output_path, 'json'))
 
     # plot paths and results_df
     if plot_sets is not None:

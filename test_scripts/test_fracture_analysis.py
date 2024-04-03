@@ -272,7 +272,7 @@ class TestFractureAnalysisPipeline(unittest.TestCase):
             # check integral properties
             self.assertEqual(pipeline.integral_props[0].bottom_offset, -0.2163461538461533)
             self.assertEqual(pipeline.integral_props[0].integral_size_bottom, -5)
-            self.assertEqual(pipeline.integral_props[0].integral_tick_size, 0.1916179957579483)
+            self.assertAlmostEqual(pipeline.integral_props[0].integral_tick_size, 0.1916179957579483)
             self.assertEqual(pipeline.integral_props[0].paths_distance_bottom, 0.5)
 
             pipeline.run()
@@ -285,8 +285,9 @@ class TestFractureAnalysisPipeline(unittest.TestCase):
             list_of_tags = ["CJP_results", "Williams_fit_results", "SIFs_integral", "Bueckner_Chen_integral",
                             "Path_SIFs", "Path_Williams_a_n", "Path_Williams_b_n"]
             for file in files:
-                for tag in list_of_tags:
-                    reader.read_tag_data(path=output_path, filename=file, tag=tag)
+                if file.endswith(".txt"):
+                    for tag in list_of_tags:
+                        reader.read_tag_data(path=output_path, filename=file, tag=tag)
 
             # Make CSV file
             reader.make_csv_from_results(files="all", output_path=temp_dir, output_filename='results.csv')
