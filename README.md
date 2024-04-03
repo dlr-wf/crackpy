@@ -45,7 +45,8 @@ specific software. Therefore, these modules can only be used if CrackPy is insta
 an actual GOM Aramis Professional software >v2020 (in case of **dic**) or if a valid version and license of Ansys is available 
 (in case of **simulation**). For more details, we refer to our Wiki. Once you have stored your nodemap files either from dic, 
 simulation or from a different source, you reach the heart of our fracture analysis. You can detect crack paths and crack tips fully automatically
-using our **crack detection** module. This module provides a line intersection method together with an iterative crack tip correction algorithm based on the Williams expansion [**15**] and our trained convolutional neural networks [**4**, **9**]. 
+using our **crack detection** module. This module provides two independent methodologies for crack detection - 
+our line intercept method together with an iterative crack tip correction algorithm based on the Williams expansion [**15**] and our trained convolutional neural networks [**4**, **9**]. 
 We store the crack tip information in a file (this can also be generated manually) and use it as input for 
 the **fracture analysis** pipeline. Here we offer a wide range of methods and algorithms: 
 1. Calculate _J-integral_ [**5**, **10**]
@@ -150,8 +151,10 @@ _Strohmann T, Melching D, Paysan F, Klein A, Dietrich E, Requena G and Breitbart
 **Crack Analysis Tool in Python - CrackPy** (2022)\
 [DOI: 10.5281/zenodo.7319653](https://doi.org/10.5281/zenodo.7319653)
 
-## Get in touch 
-If you are interested in the code, or in our work in general, feel free to contact us.
+## Get in touch
+If you are interested in the code, or in our work in general, feel free to contact us 
+via email at [eric.breitbarth@dlr.de](mailto:eric.breitbarth@dlr.de).
+
 If you want to contribute to this repository just get in touch, too. We will be happy. 
 
 ## Intellectual Property and Authorship 
@@ -160,21 +163,17 @@ This package is property of the German Aerospace Center
 and was developed in the Institute of Materials Research. Feel free to check out our [LinkedIn channel](https://www.linkedin.com/company/dlr-wf).
 
 **Authors:**\
-_Tobias Strohmann_ (tobias.strohmann@dlr.de)\
-_David Melching_ (david.melching@dlr.de)\
+_Tobias Strohmann_\
+_David Melching_\
 _Florian Paysan_\
-_Alina Klein_\
 _Eric Dietrich_\
 _Guillermo Requena_\
-_Eric Breitbarth_ (eric.breitbarth@dlr.de)
+_Eric Breitbarth_
 
 **Contributors:**\
 We thank\
 _Vanessa Schöne_\
+_Alina Klein_\
 _Ferdinand Dömling_\
 _Erik Schultheis_\
 for continuous support regarding tests and user feedback for the package.
-
-
-
-
