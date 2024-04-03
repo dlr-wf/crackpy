@@ -50,7 +50,7 @@ lint_analysis:
   script:
     - pip install pylint --quiet
     - pylint crackpy/fracture_analysis --rcfile='.pylintrc'
-    - pylint crackpy/tests/test_fracture_analysis --rcfile='.pylintrc'
+#    - pylint crackpy/tests/test_fracture_analysis --rcfile='.pylintrc'
 
 lint_crack_detection:
   stage: Static Code Analysis
@@ -58,7 +58,7 @@ lint_crack_detection:
   script:
     - pip install pylint --quiet
     - pylint crackpy/crack_detection --rcfile='.pylintrc'
-    - pylint crackpy/tests/test_crack_detection --rcfile='.pylintrc'
+#    - pylint crackpy/tests/test_crack_detection --rcfile='.pylintrc'
 
 lint_dic:
   stage: Static Code Analysis

@@ -5,7 +5,6 @@ import tempfile
 
 import numpy as np
 import torch
-import numpy
 import matplotlib.pyplot as plt
 
 from crackpy.crack_detection.deep_learning.attention import SegGradCAM, ParallelNetsWithHooks, plot_overview
@@ -44,7 +43,7 @@ class TestSegGradCAM(unittest.TestCase):
                                  'test_data', 'crack_detection', 'output',
                                  'visualization', 'seggradcam')
         exp_output = torch.load(os.path.join(base_path, 'exp_output.pt'))
-        exp_heatmap = numpy.load(os.path.join(base_path, 'exp_heatmap.npy'))
+        exp_heatmap = np.load(os.path.join(base_path, 'exp_heatmap.npy'))
 
         # calculate output and features in forward pass
         act_output, act_heatmap = self.sgc(input_t)
@@ -56,7 +55,7 @@ class TestSegGradCAM(unittest.TestCase):
                                  'test_data', 'crack_detection', 'output',
                                  'visualization', 'seggradcam')
         output = torch.load(os.path.join(base_path, 'exp_output.pt'))
-        heatmap = numpy.load(os.path.join(base_path, 'exp_heatmap.npy'))
+        heatmap = np.load(os.path.join(base_path, 'exp_heatmap.npy'))
 
         # plot qualitative
         fig = self.sgc.plot(output, heatmap, scale='QUALITATIVE')

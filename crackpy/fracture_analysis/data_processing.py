@@ -354,12 +354,13 @@ class InputData:
 
         return new_node_number
 
-    def to_vtk(self, output_folder: str = None):
+    def to_vtk(self, output_folder: str = None, alpha: float = 1.0):
         """Returns a vtk file of the DIC data.
 
         Args:
             output_folder: path to output folder; If None, no vtk file will be saved. The output file name will be the
                          same as the input file name with the extension .vtk
+            alpha: alpha value for the Delaunay triangulation (only used if no connectivity data is provided)
 
         Returns:
             PyVista mesh object
@@ -391,9 +392,9 @@ class InputData:
             mesh = pyvista.UnstructuredGrid(elements, cell_types, nodes)
 
         else:
-            print(f'No connectivity data provided for {self.nodemap_name}. Reconstructing a mesh from the nodes using Delaunay triangulation.')
+            print(f'No connectivity data provided for {self.nodemap_name}. Reconstructing a mesh from the nodes using Delaunay triangulation with alpha = {alpha}.')
             cloud = pyvista.wrap(nodes)
-            mesh = cloud.delaunay_2d(alpha=1.0)
+            mesh = cloud.delaunay_2d(alpha=alpha)
 
 
         # add data
