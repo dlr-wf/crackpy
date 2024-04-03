@@ -9,8 +9,6 @@ authors:
   orcid: "https://orcid.org/0000-0001-5111-6511"
 - family-names: "Paysan"
   given-names: "Florian"
-- family-names: "Klein"
-  given-names: "Alina"
 - family-names: "Dietrich"
   given-names: "Eric"
 - family-names: "Requena"
@@ -20,7 +18,7 @@ authors:
   given-names: "Eric"
   orcid: "https://orcid.org/0000-0002-3479-9143"
 title: "Crack Analysis Tool in Python - CrackPy"
-version: 1.0.0
+version: 1.2.0
 doi: tbd
-date-released: 2022-11-14
+date-released: 2024-04-03
 url: "https://github.com/dlr-wf/crackpy"
