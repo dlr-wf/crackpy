@@ -241,22 +241,25 @@ class InputData:
         self.eps_xy = np.asarray(eps_xy)
 
         # transformation sig' = R * sig * R^T for each node
-        sig_x, sig_y, sig_xy = [], [], []
-        for node_i, _ in enumerate(self.sig_x):
-            stress_i = np.array([[self.sig_x[node_i], self.sig_xy[node_i]],
-                                 [self.sig_xy[node_i], self.sig_y[node_i]]])
-            stress_i = np.dot(stress_i, trafo_matrix.T)
-            stress_i = np.dot(trafo_matrix, stress_i)
-            sig_x.append(stress_i[0, 0])
-            sig_y.append(stress_i[1, 1])
-            sig_xy.append(stress_i[0, 1])
-        self.sig_x = np.asarray(sig_x)
-        self.sig_y = np.asarray(sig_y)
-        self.sig_xy = np.asarray(sig_xy)
+        stress_exists = self.sig_x is not None and self.sig_y is not None and self.sig_xy is not None
+        if stress_exists:
+            sig_x, sig_y, sig_xy = [], [], []
+            for node_i, _ in enumerate(self.sig_x):
+                stress_i = np.array([[self.sig_x[node_i], self.sig_xy[node_i]],
+                                     [self.sig_xy[node_i], self.sig_y[node_i]]])
+                stress_i = np.dot(stress_i, trafo_matrix.T)
+                stress_i = np.dot(trafo_matrix, stress_i)
+                sig_x.append(stress_i[0, 0])
+                sig_y.append(stress_i[1, 1])
+                sig_xy.append(stress_i[0, 1])
+            self.sig_x = np.asarray(sig_x)
+            self.sig_y = np.asarray(sig_y)
+            self.sig_xy = np.asarray(sig_xy)
 
         # recalculate Von Mises stress and eq. strain
         self.eps_vm = self.calc_eps_vm()
-        self.sig_vm = self._calc_sig_vm()
+        if stress_exists:
+            self.sig_vm = self._calc_sig_vm()
 
     def calc_eps_vm(self):
         """Calculate and return Von Mises equivalent strain.
@@ -354,12 +357,13 @@ class InputData:
 
         return new_node_number
 
-    def to_vtk(self, output_folder: str = None, alpha: float = 1.0):
+    def to_vtk(self, output_folder: str = None, metadata: bool = True, alpha: float = 1.0):
         """Returns a vtk file of the DIC data.
 
         Args:
             output_folder: path to output folder; If None, no vtk file will be saved. The output file name will be the
                          same as the input file name with the extension .vtk
+            metadata: if True, metadata will be added to the vtk file
             alpha: alpha value for the Delaunay triangulation (only used if no connectivity data is provided)
 
         Returns:
@@ -425,13 +429,16 @@ class InputData:
         mesh.point_data['eps_2 [%]'] = self.eps_2 * 100.0
 
         # add metadata
-        self.read_header()
-        for meta_attribute in self.meta_attributes:
-            meta_data = getattr(self, meta_attribute)
-            mesh.field_data[meta_attribute] = [meta_data]
+        if metadata:
+            self.read_header()
+            for meta_attribute in self.meta_attributes:
+                meta_data = getattr(self, meta_attribute)
+                mesh.field_data[meta_attribute] = [meta_data]
 
         # write vtk file
         if output_folder is not None:
+            if not os.path.exists(output_folder):
+                os.makedirs(output_folder)
             path = os.path.join(output_folder, self.nodemap_name[:-4] + '.vtk')
             mesh.save(path, binary=False)
         return mesh

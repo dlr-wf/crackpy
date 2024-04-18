@@ -167,35 +167,31 @@ class DicToCrackPy:
 
     def _check_surface_components(self):
         """Checks if all necessary data are calculated."""
-        gom_value_elements = self.project.actual_elements.filter('type', 'surface_component')
-        value_element_name = gom_value_elements[0].get('name')
-
-        gom_actual_value_elements = self.project.actual_elements.filter('type', 'inspection_surface_componentt')
-        actual_value_elements = []
-        for gom_element in gom_actual_value_elements:
-            actual_value_elements.append(gom_element.get('name'))
+        gom_surface_component_elements = self.project.actual_elements.filter('type', 'surface_component')
+        surface_component_element_name = gom_surface_component_elements[0].get('name')
 
         actual_surf_elements = []
         for gom_element in self.project.inspection:
             actual_surf_elements.append(gom_element.get('name'))
 
         for result_string in self.result_types.keys():
-            if value_element_name + result_string not in actual_surf_elements:
+            if surface_component_element_name + result_string not in actual_surf_elements:
                 if self.result_types[result_string] == "displacement":
                     distance_restriction = self.disp_directions[result_string]
                     _ = self.script.inspection.inspect_dimension(
-                        elements=[self.project.actual_elements[value_element_name]],
+                        elements=[self.project.actual_elements[surface_component_element_name]],
                         distance_restriction=distance_restriction,
                         nominal_value=0.0,
                         nominal_value_source='fixed_value',
                         type=self.result_types[result_string])
                 else:
                     _ = self.script.inspection.inspect_dimension(
-                        elements=[self.project.actual_elements[value_element_name]],
+                        elements=[self.project.actual_elements[surface_component_element_name]],
                         nominal_value=0.0,
                         nominal_value_source='fixed_value',
                         type=self.result_types[result_string])
-                print(f"Creating surface element '{value_element_name + result_string}' against nominal value = 0.0.")
+                print(f"Creating surface element '{surface_component_element_name + result_string}' "
+                      f"against nominal value = 0.0.")
         print("Recalculating...")
         self.script.sys.recalculate_project(with_reports=False)
         print("...done.")
@@ -425,12 +421,13 @@ class DicToCrackPy:
     # Crack Tip Detection
     def setup_cracktip_detection(self, side: str, interp_size: float, offset: tuple, find_path: bool = False,
                                  crack_path_radius: float or None = 50, export_folder: str or None = None):
-        """Function to setup the parameters for crack tip detection method.
+        """Function to set up the parameters for crack tip detection method.
 
         Args:
             side: can either be 'left' or 'right' defining the specimen side
             interp_size: size of the interpolation region in mm
             offset: tuple of positions of left edge and vertical offset of interpolation region in mm
+            find_path: if True, crack path will be detected
             crack_path_radius: radius w.r.t. crack tip used to calculate the crack path angle in pixels
             export_folder: if given, indicates the export folder relative path
 
@@ -460,7 +457,6 @@ class DicToCrackPy:
         data = InputData()
 
         result_dic = self.get_result_dict(current_stage_index=self._get_current_stage_indx())
-
 
         data.set_data_manually(
             coor_x=result_dic["x_undef"],
@@ -557,7 +553,6 @@ class DicToCrackPy:
 
         result_dic = self.get_result_dict(current_stage_index=self._get_current_stage_indx())
 
-        print("calc_actual_sifs: eps_x and eps_y in [%], eps_xy in [1]!")
         data.set_data_manually(
             coor_x=result_dic["x_undef"],
             coor_y=result_dic["y_undef"],
@@ -909,7 +904,7 @@ class AramisCrackDetectionSetup:
         Args:
              side: "left" or "right"
              interp_size: size in mm of interpolation for the crack tip detection. Choose such that the crack tip
-                          lies inside this region. Moreover, the area should not be larger than he specimen
+                          lies inside this region. Moreover, the area should not be larger than the specimen
              angle_det_radius: radius in mm to use to compute the slope of crack path
              offset: distance from global origin (i.e. x=0, y=0) to the left edge of interpolation area in mm
              export_folder: path to export folder
@@ -919,14 +914,13 @@ class AramisCrackDetectionSetup:
         self.interp_size = interp_size
         self.offset = offset
         self.export_folder = export_folder
-        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
         self.det = crack_detection.detection.CrackDetection(
             side=side,
             detection_window_size=interp_size,
             offset=offset,
             angle_det_radius=angle_det_radius,
-            device=device)
+            device="cpu")
 
         # load crack detection models
         self.tip_detector = crack_detection.model.get_model('ParallelNets')

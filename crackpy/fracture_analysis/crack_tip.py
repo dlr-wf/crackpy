@@ -35,7 +35,7 @@ def williams_stress_field(a: list or np.array, b: list or np.array, terms: list 
                                                    + (n/2 - 1) * np.sin((n/2 - 3) * phi)))
         sigma_xy += n/2 * r**(n/2 - 1) * (a[index] * ((n/2 - 1) * np.sin((n/2 - 3) * phi)
                                                   - (n/2 + (-1)**n) * np.sin((n/2 - 1) * phi))
-                                          - b[index] * ((n/2 - 1) * np.cos((n/2 - 3) * phi)
+                                          + b[index] * ((n/2 - 1) * np.cos((n/2 - 3) * phi)
                                                     - (n/2 - (-1)**n) * np.cos((n/2 - 1) * phi)))
     return [sigma_x, sigma_y, sigma_xy]
 
@@ -70,6 +70,43 @@ def cjp_displ_field(coeffs: list or np.array, phi: float, r: float, material: Ma
     disp_y = disp_y / (2*material.G)
 
     return disp_x, disp_y
+
+
+def cjp_stress_field(coeffs: list or np.array, phi: float, r: float) -> list:
+    """Formula for the stress field around the crack tip in real polar coordinates by means of the **five-parameter CJP model**.
+    [see formulas 3 in Christopher et al. Extension of the CJP model to mixed mode I and mode II (2013)]
+
+    Args:
+        coeffs: Z = (A_r, B_r, B_i, C, E) as in Christopher et al. '13
+        phi: angle from polar coordinates [rad]
+        r: radius from polar coordinates [mm]
+
+    Returns:
+        stresses sigma_x, sigma_y, and sigma_xy
+
+    """
+    A_r, B_r, B_i, C, E = coeffs
+    sigma_x = (1 / r ** 0.5) * (
+            -0.5 * (A_r + 4 * B_r + 8 * E) * np.cos(phi / 2) - 0.5 * B_r * np.cos(5 * phi / 2) + \
+            0.5 * B_i * (np.sin(5*phi/2) + 7 * np.sin(phi/2)) - \
+            0.5 * E * (np.log(r) * (np.cos(5 * phi / 2) + 3 * np.cos(phi / 2)) + phi * (
+            np.sin(5 * phi / 2) + 3 * np.sin(phi / 2)))
+    ) - C
+
+    sigma_y = (1 / r ** 0.5) * (
+            0.5 * (A_r - 4 * B_r - 8 * E) * np.cos(phi / 2) + 0.5 * B_r * np.cos(5 * phi / 2) - \
+            0.5 * B_i * (np.sin(5*phi/2) - np.sin(phi/2)) + \
+            0.5 * E * (np.log(r) * (np.cos(5 * phi / 2) - 5 * np.cos(phi / 2)) + phi * (
+                np.sin(5 * phi / 2) - 5 * np.sin(phi / 2)))
+    )
+
+    sigma_xy = (1 / r ** 0.5) * (
+            -0.5* (A_r * np.sin(phi / 2) + B_r * np.sin(5 * phi / 2)) +\
+            0.5 * B_i * (np.cos(5 * phi / 2) + 3 * np.cos(phi / 2)) - \
+            - E * np.sin(phi) * (np.log(r) * np.cos(3 * phi / 2) + phi * np.sin(3 * phi / 2))
+    )
+
+    return [sigma_x, sigma_y, sigma_xy]
 
 
 def williams_displ_field(a: list or np.array, b: list or np.array, terms: list or np.array,

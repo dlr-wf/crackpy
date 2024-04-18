@@ -85,7 +85,7 @@ class CrackTipCorrection:
             max_iter: maximum number of iterations
             step_tol: tolerance for the step :math:`\\Delta x`
             damper: damper for the step size
-            method: 'rethore' or 'symbolic_regression'
+            method: 'rethore', 'symbolic_regression' or 'custom_function'
             verbose: If True, print the current iteration
             d_x_str: If method='custom_function', provide a function for the correction in x as a string
             d_y_str: If method='custom_function', provide a function for the correction in y as a string

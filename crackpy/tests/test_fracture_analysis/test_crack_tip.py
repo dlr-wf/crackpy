@@ -16,7 +16,7 @@ class CrackTipField(unittest.TestCase):
         phi = 0
         r = 1
         sigmas = williams_stress_field(a, b, terms, phi, r)
-        self.assertEqual(sigmas, [8, 4, 4])
+        self.assertEqual(sigmas, [8, 4, -4])
 
     def test_crack_tip_near_field(self):
         material = Material(E=3, nu_xy=0.5, sig_yield=1)
