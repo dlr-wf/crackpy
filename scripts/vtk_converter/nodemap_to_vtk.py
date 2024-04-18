@@ -30,9 +30,6 @@ NODEMAP_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Nodemap
 CONNECTION_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Connections')
 OUTPUT_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'output', 'vtk')
 
-# Create output folder
-if not os.path.exists(OUTPUT_PATH):
-    os.makedirs(OUTPUT_PATH)
 
 # Get nodemap data
 nodemap = Nodemap(name=NODEMAP_FILE, folder=NODEMAP_PATH)
