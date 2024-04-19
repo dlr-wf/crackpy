@@ -60,13 +60,6 @@ lint_crack_detection:
     - pylint crackpy/crack_detection --rcfile='.pylintrc'
 #    - pylint crackpy/tests/test_crack_detection --rcfile='.pylintrc'
 
-lint_dic:
-  stage: Static Code Analysis
-  allow_failure: true
-  script:
-    - pip install pylint --quiet
-    - pylint crackpy/dic_control --rcfile='.pylintrc'
-
 
 # Run Unit Tests
 crack_detection:
