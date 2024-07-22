@@ -83,7 +83,11 @@ class CrackDetectionLineIntercept:
         """Run crack detection with line intercept method."""
         # Fit a Formula to each slice of the grid
         coefficients_fitted = []
-        init_coeff = 0.0
+
+        # The init_coeff is the y-coordinate of the crack path at the x-coordinate of the current slice.
+        # A good initial guess is helpful for the optimiser.
+        init_coeff = self.y_min + (self.y_max - self.y_min) / 2.0
+
         self.x_path = []
         for step, x_coordinate in enumerate(self.x_coords):
             if not np.isnan(self.disp_grid[:, step]).all():
@@ -96,11 +100,17 @@ class CrackDetectionLineIntercept:
                     method='trf'
                 )
                 fitted_coefficients = res.x
-                init_coeff = fitted_coefficients[1]
+
+                # If the fitted y-coordinate is within the y-range, update the init_coeff
+                if fitted_coefficients[1] > self.y_min and fitted_coefficients[1] < self.y_max:
+                    init_coeff = fitted_coefficients[1]
+
                 coefficients_fitted.append(fitted_coefficients)
                 self.x_path.append(x_coordinate)
 
         self.coefficients_fitted = np.asarray(coefficients_fitted).T
+
+        # The y-coordinate of the crack path corresponds to the coefficient "B".
         self.y_path = np.asarray(self.coefficients_fitted[1, :])
 
 
@@ -210,6 +220,7 @@ class CrackDetectionLineIntercept:
 
     def _tanh_funct(self, coefficients, coordinates):
         """Hyperbolic tangent function to approximate the displacements.
+           The y-coordinate of the crack path corresponds to the coefficient "B".
 
         Args:
             coefficients: coefficients

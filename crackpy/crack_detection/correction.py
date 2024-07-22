@@ -154,10 +154,10 @@ class CrackTipCorrection:
                 cd.plot(fname=f'iteration_{i}.png', folder=folder, crack_tip_results=res, fmax=self.material.sig_yield)
 
             if verbose:
-                print(f"Iteration {i}: dx = {d_x_rot:+.4f}, dy = {d_y_rot:+.4f}, "
-                      f"a_-1 = {williams_fit_a_n[-1]:.4f}, b_-1 = {williams_fit_b_n[-1]:.4f}, "
-                      f"a_1 = {williams_fit_a_n[1]:.4f}, b_1 = {williams_fit_b_n[1]:.4f}, "
-                      f"crack_tip_corrected = ({crack_tip_x:.4f}, {crack_tip_y:.4f})")
+                print(f"Iteration {i:3d}: dx = {d_x_rot:+8.4f}, dy = {d_y_rot:+8.4f}, "
+                      f"a_-1 = {williams_fit_a_n[-1]:+9.4f}, b_-1 = {williams_fit_b_n[-1]:+9.4f}, "
+                      f"a_1 = {williams_fit_a_n[1]:+9.4f}, b_1 = {williams_fit_b_n[1]:+9.4f}, "
+                      f"crack_tip_corrected = ({crack_tip_x:+8.4f}, {crack_tip_y:+8.4f})")
 
             # log iteration
             williams_dict = {}
@@ -438,8 +438,8 @@ class CrackTipCorrectionGridSearch:
         williams_fit_a_n, williams_fit_b_n, error = run_williams_optimization(data_copy, self.material, opt_props)
 
         if verbose:
-            print(f"Iteration: dx = {dx:+.4f}, dy = {dy:+.4f}, dphi = {delta_phi:+.4f} deg, error = {error:.8f}, "
-                  f"a_-1 = {williams_fit_a_n[-1]}, b_-1 = {williams_fit_b_n[-1]}")
+            print(f"Iteration: dx = {dx:+8.4f}, dy = {dy:+8.4f}, dphi = {delta_phi:+8.4f} deg, error = {error:12.8f}, "
+                  f"a_-1 = {williams_fit_a_n[-1]:+10.4f}, b_-1 = {williams_fit_b_n[-1]:+10.4f}")
 
         output = [dx, dy, delta_phi, error]
         for term in opt_props.terms:
@@ -471,7 +471,7 @@ class CustomCorrection(CrackTipCorrection):
         sympy formulas for the correction in x and y.
 
         Important remark: The formulas are based on the Williams coefficients $A_{-3}$ to
-        $A_7$ and $B_{-3}$ to $B_7$. Therefore skipping some of these terms in the Optimization Properties might lead to
+        $A_7$ and $B_{-3}$ to $B_7$. Therefore, skipping some of these terms in the Optimization Properties might lead to
         wrong correction results in the case when Williams coefficients used in the formulas are missing.
 
         Args:
@@ -561,10 +561,10 @@ class CustomCorrection(CrackTipCorrection):
                 cd.plot(fname=f'iteration_{i}.png', folder=folder, crack_tip_results=res, fmax=self.material.sig_yield)
 
             if verbose:
-                print(f"Iteration {i}: dx = {d_x_rot:+.4f}, dy = {d_y_rot:+.4f}, "
-                      f"a_-1 = {williams_fit_a_n[-1]:.4f}, b_-1 = {williams_fit_b_n[-1]:.4f}, "
-                      f"a_1 = {williams_fit_a_n[1]:.4f}, b_1 = {williams_fit_b_n[1]:.4f}, "
-                      f"crack_tip_corrected = ({crack_tip_x:.4f}, {crack_tip_y:.4f})")
+                print(f"Iteration {i:3d}: dx = {d_x_rot:+7.4f}, dy = {d_y_rot:+7.4f}, "
+                      f"a_-1 = {williams_fit_a_n[-1]:+9.4f}, b_-1 = {williams_fit_b_n[-1]:+9.4f}, "
+                      f"a_1 = {williams_fit_a_n[1]:+9.4f}, b_1 = {williams_fit_b_n[1]:+9.4f}, "
+                      f"crack_tip_corrected = ({crack_tip_x:+8.4f}, {crack_tip_y:+8.4f})")
 
             # log iteration
             williams_dict = {}
