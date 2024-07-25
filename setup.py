@@ -23,7 +23,6 @@ setuptools.setup(
     license='MIT',
     include_package_data=True,
     install_requires=[
-        'ansys_mapdl_core>=0.63.0',
         'matplotlib>=3.5.3',
         'numpy>=1.23.2',
         'opencv_python>=4.5.4.60',
