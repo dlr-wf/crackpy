@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pyvista
 from pyvista import CellType
+from copy import deepcopy
 from crackpy.structure_elements import data_files
 from crackpy.structure_elements.material import Material
 
@@ -110,13 +111,25 @@ class InputData:
         """
         connection_file_path = os.path.join(folder, connection_file)
         np_df = np.genfromtxt(connection_file_path, dtype=int, delimiter=';', skip_header=1)
+
+        # Check if there are any elements with -1 as node number
         self.connections = self._cut_none_elements(np_df)
 
+        # remap node numbers
+        old_facet_id = self.facet_id - 1
+        new_facet_id = np.arange(0, len(self.facet_id))
+        mapping = dict(zip(old_facet_id, new_facet_id))
+        renumber_nodes_vec = np.vectorize(self._renumber_nodes)
+        self.connections[:, 2:] = renumber_nodes_vec(self.connections[:, 2:], mapping)
+
+        # Check if there are any elements with -1 as node number
+        self.connections = self._cut_none_elements(self.connections)
+
     def read_header(self, meta_attributes_to_keywords: dict = None):
-        """Get meta data by reading from header.
+        """Get metadata by reading from header.
 
         Args:
-            meta_attributes_to_keywords: dictionary with meta data attributes as keys and corresponding keyword in header as values
+            meta_attributes_to_keywords: dictionary with metadata attributes as keys and corresponding keyword in header as values
                                          if None, the class attributes are used as keywords
 
         """
@@ -339,7 +352,8 @@ class InputData:
         self.sig_1 = principal_stresses[:, 0]
         self.sig_2 = principal_stresses[:, 1]
 
-    def _renumber_nodes(self, old_node_number: int, mapping: dict):
+    @staticmethod
+    def _renumber_nodes(old_node_number: int, mapping: dict):
         """Renumber nodes according to mapping table.
 
         Args:
@@ -350,11 +364,7 @@ class InputData:
             new_node_number: it is -1 if the node number is not in the mapping table
 
         """
-        try:
-            new_node_number = mapping[old_node_number]
-        except KeyError:
-            new_node_number = -1
-
+        new_node_number = mapping.get(old_node_number, -1)
         return new_node_number
 
     def to_vtk(self, output_folder: str = None, metadata: bool = True, alpha: float = 1.0):
@@ -369,25 +379,16 @@ class InputData:
         Returns:
             PyVista mesh object
         """
-        # create node
+        # create nodes
         nodes = np.stack((self.coor_x, self.coor_y, self.coor_z), axis=1)
-
-        # remap node numbers
-        old_facet_id = self.facet_id - 1
-        new_facet_id = np.arange(0, len(self.facet_id))
-        mapping = dict(zip(old_facet_id, new_facet_id))
-        renumber_nodes_vec = np.vectorize(self._renumber_nodes)
 
         # create mesh
         if self.connections is not None:
             # define elements
-            elements = self.connections[:, 1:5]
-            elements[:, 0] = 3
-            elements[:, 1:] = renumber_nodes_vec(elements[:, 1:], mapping)
+            elements = deepcopy(self.connections[:, 1:5])
 
-            # Check if there are any elements with -1 as node number
-            mask = np.any(elements[:, 1:] == -1, axis=1)
-            elements = elements[~mask]
+            # Element type 3 is a triangle
+            elements[:, 0] = 3
 
             # define cell types
             cell_types = np.full(len(elements[:, 0]), fill_value=CellType.TRIANGLE, dtype=np.uint8)
@@ -396,10 +397,11 @@ class InputData:
             mesh = pyvista.UnstructuredGrid(elements, cell_types, nodes)
 
         else:
-            print(f'No connectivity data provided for {self.nodemap_name}. Reconstructing a mesh from the nodes using Delaunay triangulation with alpha = {alpha}.')
-            cloud = pyvista.wrap(nodes)
+            print(
+                f'No connectivity data provided for {self.nodemap_name}. '
+                f'Reconstructing a mesh from the nodes using Delaunay triangulation with alpha = {alpha}.')
+            cloud = pyvista.PolyData(nodes)
             mesh = cloud.delaunay_2d(alpha=alpha)
-
 
         # add data
         mesh.point_data['x [mm]'] = self.coor_x
@@ -452,7 +454,7 @@ class InputData:
     @staticmethod
     def _cut_none_elements(df):
         """Reads an array and deletes each row containing any '-1' value."""
-        mask = np.any(df == -1, axis=1)
+        mask = np.any(df.astype(int) == -1, axis=1)
         cut_none_elements = df[~mask]
         return cut_none_elements
 
