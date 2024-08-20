@@ -18,7 +18,7 @@ authors:
   given-names: "Eric"
   orcid: "https://orcid.org/0000-0002-3479-9143"
 title: "Crack Analysis Tool in Python - CrackPy"
-version: 1.2.2
+version: 1.2.3
 doi: 10.1038/s41598-024-63915-x
-date-released: 2024-07-23
+date-released: 2024-08-20
 url: "https://github.com/dlr-wf/crackpy"
