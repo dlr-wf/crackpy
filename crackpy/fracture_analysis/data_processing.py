@@ -26,13 +26,16 @@ class InputData:
 
     """
 
-    def __init__(self, nodemap: data_files.Nodemap or None = None, meta_keywords: dict or None = None):
+    def __init__(self, nodemap: data_files.Nodemap or None = None,
+                 meta_keywords: dict or None = None,
+                 read_header_only: bool = False):
         """Initialize input data class by reading metadata and data and calculating eps_vm (if data_file is provided).
 
         Args:
             nodemap: None or obj of class Nodemap (if provided the methods ``read_data_file``,
                                             ``read_header``, and ``calc_eps_vm``` are run upon initialization)
             meta_keywords: keywords to read header
+            read_header_only: if True, only the header is read
         """
 
         if nodemap is not None:
@@ -91,7 +94,8 @@ class InputData:
         # methods called when initialized
         if self.data_file is not None:
             self.read_header(meta_attributes_to_keywords=self.meta_keywords)
-            self.read_data_file()
+            if not read_header_only:
+                self.read_data_file()
 
     def set_data_file(self, data_file: str):
         """Set data file path.
