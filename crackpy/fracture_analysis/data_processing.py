@@ -1,4 +1,5 @@
 import os
+import re
 import numpy as np
 import pyvista
 from pyvista import CellType
@@ -148,17 +149,23 @@ class InputData:
                 if not line.startswith('#'):
                     break
                 for meta_attr, meta_key in meta_attributes_to_keywords.items():
-                    if '# ' + meta_key in line:
-                        meta_stripped = line.split(':')[-1].strip()  # can be str(float) or 'None'
-                        if meta_stripped == 'None':
-                            meta_value = None
+                    pattern = rf"^\s*#\s*{re.escape(meta_key)}\s*:\s*(.*)$"
+                    if re.match(pattern, line):
+                        if any(keyword in line for keyword in
+                               ['analog_input', 'value_element', 'inspection_value_element']):
+                            meta_stripped = line.split(':')[-1].strip()
+                            if meta_stripped == 'None':
+                                meta_value = None
+                            else:
+                                if re.fullmatch(r"-?\d+(\.\d+)?", meta_stripped):
+                                    meta_value = float(meta_stripped)
+                                else:
+                                    meta_value = meta_stripped
                         else:
-                            meta_value = float(meta_stripped)
-
+                            meta_stripped = line.split(':', 1)[-1].strip()
+                            meta_value = meta_stripped
                         # set class instance attribute
                         setattr(self, meta_attr, meta_value)
-
-                        meta_attributes_to_keywords.pop(meta_attr)
                         break
 
     def read_data_file(self):
