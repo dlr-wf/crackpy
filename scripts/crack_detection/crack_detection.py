@@ -64,6 +64,10 @@ pred = ct_det.make_prediction(input_ch)
 crack_tip_seg = ct_det.calculate_segmentation(pred)
 crack_tip_pixels = ct_det.find_most_likely_tip_pos(pred)
 
+# Calculate crack tip domain in mm
+crack_tip_seg_mm = ct_det.calculate_segmentation_in_mm(crack_tip_seg)
+print(crack_tip_seg_mm)
+
 # Calculate global crack tip positions in mm
 crack_tip_x, crack_tip_y = ct_det.calculate_position_in_mm(crack_tip_pixels)
 
@@ -79,6 +83,10 @@ cp_det = CrackPathDetection(detection=det, path_detector=path_detector)
 
 # predict segmentation and path skeleton
 cp_segmentation, cp_skeleton = cp_det.predict_path(input_ch)
+
+# Calculate crack path in mm
+cp_skeleton_mm = cp_det.calculate_path_in_mm(cp_skeleton)
+print(cp_skeleton_mm)
 
 ##########################
 # Crack angle estimation
