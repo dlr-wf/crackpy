@@ -103,7 +103,7 @@ class CrackTipDetection:
         self.detection = detection
         self.tip_detector = tip_detector
 
-    def calculate_position_in_mm(self, crack_tip_px: list):
+    def calculate_position_in_mm(self, crack_tip_px: list) -> tuple:
         """Converts the crack tip position from pixels to mm.
 
         Args:
@@ -111,15 +111,37 @@ class CrackTipDetection:
 
         """
         # Transform to global coordinate system
-        crack_tip_x = crack_tip_px[1] * self.detection.detection_window_size / 255
-        crack_tip_y = crack_tip_px[0] * self.detection.detection_window_size / 255 \
-                      - self.detection.detection_window_size / 2
+        scale_factor = self.detection.detection_window_size / 255
+        crack_tip_x = crack_tip_px[1] * scale_factor
+        crack_tip_y = crack_tip_px[0] * scale_factor - self.detection.detection_window_size / 2
         if self.detection.side == 'left':  # mirror x-value of crack tip position to left-hand side
             crack_tip_x *= -1
         crack_tip_x += self.detection.offset[0]
         crack_tip_y += self.detection.offset[1]
-
         return crack_tip_x, crack_tip_y
+
+    def calculate_segmentation_in_mm(self, crack_tip_pix: torch.Tensor) -> np.ndarray:
+        """Converts the crack tip segmentation from pixels to mm.
+
+        Args:
+            crack_tip_pix: x- and y-coordinates of crack path [px]
+
+        Returns:
+            crack tip segmentation in mm
+
+        """
+
+        scale_factor = self.detection.detection_window_size / 255
+        crack_tip_segmentation_mm = []
+        for _, crack_tip in enumerate(crack_tip_pix):
+            crack_x = float(crack_tip[1]) * scale_factor
+            crack_y = float(crack_tip[0]) * scale_factor - self.detection.detection_window_size / 2
+            if self.detection.side == 'left':  # mirror x-value of crack tip position to left-hand side
+                crack_x *= -1
+            crack_x += self.detection.offset[0]
+            crack_y += self.detection.offset[1]
+            crack_tip_segmentation_mm.append([crack_x, crack_y])
+        return np.array(crack_tip_segmentation_mm)
 
     def make_prediction(self, input_ch: torch.Tensor) -> torch.Tensor:
         """Predict crack tips as segmented pixels.
@@ -219,6 +241,30 @@ class CrackPathDetection:
         skeleton = torch.nonzero(torch.from_numpy(skeleton), as_tuple=False)
 
         return is_crack_path, skeleton
+
+    def calculate_path_in_mm(self, crack_path_px: list) -> np.ndarray:
+        """Converts the crack path coordinates from pixels to mm.
+
+        Args:
+            crack_path_px: x- and y-coordinates of crack path [px]
+
+        Returns:
+            crack path in mm
+
+        """
+
+        scale_factor = self.detection.detection_window_size / 255
+
+        crack_path_mm = []
+        for _, crack_path in enumerate(crack_path_px):
+            crack_x = float(crack_path[1]) * scale_factor
+            crack_y = float(crack_path[0]) * scale_factor - self.detection.detection_window_size / 2
+            if self.detection.side == 'left':  # mirror x-value of crack tip position to left-hand side
+                crack_x *= -1
+            crack_x += self.detection.offset[0]
+            crack_y += self.detection.offset[1]
+            crack_path_mm.append([crack_x, crack_y])
+        return np.array(crack_path_mm)
 
 
 class CrackAngleEstimation:
