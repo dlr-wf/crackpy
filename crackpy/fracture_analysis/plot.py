@@ -269,9 +269,10 @@ class Plotter:
 
             # Williams fitting results
             props = dict(boxstyle='round', facecolor='gray', alpha=0.4)
-            text = "Williams fitting\n\n" + \
+            text = "Williams fitting\n" + \
                    f"$K_I$ = {self.analysis.sifs_fit['K_I']:.2f} $MPa*m^{{1/2}}$\n" + \
                    f"$K_{{II}}$ = {self.analysis.sifs_fit['K_II']:.2f} $MPa*m^{{1/2}}$\n" + \
+                   f"$K_{{III}}$ = {self.analysis.sifs_fit['K_III']:.2f} $MPa*m^{{1/2}}$\n" + \
                    f"$T$ = {self.analysis.sifs_fit['T']:.2f} $MPa$"
             self.ax_results.text(0.1, 0.4, text.replace('*', '\\cdot '),
                                  transform=self.ax_results.transAxes, fontsize=14,

@@ -1,6 +1,7 @@
 import warnings
 
 import numpy as np
+from scipy.interpolate import griddata
 import rich.progress as progress_rich
 
 from crackpy.fracture_analysis import line_integration
@@ -86,6 +87,7 @@ class FractureAnalysis:
             self.williams_coeffs = None
             self.williams_fit_a_n = None
             self.williams_fit_b_n = None
+            self.williams_fit_c_n = None
             self.sifs_fit = None
 
         self.integral_properties = integral_properties
@@ -149,19 +151,36 @@ class FractureAnalysis:
 
             try:
                 # calculate Williams coefficients with fitting method
-                williams_results = self.optimization.optimize_williams_displacements()
-                self.williams_coeffs = williams_results.x
-                a_n = self.williams_coeffs[:len(self.optimization.terms)]
-                b_n = self.williams_coeffs[len(self.optimization.terms):]
-                self.williams_fit_a_n = {n: a_n[index] for index, n in enumerate(self.optimization.terms)}
-                self.williams_fit_b_n = {n: b_n[index] for index, n in enumerate(self.optimization.terms)}
+                if self.optimization_properties.dimensions == 2:
+                    williams_results = self.optimization.optimize_williams_displacements()
+                    self.williams_coeffs = williams_results.x
+                    a_n = self.williams_coeffs[:len(self.optimization.terms)]
+                    b_n = self.williams_coeffs[len(self.optimization.terms):]
+                    self.williams_fit_a_n = {n: a_n[index] for index, n in enumerate(self.optimization.terms)}
+                    self.williams_fit_b_n = {n: b_n[index] for index, n in enumerate(self.optimization.terms)}
 
-                # derive stress intensity factors and T-stress [Kuna formula 3.45]
-                K_I = np.sqrt(2 * np.pi) * self.williams_fit_a_n[1] / np.sqrt(1000)
-                K_II = -np.sqrt(2 * np.pi) * self.williams_fit_b_n[1] / np.sqrt(1000)
-                T = 4 * self.williams_fit_a_n[2]
+                    # derive stress intensity factors and T-stress [Kuna formula 3.45]
+                    K_I = np.sqrt(2 * np.pi) * self.williams_fit_a_n[1] / np.sqrt(1000)
+                    K_II = -np.sqrt(2 * np.pi) * self.williams_fit_b_n[1] / np.sqrt(1000)
+                    K_III = 0
+                    T = 4 * self.williams_fit_a_n[2]
+                else:
+                    williams_results = self.optimization.optimize_williams_displacements_3d()
+                    self.williams_coeffs = williams_results.x
+                    a_n = self.williams_coeffs[:len(self.optimization.terms)]
+                    b_n = self.williams_coeffs[len(self.optimization.terms):2 * len(self.optimization.terms)]
+                    c_n = self.williams_coeffs[2 * len(self.optimization.terms):]
+                    self.williams_fit_a_n = {n: a_n[index] for index, n in enumerate(self.optimization.terms)}
+                    self.williams_fit_b_n = {n: b_n[index] for index, n in enumerate(self.optimization.terms)}
+                    self.williams_fit_c_n = {n: c_n[index] for index, n in enumerate(self.optimization.terms)}
 
-                self.sifs_fit = {'Error': williams_results.cost, 'K_I': K_I, 'K_II': K_II, 'T': T}
+                    # derive stress intensity factors and T-stress [Kuna formula 3.45]
+                    K_I = np.sqrt(2 * np.pi) * self.williams_fit_a_n[1] / np.sqrt(1000)
+                    K_II = -np.sqrt(2 * np.pi) * self.williams_fit_b_n[1] / np.sqrt(1000)
+                    K_III = self.williams_fit_c_n[1] * np.sqrt(np.pi / 2) / np.sqrt(1000)
+                    T = 4 * self.williams_fit_a_n[2]
+
+                self.sifs_fit = {'Error': williams_results.cost, 'K_I': K_I, 'K_II': K_II, 'K_III': K_III, 'T': T}
 
             except:
                 print('Williams optimization failed.')
@@ -199,7 +218,13 @@ class FractureAnalysis:
                                      line_integral.sif_k_ii,
                                      line_integral.t_stress_chen,
                                      line_integral.t_stress_sdm,
-                                     line_integral.t_stress_int])
+                                     line_integral.t_stress_int,
+                                     line_integral.decomp_j_integral_I,
+                                     line_integral.decomp_j_integral_II,
+                                     line_integral.decomp_j_integral_III,
+                                     line_integral.decomp_j_integral_K_I,
+                                     line_integral.decomp_j_integral_K_II,
+                                     line_integral.decomp_j_integral_K_III])
                 self.williams_int_a_n.append(line_integral.williams_a_n)
                 self.williams_int_b_n.append(line_integral.williams_b_n)
                 self.williams_int.append(line_integral.williams_coefficients)
@@ -229,20 +254,23 @@ class FractureAnalysis:
                 self.williams_int_b_n = np.asarray(self.williams_int_b_n)
 
                 # Calculate means
-                mean_j, mean_sif_j, mean_sif_k_i, mean_sif_k_ii, mean_t_stress_chen, mean_t_stress_sdm, mean_t_stress_int = \
+                mean_j, mean_sif_j, mean_sif_k_i, mean_sif_k_ii, mean_t_stress_chen, mean_t_stress_sdm, mean_t_stress_int, \
+                    mean_decomp_j_1, mean_decomp_j_2_, mean_decomp_j_3, mean_decomp_K_1, mean_decomp_K_2,mean_decomp_K_3 = \
                     np.nanmean(res_array, axis=0)
                 mean_williams_int_a_n = np.nanmean(self.williams_int_a_n, axis=0)
                 mean_williams_int_b_n = np.nanmean(self.williams_int_b_n, axis=0)
 
                 # Calculate medians
-                med_j, med_sif_j, med_sif_k_i, med_sif_k_ii, med_t_stress_chen, med_t_stress_sdm, med_t_stress_int = \
+                med_j, med_sif_j, med_sif_k_i, med_sif_k_ii, med_t_stress_chen, med_t_stress_sdm, med_t_stress_int, \
+                    med_decomp_j_1, med_decomp_j_2_, med_decomp_j_3, med_decomp_K_1, med_decomp_K_2,med_decomp_K_3= \
                     np.nanmedian(res_array, axis=0)
                 med_williams_int_a_n = np.nanmedian(self.williams_int_a_n, axis=0)
                 med_williams_int_b_n = np.nanmedian(self.williams_int_b_n, axis=0)
 
                 # Calculate means rejecting outliers
                 rej_out_mean_j, rej_out_mean_sif_j, rej_out_mean_sif_k_i, rej_out_mean_sif_k_ii, \
-                rej_out_mean_t_stress_chen, rej_out_mean_t_stress_sdm, rej_out_mean_t_stress_int = \
+                rej_out_mean_t_stress_chen, rej_out_mean_t_stress_sdm, rej_out_mean_t_stress_int, \
+                    rej_decomp_j_1, rej_decomp_j_2_, rej_decomp_j_3, rej_decomp_K_1, rej_decomp_K_2, rej_decomp_K_3    = \
                     self.mean_wo_outliers(res_array, m=2)
 
                 rej_out_mean_williams_int_a_n = self.mean_wo_outliers(self.williams_int_a_n, m=2)
@@ -266,7 +294,13 @@ class FractureAnalysis:
                          't_stress_sdm': mean_t_stress_sdm,
                          't_stress_int': mean_t_stress_int,
                          'williams_int_a_n': mean_williams_int_a_n,
-                         'williams_int_b_n': mean_williams_int_b_n},
+                         'williams_int_b_n': mean_williams_int_b_n,
+                         'decomp_j_1': mean_decomp_j_1,
+                         'decomp_j_2': mean_decomp_j_2_,
+                         'decomp_j_3': mean_decomp_j_3,
+                         'decomp_K_1': mean_decomp_K_1,
+                         'decomp_K_2': mean_decomp_K_2,
+                         'decomp_K_3': mean_decomp_K_3},
                 'median': {'j': med_j, 'sif_j': med_sif_j,
                            'sif_k_i': med_sif_k_i, 'sif_k_ii': med_sif_k_ii,
                            'k_i_chen': med_k_i_chen, 'k_ii_chen': med_k_ii_chen,
@@ -274,7 +308,13 @@ class FractureAnalysis:
                            't_stress_sdm': med_t_stress_sdm,
                            't_stress_int': med_t_stress_int,
                            'williams_int_a_n': med_williams_int_a_n,
-                           'williams_int_b_n': med_williams_int_b_n},
+                           'williams_int_b_n': med_williams_int_b_n,
+                           'decomp_j_1': med_decomp_j_1,
+                           'decomp_j_2': med_decomp_j_2_,
+                           'decomp_j_3': med_decomp_j_3,
+                           'decomp_K_1': med_decomp_K_1,
+                           'decomp_K_2': med_decomp_K_2,
+                           'decomp_K_3': med_decomp_K_3},
                 'rej_out_mean': {'j': rej_out_mean_j, 'sif_j': rej_out_mean_sif_j,
                                  'sif_k_i': rej_out_mean_sif_k_i, 'sif_k_ii': rej_out_mean_sif_k_ii,
                                  'k_i_chen': rej_out_mean_k_i_chen, 'k_ii_chen': rej_out_mean_k_ii_chen,
@@ -282,7 +322,13 @@ class FractureAnalysis:
                                  't_stress_sdm': rej_out_mean_t_stress_sdm,
                                  't_stress_int': rej_out_mean_t_stress_int,
                                  'williams_int_a_n': rej_out_mean_williams_int_a_n,
-                                 'williams_int_b_n': rej_out_mean_williams_int_b_n}
+                                 'williams_int_b_n': rej_out_mean_williams_int_b_n,
+                                 'decomp_j_1': rej_decomp_j_1,
+                                 'decomp_j_2': rej_decomp_j_2_,
+                                 'decomp_j_3': rej_decomp_j_3,
+                                 'decomp_K_1': rej_decomp_K_1,
+                                 'decomp_K_2': rej_decomp_K_2,
+                                 'decomp_K_3': rej_decomp_K_3}
             }
 
     @staticmethod
@@ -331,9 +377,11 @@ class FractureAnalysis:
         _ = integration_path.create_nodes()
 
         # Define line integration
+
         line_integral = line_integration.LineIntegral(integration_path, self.data, self.material, mask_tol,
                                                       buckner_williams_terms)
         # Calculate SIFs
         line_integral.integrate()
 
         return line_integral, [size_left, size_right, size_bottom, size_top]
+
