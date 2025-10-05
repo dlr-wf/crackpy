@@ -19,7 +19,7 @@ class TestCrackDetPipeline(unittest.TestCase):
 
         self.det_setup = CrackDetectionSetup(
             specimen_size=160,
-            sides=['left'],
+            sides=['left', 'right'],
             detection_window_size=None,
             start_offset=(0, 0),
             angle_det_radius=13.725
@@ -29,7 +29,7 @@ class TestCrackDetPipeline(unittest.TestCase):
         self.tip_detector = get_model('ParallelNets')
         self.path_detector = get_model('UNetPath')
 
-    def test_pipeline(self):
+    def test_cd_pipeline(self):
         temp_dir = tempfile.mkdtemp()
         try:
             pipeline = CrackDetectionPipeline(

@@ -41,34 +41,41 @@ OUT_FOLDER = 'Fracture_Analysis_DIC_results'
 material = Material(E=72000, nu_xy=0.33, sig_yield=350)
 
 int_props = IntegralProperties(
-    number_of_paths=3,
+    number_of_paths=10,
     number_of_nodes=100,
 
     integral_size_left=-5,
-    integral_size_right=10,
-    integral_size_top=8,
-    integral_size_bottom=-8,
+    integral_size_right=5,
+    integral_size_top=5,
+    integral_size_bottom=-5,
 
-    top_offset=3,
-    bottom_offset=-3,
+    paths_distance_top=0.5,
+    paths_distance_left=0.5,
+    paths_distance_right=0.5,
+    paths_distance_bottom=0.5,
 
-    paths_distance_left=0.1,
-    paths_distance_right=0.1,
-    paths_distance_bottom=0.1,
-    paths_distance_top=0.1,
+    top_offset=2.5,
+    bottom_offset=-2.5,
 
     mask_tolerance=2,
 
     buckner_williams_terms=[-1, 1, 2, 3, 4, 5]
 )
 
-opt_props = OptimizationProperties(terms=[-1, 0, 1, 2, 3, 4, 5])
+opt_props = OptimizationProperties(
+    angle_gap=20,
+    min_radius=5,
+    max_radius=10,
+    tick_size=0.01,
+    terms=[-3,-2,-1, 0, 1, 2, 3, 4, 5],
+    dimensions=3
+)
 
 ct = CrackTipInfo(
-    crack_tip_x=-15.5,
-    crack_tip_y=0,
-    crack_tip_angle=180,
-    left_or_right='left'
+    crack_tip_x=15.16,
+    crack_tip_y=0.49,
+    crack_tip_angle=-0.46,
+    left_or_right='right'
 )
 
 ###############
@@ -77,8 +84,10 @@ ct = CrackTipInfo(
 
 nodemap = Nodemap(name=NODEMAP_FILENAME, folder=NODEMAP_FOLDER)
 input_data = InputData(nodemap=nodemap)
-input_data.calc_stresses(material)
 input_data.transform_data(ct.crack_tip_x, ct.crack_tip_y, ct.crack_tip_angle)
+input_data.calc_stresses(material)
+
+
 
 analysis = FractureAnalysis(
     material=Material(),

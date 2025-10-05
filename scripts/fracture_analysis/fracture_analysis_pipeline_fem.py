@@ -14,8 +14,8 @@
 
 # Imports
 import os
-
 from matplotlib import pyplot as plt
+
 
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
@@ -35,8 +35,8 @@ int_props = IntegralProperties(
     number_of_paths=10,
     number_of_nodes=100,
 
-    bottom_offset=-0,
-    top_offset=0,
+    bottom_offset=-0.5,
+    top_offset=0.5,
 
     integral_size_left=-5,
     integral_size_right=5,
@@ -58,7 +58,8 @@ opt_props = OptimizationProperties(
     min_radius=5,
     max_radius=10,
     tick_size=0.01,
-    terms=[-1, 0, 1, 2, 3, 4, 5]
+    terms=[-3,-2,-1, 0, 1, 2, 3, 4, 5],
+    dimensions=3,
 )
 
 material = Material(E=72000, nu_xy=0.33, sig_yield=350)

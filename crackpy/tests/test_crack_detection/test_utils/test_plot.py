@@ -47,6 +47,5 @@ class TestPlotting(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-
 if __name__ == '__main__':
     unittest.main()

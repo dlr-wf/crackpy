@@ -485,11 +485,15 @@ def apply_mask(data: InputData, mask: np.array) -> InputData:
     masked_data.disp_y = data.disp_y[mask]
     masked_data.eps_x = data.eps_x[mask]
     masked_data.eps_y = data.eps_y[mask]
+    masked_data.eps_xz = data.eps_xz[mask] if data.eps_xz is not None else None
+    masked_data.eps_yz = data.eps_yz[mask] if data.eps_yz is not None else None
     masked_data.eps_xy = data.eps_xy[mask]
     masked_data.eps_vm = data.eps_vm[mask]
     masked_data.sig_x = data.sig_x[mask]
     masked_data.sig_y = data.sig_y[mask]
     masked_data.sig_xy = data.sig_xy[mask]
+    masked_data.sigma_xz = data.sigma_xz[mask] if data.sigma_xz is not None else None
+    masked_data.sigma_yz = data.sigma_yz[mask] if data.sigma_yz is not None else None
     masked_data.sig_vm = data.sig_vm[mask]
     return masked_data
 

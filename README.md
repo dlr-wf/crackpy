@@ -8,9 +8,9 @@ experiments are time-consuming and therefore very expensive. On the other hand, 
 a single material curve, i.e. a-N, which is hard to reproduce even under identical testing conditions. 
 Consequently, the experimental outcome-to-cost ratio is relatively low. 
 
-Digital image correlation (DIC) has become a state-of-the-art tool to increase the insight in experimental mechanics due to its 
-wide availability, and the possibility to gain full field information (displacements and strains) fully automatically. In particular, it is 
-well-suited to analyze (fatigue) cracks [**2, 3**]. 
+Digital image correlation (DIC) has become a state-of-the-art tool to increase insight in experimental mechanics due to its
+wide availability and the possibility to automatically gain full-field information (displacements and strains). 
+In particular, it is well-suited to analyze (fatigue) cracks [**2, 3**].
 
 This Python package provides a pipeline, which takes an arbitrary number of DIC or simulation results and calculates various 
 fracture mechanical parameters.
@@ -19,7 +19,7 @@ fracture mechanical parameters.
 |:--:|
 | **_Schematic overview of data flow in CrackPy_** |
 
-To do so, we use a specific DIC data format which is stored as a "_Nodemap_".txt text file. 
+To do so, we use a specific DIC data format which is stored as a `_Nodemap_.txt` text file.
 This file contains the nodal full-field displacement and strain data as well as information about the 
 experiment and metadata. For every single file (referring to one time step of the experiment), the crack 
 tip location and crack path geometry is detected using a trained artificial neural network [**4**]. After that, 
@@ -37,7 +37,7 @@ The following graph shows an overview over the main CrackPy modules **structure 
 |:--:|
 | **_Overview of main modules, functions and files in CrackPy_** |
 
-The structure element module provides classes for any structural elements like _experiment_ or 
+The structure element module provides classes for structural elements such as _experiment_ or
 _data file_. Most of these are currently just placeholders to add functionality later on. However, a very important structural element is the _Material_ class containing information about the
 material law (elastic & shear moduli, stiffness matrix, etc.) as well as the _Nodemap_ class, containing information about the data structure of the nodemap.
 We provide two modules, i.e. **dic** and **simulation**, which feature utilities to generate nodemaps from a 
@@ -45,7 +45,7 @@ specific software. Therefore, these modules can only be used if CrackPy is insta
 an actual GOM Aramis Professional software >v2020 (in case of **dic**) or if a valid version and license of Ansys is available 
 (in case of **simulation**). For more details, we refer to our Wiki. Once you have stored your nodemap files either from dic, 
 simulation or from a different source, you reach the heart of our fracture analysis. You can detect crack paths and crack tips fully automatically
-using our **crack detection** module. This module provides two independent methodologies for crack detection - 
+using our **crack detection** module. This module provides two independent methodologies for crack detection -
 our line intercept method together with an iterative crack tip correction algorithm based on the Williams expansion [**15**] and our trained convolutional neural networks [**4**, **9**]. 
 We store the crack tip information in a file (this can also be generated manually) and use it as input for 
 the **fracture analysis** pipeline. Here we offer a wide range of methods and algorithms: 
@@ -57,13 +57,13 @@ the **fracture analysis** pipeline. Here we offer a wide range of methods and al
 5. Calculate CJP stress intensity factors which may take effects of plasticity into account by fitting the theoretical displacement field of the _CJP model_ [**8**] the experimental (or simulated) data [**13**]   
 
 
-Here is an example for the output plot of one single time step...
+Here is an example of the output plot for one single time step...
 
 | ![](./example_images/example_image_output.png) |
 |:--:|
 | **_Example output for a single input_** |
 
-... and an example how these methods can enable _hybrid approaches of mechanical and data-driven analysis_.
+... and an example of how these methods can enable _hybrid approaches of mechanical and data-driven analysis_.
 
 | ![](./example_images/explanation.gif) |
 |:--:|
@@ -72,7 +72,7 @@ Here is an example for the output plot of one single time step...
 For us, it was important that all these methods are implemented independent of the source of 
 displacement and strain data, i.e. you can also apply all these methods on data from other sources such as finite element simulations, as long as the format of displacements
 and strains matches the one used here (Checkout our [Wiki](https://github.com/dlr-wf/crackpy/wiki) 
-for detailed information) and fulfills the plane stress condition. We believe that a wider availability of 
+for detailed information) and fulfills the plane stress condition. We believe that a wider availability of
 automated analysis - and, therefore, more **data-driven methods** -  will be very beneficial for the experimental
 mechanics community. This is why we aim to make them easily accessible and applicable. However, this package only covers the topic of 
 **(fatigue) cracks in ductile materials**. Although most of our methods are (theoretically) independent of the investigated material, we only tested them on aluminium alloys so far.
@@ -88,11 +88,11 @@ References:
    image correlation and an interaction integral. 
    _International Journal of Fracture 132: 65-79_ 
    [https://doi.org/10.1007/s10704-004-8141-4](https://doi.org/10.1007/s10704-004-8141-4)
-4. **Melching D et al. (2022)** Explainable machine learning for precise faticue crack tip detection. 
-   _Scientific Reports 12, 9513_ 
+4. **Melching D et al. (2022)** Explainable machine learning for precise faticue crack tip detection.
+   _Scientific Reports 12, 9513_
    [https://doi.org/10.1038/s41598-022-13275-1](https://doi.org/10.1038/s41598-022-13275-1)
 5. **Becker T et al. (2012)** An approach to calculate the J-integral by digital image 
-   correlation displacement field measurement. 
+   correlation displacement field measurement.
    _Fatigue and Fracture of Engineering Materials and Structures 35 (10): 971-984_
    [https://doi.org/10.1111/j.1460-2695.2012.01685.x](https://doi.org/10.1111/j.1460-2695.2012.01685.x)
 6. **Chen Y Z (1985)** New path independent integrals in linear elastic fracture mechanics. 
@@ -129,19 +129,19 @@ References:
 
 
 ## Installation
-Just install via pip from the github repository
+Just install via pip from the GitHub repository
 ```
 pip install --upgrade git+https://github.com/dlr-wf/crackpy.git
 ```
 
 ## How to use?
-To check out how to use the package please read our [Wiki](https://github.com/dlr-wf/crackpy/wiki).
+To check out how to use the package, please read our [Wiki](https://github.com/dlr-wf/crackpy/wiki).
 
 ## License and Limitations
 The package is developed **for research only and must not be used for any production or specification purposes**. 
 The Package is **under current development and all functionalities are on a prototype level**. 
-Feel free to use the code, however, **we do not guarantee in any form for its flawless implementation and execution**.
-However, if you run into errors in the code or find any bugs, we will be happy if you cantact us. 
+Feel free to use the code; however, **we do not guarantee in any form its flawless implementation or execution**.
+However, if you run into errors in the code or find any bugs, we will be happy if you contact us.
 
 Licensed under MIT License (see LICENSE file)
 
@@ -155,7 +155,7 @@ _Strohmann T, Melching D, Paysan F, Klein A, Dietrich E, Requena G and Breitbart
 If you are interested in the code, or in our work in general, feel free to contact us 
 via email at [eric.breitbarth@dlr.de](mailto:eric.breitbarth@dlr.de).
 
-If you want to contribute to this repository just get in touch, too. We will be happy. 
+If you want to contribute to this repository, just get in touch as well. We will be happy.
 
 ## Intellectual Property and Authorship 
 This package is property of the German Aerospace Center 

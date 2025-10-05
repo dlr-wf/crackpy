@@ -81,26 +81,38 @@ class OutputWriter:
                 file.write('\n')
                 file.write('<CJP_results>\n')
                 file.write(f'{"Param":>10}, {"Unit":>20}, {"Result":>20} \n')
-                file.write(f'{"Error":>10}, {"1":>20}, {self.analysis.res_cjp["Error"]:20.10f} \n')
-                file.write(f'{"K_F":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.res_cjp["K_F"]:20.10f} \n')
-                file.write(f'{"K_R":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.res_cjp["K_R"]:20.10f} \n')
-                file.write(f'{"K_S":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.res_cjp["K_S"]:20.10f} \n')
-                file.write(f'{"K_II":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.res_cjp["K_II"]:20.10f} \n')
-                file.write(f'{"T":>10}, {"MPa":>20}, {self.analysis.res_cjp["T"]:20.10f} \n')
+                file.write(f'{"Error":>10}, {"1":>20}, {self.analysis.cjp_res_mm["Error"]:20.10f} \n')
+                file.write(f'{"K_F":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.cjp_res_mm["K_F"]:20.10f} \n')
+                file.write(f'{"K_R":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.cjp_res_mm["K_R"]:20.10f} \n')
+                file.write(f'{"K_S":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.cjp_res_mm["K_S"]:20.10f} \n')
+                file.write(f'{"K_II":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.cjp_res_mm["K_II"]:20.10f} \n')
+                file.write(f'{"T":>10}, {"MPa":>20}, {self.analysis.cjp_res_mm["T"]:20.10f} \n')
                 file.write('</CJP_results>\n')
                 file.write('\n')
-
+                file.write("##############################\n")
+                file.write("#    CJP model (original)    #\n")
+                file.write("##############################\n")
+                file.write("\n")
+                file.write('<CJP_modeI_results>\n')
+                file.write(f'{"Param":>10}, {"Unit":>20}, {"Result":>20} \n')
+                file.write(f'{"Error":>10}, {"1":>20}, {self.analysis.cjp_res_m1["Error"]:20.10f} \n')
+                file.write(f'{"K_F":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.cjp_res_m1["K_F"]:20.10f} \n')
+                file.write(f'{"K_R":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.cjp_res_m1["K_R"]:20.10f} \n')
+                file.write(f'{"K_S":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.cjp_res_m1["K_S"]:20.10f} \n')
+                file.write(f'{"T_x":>10}, {"MPa":>20}, {self.analysis.cjp_res_m1["T_x"]:20.10f} \n')
+                file.write(f'{"T_y":>10}, {"MPa":>20}, {self.analysis.cjp_res_m1["T_y"]:20.10f} \n')
+                file.write('</CJP_results>\n')
                 file.write("#############################\n")
                 file.write("#      Williams fitting     #\n")
                 file.write("#############################\n")
                 file.write('\n')
                 file.write('<Williams_fit_results>\n')
                 file.write(f'{"Param":>10}, {"Unit":>20}, {"Result":>20} \n')
-                file.write(f'{"Error":>10}, {"1":>20}, {self.analysis.sifs_fit["Error"]:20.10f} \n')
-                file.write(f'{"K_I":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.sifs_fit["K_I"]:20.10f} \n')
-                file.write(f'{"K_II":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.sifs_fit["K_II"]:20.10f} \n')
-                file.write(f'{"K_III":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.sifs_fit["K_III"]:20.10f} \n')
-                file.write(f'{"T":>10}, {"MPa":>20}, {self.analysis.sifs_fit["T"]:20.10f} \n')
+                file.write(f'{"Error":>10}, {"1":>20}, {self.analysis.williams_fit_res["Error"]:20.10f} \n')
+                file.write(f'{"K_I":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.williams_fit_res["K_I"]:20.10f} \n')
+                file.write(f'{"K_II":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.williams_fit_res["K_II"]:20.10f} \n')
+                file.write(f'{"K_III":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.williams_fit_res["K_III"]:20.10f} \n')
+                file.write(f'{"T":>10}, {"MPa":>20}, {self.analysis.williams_fit_res["T"]:20.10f} \n')
                 for n, a in self.analysis.williams_fit_a_n.items():
                     file.write(f'{f"a_{n}":>10}, {unit_of_williams_coefficients(n):>20}, {a:20.10f} \n')
                 for n, b in self.analysis.williams_fit_b_n.items():
@@ -251,24 +263,24 @@ class OutputWriter:
                     f'{"J_1 [N/mm]":>20},'
                     f'{"J_2 [N/mm]":>20},'
                     f'{"J_3 [N/mm]":>20},'
-                    f'{"K_I_J [N/mm]":>20},'
-                    f'{"K_II_J [N/mm]":>20},'
-                    f'{"K_III_J [N/mm]":>20},\n')
-                for each_path_index in range(len(self.analysis.results)):
+                    f'{"K_J-I [N/mm]":>20},'
+                    f'{"K_J-II [N/mm]":>20},'
+                    f'{"K_J-III [N/mm]":>20}\n')
+                for each_path_index in range(len(self.analysis.path_results)):
                     file.write(
-                        f'{self.analysis.results[each_path_index][0]:20.10f}, '
-                        f'{self.analysis.results[each_path_index][1]:20.10f}, '
-                        f'{self.analysis.results[each_path_index][2]:20.10f}, '
-                        f'{self.analysis.results[each_path_index][3]:20.10f}, '
-                        f'{self.analysis.results[each_path_index][4]:20.10f}, '
-                        f'{self.analysis.results[each_path_index][5]:20.10f}, '
-                        f'{self.analysis.results[each_path_index][6]:20.10f},'
-                        f'{self.analysis.results[each_path_index][7]:20.10f},'
-                        f'{self.analysis.results[each_path_index][8]:20.10f},'
-                        f'{self.analysis.results[each_path_index][9]:20.10f},'
-                        f'{self.analysis.results[each_path_index][10]:20.10f},'
-                        f'{self.analysis.results[each_path_index][11]:20.10f},'
-                        f'{self.analysis.results[each_path_index][12]:20.10f}\n')
+                        f'{self.analysis.path_results[each_path_index][0]:20.10f}, '
+                        f'{self.analysis.path_results[each_path_index][1]:20.10f}, '
+                        f'{self.analysis.path_results[each_path_index][2]:20.10f}, '
+                        f'{self.analysis.path_results[each_path_index][3]:20.10f}, '
+                        f'{self.analysis.path_results[each_path_index][4]:20.10f}, '
+                        f'{self.analysis.path_results[each_path_index][5]:20.10f}, '
+                        f'{self.analysis.path_results[each_path_index][6]:20.10f},'
+                        f'{self.analysis.path_results[each_path_index][7]:20.10f},'
+                        f'{self.analysis.path_results[each_path_index][8]:20.10f},'
+                        f'{self.analysis.path_results[each_path_index][9]:20.10f},'
+                        f'{self.analysis.path_results[each_path_index][10]:20.10f},'
+                        f'{self.analysis.path_results[each_path_index][11]:20.10f},'
+                        f'{self.analysis.path_results[each_path_index][12]:20.10f}\n')
                 file.write('</Path_SIFs>\n')
                 file.write('\n')
                 file.write("\n")
@@ -331,14 +343,14 @@ class OutputWriter:
                     f'{"LineYT":>6}, '
                     f'{"TopOffset":>9}, '
                     f'{"BotOffset":>9} \n')
-                for each_path_index in range(len(self.analysis.results)):
+                for each_path_index in range(len(self.analysis.path_results)):
                     file.write(
                         f'{self.analysis.num_of_path_nodes[each_path_index]:10.0f}, '
                         f'{self.analysis.tick_sizes[each_path_index]:12.4f}, '
-                        f'{self.analysis.int_sizes[each_path_index][0]:6.2f}, '
-                        f'{self.analysis.int_sizes[each_path_index][1]:6.2f}, '
-                        f'{self.analysis.int_sizes[each_path_index][2]:6.2f}, '
-                        f'{self.analysis.int_sizes[each_path_index][3]:6.2f}, '
+                        f'{self.analysis.path_sizes[each_path_index][0]:6.2f}, '
+                        f'{self.analysis.path_sizes[each_path_index][1]:6.2f}, '
+                        f'{self.analysis.path_sizes[each_path_index][2]:6.2f}, '
+                        f'{self.analysis.path_sizes[each_path_index][3]:6.2f}, '
                         f'{self.analysis.integration_points[each_path_index][1][-1]:9.2f}, '
                         f'{self.analysis.integration_points[each_path_index][1][0]:9.2f} \n')
                 file.write('</Path_Properties>\n')
@@ -388,33 +400,48 @@ class OutputWriter:
             json_dict['experiment_data']['timestamp'] = {"unit": "s",
                                                          "result": self.analysis.data.time}
 
-        json_dict['CJP_results'] = {}
+
         if self.analysis.optimization_properties is not None:
+            json_dict['CJP_results'] = {}
             json_dict['CJP_results']['error'] = {"unit": "1",
-                                                 "result": self.analysis.res_cjp["Error"]}
+                                                 "result": self.analysis.cjp_res_mm["Error"]}
             json_dict['CJP_results']['K_F'] = {"unit": "MPa*m^{1/2}",
-                                               "result": self.analysis.res_cjp["K_F"]}
+                                               "result": self.analysis.cjp_res_mm["K_F"]}
             json_dict['CJP_results']['K_R'] = {"unit": "MPa*m^{1/2}",
-                                               "result": self.analysis.res_cjp["K_R"]}
+                                               "result": self.analysis.cjp_res_mm["K_R"]}
             json_dict['CJP_results']['K_S'] = {"unit": "MPa*m^{1/2}",
-                                               "result": self.analysis.res_cjp["K_S"]}
+                                               "result": self.analysis.cjp_res_mm["K_S"]}
             json_dict['CJP_results']['K_II'] = {"unit": "MPa*m^{1/2}",
-                                                "result": self.analysis.res_cjp["K_II"]}
+                                                "result": self.analysis.cjp_res_mm["K_II"]}
             json_dict['CJP_results']['T'] = {"unit": "MPa",
-                                             "result": self.analysis.res_cjp["T"]}
+                                             "result": self.analysis.cjp_res_mm["T"]}
+
+            json_dict['CJP_modeI_results'] = {}
+            json_dict['CJP_modeI_results']['error'] = {"unit": "1",
+                                                       "result": self.analysis.cjp_res_m1["Error"]}
+            json_dict['CJP_modeI_results']['K_F'] = {"unit": "MPa*m^{1/2}",
+                                                     "result": self.analysis.cjp_res_m1["K_F"]}
+            json_dict['CJP_modeI_results']['K_R'] = {"unit": "MPa*m^{1/2}",
+                                                     "result": self.analysis.cjp_res_m1["K_R"]}
+            json_dict['CJP_modeI_results']['K_S'] = {"unit": "MPa*m^{1/2}",
+                                                     "result": self.analysis.cjp_res_m1["K_S"]}
+            json_dict['CJP_modeI_results']['T_x'] = {"unit": "MPa",
+                                                   "result": self.analysis.cjp_res_m1["T_x"]}
+            json_dict['CJP_modeI_results']['T_y'] = {"unit": "MPa",
+                                                   "result": self.analysis.cjp_res_m1["T_y"]}
 
             json_dict['Williams_fit_results'] = {}
             json_dict['Williams_fit_results']['error'] = {"unit": "1",
-                                                          "result": self.analysis.sifs_fit["Error"]}
+                                                          "result": self.analysis.williams_fit_res["Error"]}
             json_dict['Williams_fit_results']['K_I'] = {"unit": "MPa*m^{1/2}",
-                                                        "result": self.analysis.sifs_fit["K_I"]}
+                                                        "result": self.analysis.williams_fit_res["K_I"]}
             json_dict['Williams_fit_results']['K_II'] = {"unit": "MPa*m^{1/2}",
-                                                         "result": self.analysis.sifs_fit["K_II"]}
+                                                         "result": self.analysis.williams_fit_res["K_II"]}
             json_dict['Williams_fit_results']['K_III'] = {"unit": "MPa*m^{1/2}",
-                                                          "result": self.analysis.sifs_fit["K_III"]}
+                                                          "result": self.analysis.williams_fit_res["K_III"]}
 
             json_dict['Williams_fit_results']['T'] = {"unit": "MPa",
-                                                      "result": self.analysis.sifs_fit["T"]}
+                                                      "result": self.analysis.williams_fit_res["T"]}
             for n, a in self.analysis.williams_fit_a_n.items():
                 json_dict['Williams_fit_results'][f'a_{n}'] = {"unit": unit_of_williams_coefficients(n),
                                                                "result": a}
@@ -424,6 +451,7 @@ class OutputWriter:
             for n, c in self.analysis.williams_fit_c_n.items():
                 json_dict['Williams_fit_results'][f'c_{n}'] = {"unit": unit_of_williams_coefficients(n),
                                                                "result": c}
+
         if self.analysis.integral_properties is not None:
             json_dict['SIFs_integral'] = {}
             json_dict['SIFs_integral']['J'] = {"unit": "N/mm",
@@ -502,31 +530,31 @@ class OutputWriter:
 
             json_dict['Path_SIFs'] = {}
             json_dict['Path_SIFs']['J'] = {"unit": "N/mm",
-                                           "result": list(np.asarray(self.analysis.results)[:, 0])}
+                                           "result": list(np.asarray(self.analysis.path_results)[:, 0])}
             json_dict['Path_SIFs']['K_J'] = {"unit": "MPa*m^{1/2}",
-                                             "result": list(np.asarray(self.analysis.results)[:, 1])}
+                                             "result": list(np.asarray(self.analysis.path_results)[:, 1])}
             json_dict['Path_SIFs']['K_I'] = {"unit": "MPa*m^{1/2}",
-                                             "result": list(np.asarray(self.analysis.results)[:, 2])}
+                                             "result": list(np.asarray(self.analysis.path_results)[:, 2])}
             json_dict['Path_SIFs']['K_II'] = {"unit": "MPa*m^{1/2}",
-                                              "result": list(np.asarray(self.analysis.results)[:, 3])}
+                                              "result": list(np.asarray(self.analysis.path_results)[:, 3])}
             json_dict['Path_SIFs']['T_Chen'] = {"unit": "MPa",
-                                                "result": list(np.asarray(self.analysis.results)[:, 4])}
+                                                "result": list(np.asarray(self.analysis.path_results)[:, 4])}
             json_dict['Path_SIFs']['T_SDM'] = {"unit": "MPa",
-                                               "result": list(np.asarray(self.analysis.results)[:, 5])}
+                                               "result": list(np.asarray(self.analysis.path_results)[:, 5])}
             json_dict['Path_SIFs']['T_Int'] = {"unit": "MPa",
-                                               "result": list(np.asarray(self.analysis.results)[:, 6])}
+                                               "result": list(np.asarray(self.analysis.path_results)[:, 6])}
             json_dict['Path_SIFs']['J_1'] = {"unit": "N/mm",
-                                             "result": list(np.asarray(self.analysis.results)[:, 7])}
+                                             "result": list(np.asarray(self.analysis.path_results)[:, 7])}
             json_dict['Path_SIFs']['J_2'] = {"unit": "N/mm",
-                                             "result": list(np.asarray(self.analysis.results)[:, 8])}
+                                             "result": list(np.asarray(self.analysis.path_results)[:, 8])}
             json_dict['Path_SIFs']['J_3'] = {"unit": "N/mm",
-                                             "result": list(np.asarray(self.analysis.results)[:, 9])}
-            json_dict['Path_SIFs']['K_I_J'] = {"unit": "N/mm",
-                                               "result": list(np.asarray(self.analysis.results)[:, 10])}
-            json_dict['Path_SIFs']['K_II_J'] = {"unit": "N/mm",
-                                                "result": list(np.asarray(self.analysis.results)[:, 11])}
-            json_dict['Path_SIFs']['K_III_J'] = {"unit": "N/mm",
-                                                 "result": list(np.asarray(self.analysis.results)[:, 12])}
+                                             "result": list(np.asarray(self.analysis.path_results)[:, 9])}
+            json_dict['Path_SIFs']['K_I_J'] = {"unit": "MPa*m^{1/2}",
+                                               "result": list(np.asarray(self.analysis.path_results)[:, 10])}
+            json_dict['Path_SIFs']['K_II_J'] = {"unit": "MPa*m^{1/2}",
+                                                "result": list(np.asarray(self.analysis.path_results)[:, 11])}
+            json_dict['Path_SIFs']['K_III_J'] = {"unit": "MPa*m^{1/2}",
+                                                 "result": list(np.asarray(self.analysis.path_results)[:, 12])}
 
         if self.analysis.integral_properties.buckner_williams_terms is not None:
             json_dict['Bueckner_Chen_integral'] = {}
@@ -567,17 +595,17 @@ class OutputWriter:
         json_dict['Path_Properties']['TickSize'] = {"unit": "mm",
                                                     "result": list(self.analysis.tick_sizes)}
         json_dict['Path_Properties']['LineXL'] = {"unit": "mm",
-                                                  "result": list(np.asarray(self.analysis.int_sizes)[:, 0])}
+                                                  "result": list(np.asarray(self.analysis.path_sizes)[:, 0])}
         json_dict['Path_Properties']['LineXR'] = {"unit": "mm",
-                                                  "result": list(np.asarray(self.analysis.int_sizes)[:, 1])}
+                                                  "result": list(np.asarray(self.analysis.path_sizes)[:, 1])}
         json_dict['Path_Properties']['LineYB'] = {"unit": "mm",
-                                                  "result": list(np.asarray(self.analysis.int_sizes)[:, 2])}
+                                                  "result": list(np.asarray(self.analysis.path_sizes)[:, 2])}
         json_dict['Path_Properties']['LineYT'] = {"unit": "mm",
-                                                  "result": list(np.asarray(self.analysis.int_sizes)[:, 3])}
+                                                  "result": list(np.asarray(self.analysis.path_sizes)[:, 3])}
 
         top_offsets = []
         bot_offsets = []
-        for each_path_index in range(len(self.analysis.results)):
+        for each_path_index in range(len(self.analysis.path_results)):
             top_offsets.append(self.analysis.integration_points[each_path_index][1][-1])
             bot_offsets.append(self.analysis.integration_points[each_path_index][1][0])
 
