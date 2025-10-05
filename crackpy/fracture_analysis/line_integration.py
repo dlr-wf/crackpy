@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import numpy as np
 from scipy.interpolate import griddata
 from scipy.ndimage import label
@@ -5,7 +7,9 @@ from scipy.ndimage import label
 from crackpy.fracture_analysis.crack_tip import get_crack_nearfield, eigenfunction, get_zhao_solutions
 from crackpy.fracture_analysis.data_processing import InputData, apply_mask
 from crackpy.structure_elements.material import Material
+from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
 
+DEFAULT_BUCKNER_CHEN_TERMS = [1, 2, 3, 4, 5]
 
 class IntegralProperties:
     """Integral properties which are used for more than one line integration within Fracture Analysis.
@@ -85,7 +89,7 @@ class IntegralProperties:
 
         self.mask_tolerance = mask_tolerance
 
-        self.buckner_williams_terms = buckner_williams_terms
+        self.buckner_williams_terms = buckner_williams_terms  # TODO: Should be move to LineIntegral, as it is not used in IntegralProperties
 
     def set_automatically(self, data: InputData, auto_detect_threshold: float):
         """Automatically set up the integration path properties.
@@ -223,7 +227,10 @@ class IntegrationPath:
         self.nodes = None
         self.int_points = None
 
-    def create_nodes(self) -> list:
+        self._create_nodes()
+        self._create_integration_points()
+
+    def _create_nodes(self):
         """Creates a list of nodes specifying the elements for the integration path. The number of nodes is taken from
         self.path_properties and then constant for each path or it is calculated from self.path_properties.tick_size and
         then it varies for each path due to constant tick_size. If neither tick_size nor num_of_nodes is None, then
@@ -291,9 +298,8 @@ class IntegrationPath:
             nodes_y_coors.append(self.origin_y + path.size_top - length_top_left / num_nodes * i)
 
         self.nodes = [nodes_x_coors, nodes_y_coors]
-        return self.nodes
 
-    def get_integration_points(self) -> np.ndarray:
+    def _create_integration_points(self):
         """Generates coordinates of integration points and element sizes.
 
         Returns:
@@ -311,7 +317,15 @@ class IntegrationPath:
             int_points.append([x_coor, y_coor, delta_x, delta_y])
         int_points = np.asarray(int_points)
         self.int_points = int_points
-        return int_points
+
+    def get_integration_points(self) -> np.ndarray:
+        """Get integration points of the integration path.
+
+        Returns:
+            int_points [[x_coor, y_coor, delta_x, delta_y]]
+
+        """
+        return self.int_points
 
 
 class LineIntegral:
@@ -319,7 +333,7 @@ class LineIntegral:
     and path of integration.
 
     Methods:
-        * integrate - solve for J-integral, interaction integral, Bueckner/Chen intgral
+        * integrate - solve for J-integral, interaction integral, Bueckner/Chen integral
 
     """
 
@@ -339,6 +353,7 @@ class LineIntegral:
             buckner_williams_terms: (list or None) list of Williams coefficients to be calculated with Buckner-Chen Integral
 
         """
+        # input
         self.data = data
         self.integration_path = integration_path
         self.x_shift = integration_path.path_properties.tick_size
@@ -346,11 +361,18 @@ class LineIntegral:
         self.origin_y = integration_path.origin_y
         self.material = material
         self.buckner_williams_terms = buckner_williams_terms
-        self.np_integration_points = self.integration_path.get_integration_points()
+        self.mask_tol = mask_tol
+        self.np_integration_points = None
+        self.tri = None
 
-        self._interpolate_on_integration_points(mask_tol=mask_tol)
-
+        # output
         self.j_integral = None
+        self.decomp_j_integral_I = None
+        self.decomp_j_integral_II = None
+        self.decomp_j_integral_III = None
+        self.decomp_j_integral_K_I = None
+        self.decomp_j_integral_K_II = None
+        self.decomp_j_integral_K_III = None
         self.sif_k_j = None
         self.sif_k_i = None
         self.sif_k_ii = None
@@ -361,28 +383,92 @@ class LineIntegral:
         self.williams_b_n = []
         self.williams_coefficients = []
 
-    def integrate(self):
-        """Call this method to solve integrals for J-integral :math:`J` and interaction integral :math:`J^{1,2}` and
-        T-stress. We use the following formulas
+        self.__post_init__()
 
-        .. math::
-           K_J = \\sqrt{J E}
+    def __post_init__(self):
+        self.np_integration_points = self.integration_path.get_integration_points()
+        self._interpolate_on_integration_points()
 
-        .. math::
-            K_I = \\frac{J^{1,2} E}{2 K_{I}^{aux}}
 
-        .. math::
-            K_II = \\frac{J^{1,2} E}{2 K_{II}^{aux}}
 
-        .. math::
-            T = 4a_2
 
-        to calculate the stress intensity factors.
+    def integrate_all(self):
+        """Call this method to solve all integrals
+        - J-integral
+        - Mode I, II, III decomposition of J-integral
+        - Interaction integral for SIF K_I and K_II
+        - T-stress with interaction integral method
+        - T-stress with stress difference method
+        - Williams coefficients with Buckner-Chen method (if terms are given)
 
+        """
+        self.integrate_j()
+        self.integrate_j_decompose()
+        self.integrate_i_k1_k2()
+        self.integrate_i_t()
+        self.integrate_t_sdm()
+        if self.buckner_williams_terms is not None:
+            self.integrate_buckner_chen()
+
+    def integrate_j(self):
+        """Call this method to solve integrals for J-integral :math:`J`
         """
         self.j_integral = self._solve_j_integral()  # in N/mm
         self.sif_k_j = np.sqrt(np.abs(self.j_integral) / 1000.0 * self.material.E)  # MPa*sqrt(mm) -> MPa*sqrt(m)
 
+    def integrate_j_decompose(self):
+        """Call this method to solve integrals for J-integral :math:`J` and its mode I, II, III decomposition
+
+        """
+        #############################################
+        # Mode decomposition of J integral
+        # see: Molteno, M. R., & Becker, T. H. (2015). Mode I-III decomposition of the j-integral from DIC
+        # displacement data. Strain, 51(6), 492–503. https://doi.org/10.1111/str.12166
+        #############################################
+
+        try:
+            self.data_orig = deepcopy(self.data)
+            self._map_displacement_data_on_regular_grid(grid_points=200)
+
+            # Mode I
+            #self.data = self._prepare_mode_I_data()
+            self.data = self._prepare_mode_data(mode='I')
+            self._interpolate_on_integration_points()
+            self.decomp_j_integral_I = self._solve_j_integral()  # in N/mm
+            self.decomp_j_integral_K_I = np.sqrt(self.decomp_j_integral_I * self.material.E / 1000)  # MPa*sqrt(m)
+            #print(f'J_1= {self.decomp_j_integral_I}, K_I = {self.decomp_j_integral_K_I}')
+
+            # Mode II
+            #self.data = self._prepare_mode_II_data()
+            self.data = self._prepare_mode_data(mode='II')
+            self._interpolate_on_integration_points()
+            self.decomp_j_integral_II = self._solve_j_integral()  # in N/mm
+            self.decomp_j_integral_K_II = np.sqrt(self.decomp_j_integral_II * self.material.E / 1000)  # MPa*sqrt(m)
+            #print(f'J_2= {self.decomp_j_integral_II}, K_II = {self.decomp_j_integral_K_II}')
+
+            # Mode III
+            #self.data = self._prepare_mode_III_data()
+            self.data = self._prepare_mode_data(mode='III')
+            self._interpolate_on_integration_points()
+            self._interpolate_on_integration_points_z()
+            self.decomp_j_integral_III = self._solve_j_integral_III()  # in N/mm
+            self.decomp_j_integral_K_III = np.sqrt(np.abs(self.decomp_j_integral_III) / 1000 * self.material.E /
+                                                   (1 + self.material.nu_xy))  # MPa*sqrt(m)
+            #print(f'J_3= {self.decomp_j_integral_III}, K_III = {self.decomp_j_integral_K_III}')
+        except Exception as e:
+            print(f'Mode decomposition of J integral failed: {e}')
+            # set values to nan
+            self.decomp_j_integral_I = np.nan
+            self.decomp_j_integral_K_I = np.nan
+            self.decomp_j_integral_II = np.nan
+            self.decomp_j_integral_K_II = np.nan
+            self.decomp_j_integral_III = np.nan
+            self.decomp_j_integral_K_III = np.nan
+        finally:
+            self.data = self.data_orig
+            self._interpolate_on_integration_points()
+
+    def integrate_i_k1_k2(self):
         #############################################
         # see Meinhard Kuna Section 6.7.2 for details
         #############################################
@@ -404,19 +490,9 @@ class LineIntegral:
         self.sif_k_ii = self.material.E / kii_aux * interaction_integral_value / 2  # mistake in Kuna formula (6.86)
         self.sif_k_ii = self._unit_mm_to_m(self.sif_k_ii)  # MPa*sqrt(mm) -> MPa*sqrt(m)
 
-        # T-stress with Bueckner / Chen integral method
-        n = 2
-        c_m = 1
-        a_n = self._williams_coeff_from_chen_integral(a_aux=c_m, n=n)
-        self.t_stress_chen = 4 * a_n  # MPa
-
-        # T-stress with stress difference method
-        int_path_max_x = np.max(self.np_integration_points[:, 0])
-        self.t_stress_sdm = griddata((self.data.coor_x, self.data.coor_y),
-                                     self.data.sig_x - self.data.sig_y,
-                                     (int_path_max_x, 0))
-
+    def integrate_i_t(self  ):
         # T-stress with interaction integral method
+        int_path_max_x = np.max(self.np_integration_points[:, 0])
         t_stress_integral = self._solve_t_stress_interaction_integral()
         if self.material.plane_strain:
             # plane strain
@@ -428,6 +504,14 @@ class LineIntegral:
             # plane stress
             self.t_stress_int = self.material.E * (t_stress_integral + self.material.nu_xy * eps_z)
 
+    def integrate_t_sdm(self):
+        # T-stress with stress difference method
+        int_path_max_x = np.max(self.np_integration_points[:, 0])
+        self.t_stress_sdm = griddata((self.data.coor_x, self.data.coor_y),
+                                     self.data.sig_x - self.data.sig_y,
+                                     (int_path_max_x, 0))
+
+    def integrate_buckner_chen(self):
         # Williams coefficents with Chen method
         for n in self.buckner_williams_terms:
             a_n = self._williams_coeff_from_chen_integral(a_aux=1, n=n)
@@ -436,108 +520,68 @@ class LineIntegral:
             self.williams_b_n.append(b_n)
             self.williams_coefficients.append([n, a_n, b_n])
 
-    def _interpolate_on_integration_points(self, mask_tol: float = None):
-        """Interpolates full field data onto the integration path coordinates.
-        Further, calculates the interpolated results for shifted points for derivatives."""
+        # T-stress with Bueckner / Chen integral method
+        n = 2
+        c_m = 1
+        a_n = self._williams_coeff_from_chen_integral(a_aux=c_m, n=n)
+        self.t_stress_chen = 4 * a_n  # MPa
 
-        self.pos_shifted_np_int_points = np.asarray(self.np_integration_points[:, 0]) + self.x_shift
-        self.neg_shifted_np_int_points = np.asarray(self.np_integration_points[:, 0]) - self.x_shift
+    #############################################
+    # FUNCTIONS FOR CALCULATING THE DESCRIPTORS #
+    #############################################
 
-        if mask_tol is not None:
-            # mask out areas away from the integration points
-            left = np.min(self.np_integration_points[:, 0])
-            right = np.max(self.np_integration_points[:, 0])
-            bottom = np.min(self.np_integration_points[:, 1])
-            top = np.max(self.np_integration_points[:, 1])
-
-            tol = mask_tol
-            outer_square = (left - tol <= self.data.coor_x) * (self.data.coor_x <= right + tol) * \
-                           (bottom - tol <= self.data.coor_y) * (self.data.coor_y <= top + tol)
-            inner_square = (left + tol <= self.data.coor_x) * (self.data.coor_x <= right - tol) * \
-                           (bottom + tol <= self.data.coor_y) * (self.data.coor_y <= top - tol)
-            mask = np.where(outer_square * (1 - inner_square))  # outer_square \ inner_square
-            data = apply_mask(self.data, mask)
-        else:
-            data = self.data
-
-        self.interpolated_eps_x = griddata((data.coor_x, data.coor_y), data.eps_x,
-                                           (self.np_integration_points[:, 0], self.np_integration_points[:, 1]),
-                                           method='linear')
-        self.interpolated_eps_y = griddata((data.coor_x, data.coor_y), data.eps_y,
-                                           (self.np_integration_points[:, 0], self.np_integration_points[:, 1]),
-                                           method='linear')
-        self.interpolated_eps_xy = griddata((data.coor_x, data.coor_y), data.eps_xy,
-                                            (self.np_integration_points[:, 0], self.np_integration_points[:, 1]),
-                                            method='linear')
-        self.interpolated_sig_x = griddata((data.coor_x, data.coor_y), data.sig_x,
-                                           (self.np_integration_points[:, 0], self.np_integration_points[:, 1]),
-                                           method='linear')
-        self.interpolated_sig_y = griddata((data.coor_x, data.coor_y), data.sig_y,
-                                           (self.np_integration_points[:, 0], self.np_integration_points[:, 1]),
-                                           method='linear')
-        self.interpolated_sig_xy = griddata((data.coor_x, data.coor_y), data.sig_xy,
-                                            (self.np_integration_points[:, 0], self.np_integration_points[:, 1]),
-                                            method='linear')
-        self.interpolated_disp_x = griddata((data.coor_x, data.coor_y), data.disp_x,
-                                            (self.np_integration_points[:, 0], self.np_integration_points[:, 1]),
-                                            method='linear')
-        self.interpolated_disp_y = griddata((data.coor_x, data.coor_y), data.disp_y,
-                                            (self.np_integration_points[:, 0], self.np_integration_points[:, 1]),
-                                            method='linear')
-        self.interpolated_disp_y_dx_positive = griddata((data.coor_x, data.coor_y), data.disp_y,
-                                                        (self.pos_shifted_np_int_points,
-                                                         self.np_integration_points[:, 1]),
-                                                        method='linear')
-        self.interpolated_disp_y_dx_negative = griddata((data.coor_x, data.coor_y), data.disp_y,
-                                                        (self.neg_shifted_np_int_points,
-                                                         self.np_integration_points[:, 1]),
-                                                        method='linear')
-        self.interpolated_disp_y_dx = (self.interpolated_disp_y_dx_positive -
-                                       self.interpolated_disp_y_dx_negative) / (2.0 * self.x_shift)
-
-    def _solve_chen_integral(self, n: int = -1, a_n: float = 0, b_n: float = 0) -> float:
-        """Function that calculates the Bueckner / Chen integral as a line integration.
-        [see Y. Z. Chen, New path independent integrals in linear elastic fracture mechanics, 1985]
-
-        Args:
-            n: order of corresponding Williams series coefficient to compute
-            a_n: input coefficient to eigenfunction (typically either 0 or 1)
-            b_n: input coefficient to eigenfunction (typically either 0 or 1)
+    # base method for J-integral, used in child classes
+    def _solve_j_integral(self) -> float:
+        """Function that returns the J-integral as a line integration.
 
         Returns:
-            Chen integral value
+            J-integral value
 
         """
-        chen_integral = 0.0
+        j_int_value = 0.0
         for i in range(len(self.np_integration_points[:, 0])):
-            # size and height of integration elements
-            elem_size = np.sqrt(self.np_integration_points[i, 2] ** 2.0 + self.np_integration_points[i, 3] ** 2.0)
+            int_point_sig_tensor = np.asarray([[self.interpolated_sig_x[i], self.interpolated_sig_xy[i]],
+                                               [self.interpolated_sig_xy[i], self.interpolated_sig_y[i]]])
+            int_point_eps_tensor = np.asarray([[self.interpolated_eps_x[i], self.interpolated_eps_xy[i]],
+                                               [self.interpolated_eps_xy[i], self.interpolated_eps_y[i]]])
 
-            # normal vector
+            elem_height = self.np_integration_points[i, 3]
+            elem_size = np.sqrt(self.np_integration_points[i, 2] ** 2.0 + self.np_integration_points[i, 3] ** 2.0)
+            direction_vector = [self.np_integration_points[i, 2], self.np_integration_points[i, 3], 0.0]
+            normal_vector = np.cross(direction_vector, [0.0, 0.0, 1.0])
+            normal_vector = np.asarray(1.0 / np.linalg.norm(normal_vector) * normal_vector)[0:2]
+            t_vector = np.dot(int_point_sig_tensor, normal_vector)
+
+            energy_term = 0.5 * np.sum(int_point_sig_tensor * int_point_eps_tensor)
+            stress_term = (t_vector[0] * self.interpolated_eps_x[i] + t_vector[1] * self.interpolated_disp_y_dx[i])
+            int_point_j = energy_term * elem_height - stress_term * elem_size
+            j_int_value += int_point_j  # if not np.isnan(int_point_j) else 0.0
+
+        return j_int_value
+
+    def _solve_j_integral_III(self) -> float:
+        """Function that returns the J-integral as a line integration.
+
+        Returns:
+            J-integral value
+
+        """
+        j_int_value = 0.0
+        for i in range(len(self.np_integration_points[:, 0])):
+            elem_height = self.np_integration_points[i, 3]
+            elem_size = np.sqrt(self.np_integration_points[i, 2] ** 2.0 + self.np_integration_points[i, 3] ** 2.0)
             direction_vector = [self.np_integration_points[i, 2], self.np_integration_points[i, 3], 0.0]
             normal_vector = np.cross(direction_vector, [0.0, 0.0, 1.0])
             normal_vector = np.asarray(1.0 / np.linalg.norm(normal_vector) * normal_vector)[0:2]
 
-            # stress and displacement of real data
-            int_point_sig_tensor = np.asarray([[self.interpolated_sig_x[i], self.interpolated_sig_xy[i]],
-                                               [self.interpolated_sig_xy[i], self.interpolated_sig_y[i]]])
-            int_point_disp_vector = np.asarray([self.interpolated_disp_x[i], self.interpolated_disp_y[i]])
-            # traction of real data
-            t_vector = np.dot(int_point_sig_tensor, normal_vector)
+            energy_term = (self.interpolated_eps_xz[i] * self.interpolated_sigma_xz[i] +
+                           self.interpolated_eps_yz[i] * self.interpolated_sigma_yz[i])
+            stress_term = (self.interpolated_sigma_xz[i] * self.interpolated_eps_xz[i] * normal_vector[0] +
+                           self.interpolated_sigma_yz[i] * self.interpolated_eps_xz[i] * normal_vector[1])
 
-            # auxiliary stress and displacement
-            r, phi = self._make_polar(x=-self.origin_x + self.np_integration_points[i, 0],
-                                      y=-self.origin_y + self.np_integration_points[i, 1])
-            sigma_x_n, sigma_y_n, sigma_xy_n, disp_x_aux, disp_y_aux = eigenfunction(n, a_n, b_n, r, phi, self.material)
-            sigma_aux = np.asarray([[sigma_x_n, sigma_xy_n], [sigma_xy_n, sigma_y_n]])
-            disp_aux = np.asarray([disp_x_aux, disp_y_aux])
-            # auxiliary traction
-            t_vector_aux = np.dot(sigma_aux, normal_vector)
-
-            # Chen energy integral
-            chen_integral += np.sum(t_vector * disp_aux - t_vector_aux * int_point_disp_vector) * elem_size
-
-        return chen_integral
+            int_point_j = energy_term * elem_height - stress_term * elem_size
+            j_int_value += int_point_j
+        return j_int_value
 
     def _solve_interaction_integral(self, ki_aux: float, kii_aux: float) -> float:
         """Function that calculates the interaction integral as a line integration.
@@ -661,33 +705,6 @@ class LineIntegral:
 
         return interaction_integral_value
 
-    def _solve_j_integral(self) -> float:
-        """Function that returns the J-integral as a line integration.
-
-        Returns:
-            J-integral value
-
-        """
-        j_int_value = 0.0
-        for i in range(len(self.np_integration_points[:, 0])):
-            int_point_sig_tensor = np.asarray([[self.interpolated_sig_x[i], self.interpolated_sig_xy[i]],
-                                               [self.interpolated_sig_xy[i], self.interpolated_sig_y[i]]])
-            int_point_eps_tensor = np.asarray([[self.interpolated_eps_x[i], self.interpolated_eps_xy[i]],
-                                               [self.interpolated_eps_xy[i], self.interpolated_eps_y[i]]])
-
-            elem_height = self.np_integration_points[i, 3]
-            elem_size = np.sqrt(self.np_integration_points[i, 2] ** 2.0 + self.np_integration_points[i, 3] ** 2.0)
-            direction_vector = [self.np_integration_points[i, 2], self.np_integration_points[i, 3], 0.0]
-            normal_vector = np.cross(direction_vector, [0.0, 0.0, 1.0])
-            normal_vector = np.asarray(1.0 / np.linalg.norm(normal_vector) * normal_vector)[0:2]
-            t_vector = np.dot(int_point_sig_tensor, normal_vector)
-
-            energy_term = 0.5 * np.sum(int_point_sig_tensor * int_point_eps_tensor)
-            stress_term = (t_vector[0] * self.interpolated_eps_x[i] + t_vector[1] * self.interpolated_disp_y_dx[i])
-            int_point_j = energy_term * elem_height - stress_term * elem_size
-            j_int_value += int_point_j
-        return j_int_value
-
     def _williams_coeff_from_chen_integral(self, a_aux=0, b_aux=0, n=1) -> float:
         """This method implements formula (6.94) from Meinhard Kuna's book on fracture mechanics.
 
@@ -707,6 +724,279 @@ class LineIntegral:
                          (np.pi * n * (-1) ** (n + 1)) * integral_value
         return williams_coeff
 
+    def _solve_chen_integral(self, n: int = -1, a_n: float = 0, b_n: float = 0) -> float:
+        """Function that calculates the Bueckner / Chen integral as a line integration.
+        [see Y. Z. Chen, New path independent integrals in linear elastic fracture mechanics, 1985]
+
+        Args:
+            n: order of corresponding Williams series coefficient to compute
+            a_n: input coefficient to eigenfunction (typically either 0 or 1)
+            b_n: input coefficient to eigenfunction (typically either 0 or 1)
+
+        Returns:
+            Chen integral value
+
+        """
+        chen_integral = 0.0
+        for i in range(len(self.np_integration_points[:, 0])):
+            # size and height of integration elements
+            elem_size = np.sqrt(self.np_integration_points[i, 2] ** 2.0 + self.np_integration_points[i, 3] ** 2.0)
+
+            # normal vector
+            direction_vector = [self.np_integration_points[i, 2], self.np_integration_points[i, 3], 0.0]
+            normal_vector = np.cross(direction_vector, [0.0, 0.0, 1.0])
+            normal_vector = np.asarray(1.0 / np.linalg.norm(normal_vector) * normal_vector)[0:2]
+
+            # stress and displacement of real data
+            int_point_sig_tensor = np.asarray([[self.interpolated_sig_x[i], self.interpolated_sig_xy[i]],
+                                               [self.interpolated_sig_xy[i], self.interpolated_sig_y[i]]])
+            int_point_disp_vector = np.asarray([self.interpolated_disp_x[i], self.interpolated_disp_y[i]])
+            # traction of real data
+            t_vector = np.dot(int_point_sig_tensor, normal_vector)
+
+            # auxiliary stress and displacement
+            r, phi = self._make_polar(x=-self.origin_x + self.np_integration_points[i, 0],
+                                      y=-self.origin_y + self.np_integration_points[i, 1])
+            sigma_x_n, sigma_y_n, sigma_xy_n, disp_x_aux, disp_y_aux = eigenfunction(n, a_n, b_n, r, phi, self.material)
+            sigma_aux = np.asarray([[sigma_x_n, sigma_xy_n], [sigma_xy_n, sigma_y_n]])
+            disp_aux = np.asarray([disp_x_aux, disp_y_aux])
+            # auxiliary traction
+            t_vector_aux = np.dot(sigma_aux, normal_vector)
+
+            # Chen energy integral
+            chen_integral += np.sum(t_vector * disp_aux - t_vector_aux * int_point_disp_vector) * elem_size
+
+        return chen_integral
+
+    ######################################
+    # FUNCTIONS FOR STRAIN RECALCULATION #
+    ######################################
+
+    def _compute_strains_xy(self, u_x, u_y, gap):
+        steps = self.grid_points
+        dist = self.x_coordinates[1] - self.x_coordinates[0]
+        eps_xx = np.zeros_like(self.x_mesh)
+        eps_xx[0:int(steps / 2) - gap, 0:int(steps / 2)] = np.gradient(u_x[0:int(steps / 2) - gap, 0:int(steps / 2)],
+                                                                       dist, axis=1)
+        eps_xx[int(steps / 2) + gap:, 0:int(steps / 2)] = np.gradient(u_x[int(steps / 2) + gap:, 0:int(steps / 2)],
+                                                                      dist, axis=1)
+        eps_xx[:, int(steps / 2):] = np.gradient(u_x[:, int(steps / 2):], dist, axis=1)
+
+        eps_yy = np.zeros_like(self.x_mesh)
+        eps_yy[0:int(steps / 2) - gap, 0:int(steps / 2)] = np.gradient(u_y[0:int(steps / 2) - gap, 0:int(steps / 2)],
+                                                                       dist, axis=0)
+        eps_yy[int(steps / 2) + gap:, 0:int(steps / 2)] = np.gradient(u_y[int(steps / 2) + gap:, 0:int(steps / 2)],
+                                                                      dist, axis=0)
+        eps_yy[:, int(steps / 2):] = np.gradient(u_y[:, int(steps / 2):], dist, axis=0)
+
+        eps_xy = np.zeros_like(self.x_mesh)
+        eps_xy[0:int(steps / 2) - gap, 0:int(steps / 2)] = 0.5 * (
+                    np.gradient(u_x[0:int(steps / 2) - gap, 0:int(steps / 2)], dist, axis=0) +
+                    np.gradient(u_y[0:int(steps / 2) - gap, 0:int(steps / 2)], dist, axis=1))
+        eps_xy[int(steps / 2) + gap:, 0:int(steps / 2)] = 0.5 * (
+                    np.gradient(u_x[int(steps / 2) + gap:, 0:int(steps / 2)], dist, axis=0) +
+                    np.gradient(u_y[int(steps / 2) + gap:, 0:int(steps / 2)], dist, axis=1))
+        eps_xy[:, int(steps / 2):] = 0.5 * (np.gradient(u_x[:, int(steps / 2):], dist, axis=0) +
+                                            np.gradient(u_y[:, int(steps / 2):], dist, axis=1))
+        return eps_xx, eps_yy, eps_xy
+
+    def _compute_stress_strain_z(self, u_z, gap):
+        steps = self.grid_points
+        dist = self.x_coordinates[1] - self.x_coordinates[0]
+        eps_xz = np.zeros_like(self.x_mesh)
+        eps_xz[0:int(steps / 2) - gap, 0:int(steps / 2)] = np.gradient(u_z[0:int(steps / 2) - gap, 0:int(steps / 2)],
+                                                                       dist, axis=1)
+        eps_xz[int(steps / 2) + gap:, 0:int(steps / 2)] = np.gradient(u_z[int(steps / 2) + gap:, 0:int(steps / 2)],
+                                                                      dist, axis=1)
+        eps_xz[:, int(steps / 2):] = np.gradient(u_z[:, int(steps / 2):], dist, axis=1)
+
+        eps_yz = np.zeros_like(self.x_mesh)
+        eps_yz[0:int(steps / 2) - gap, 0:int(steps / 2)] = np.gradient(u_z[0:int(steps / 2) - gap, 0:int(steps / 2)],
+                                                                       dist, axis=0)
+        eps_yz[int(steps / 2) + gap:, 0:int(steps / 2)] = np.gradient(u_z[int(steps / 2) + gap:, 0:int(steps / 2)],
+                                                                      dist, axis=0)
+        eps_yz[:, int(steps / 2):] = np.gradient(u_z[:, int(steps / 2):], dist, axis=0)
+
+        sigma_xz = self.material.G * eps_xz
+        sigma_yz = self.material.G * eps_yz
+
+        return eps_xz, eps_yz, sigma_xz, sigma_yz
+
+    #########################################################
+    # FUNCTIONS FOR PREPARING DATA FOR J-MODE DECOMPOSITION #
+    #########################################################
+
+    def _prepare_mode_data(self, mode:str):
+        """Prepare `InputData` for mode 1, 2 or 3 decomposition (j-integral).
+
+        Args:
+            mode: 1 / 'I' -> Mode I, 2 / 'II' -> Mode II, 3 / 'III' -> Mode III
+
+        Returns:
+            InputData instance populated for requested mode.
+        """
+
+        if mode in [1, 'I', 'i']:
+            u_x = 0.5 * (self.disp_u_mesh + np.flipud(self.disp_u_mesh))
+            u_y = 0.5 * (self.disp_v_mesh - np.flipud(self.disp_v_mesh))
+            u_z = np.zeros_like(u_x)
+        elif mode in [2, 'II', 'ii']:
+            u_x = 0.5 * (self.disp_u_mesh - np.flipud(self.disp_u_mesh))
+            u_y = 0.5 * (self.disp_v_mesh + np.flipud(self.disp_v_mesh))
+            u_z = np.zeros_like(u_x)
+        elif mode in [3, 'III', 'iii']:
+            u_z = 0.5 * (self.disp_w_mesh - np.flipud(self.disp_w_mesh))
+            u_x = np.zeros_like(u_z)
+            u_y = np.zeros_like(u_z)
+        else:
+            raise ValueError("Mode has to be 1/'I', 2/'II' or 3/'III'.")
+
+        eps_xx, eps_yy, eps_xy = self._compute_strains_xy(u_x, u_y, 2)
+        eps_xz, eps_yz, sigma_xz, sigma_yz = self._compute_stress_strain_z(u_z, 2)
+
+        # populate the container
+        decomp_data = InputData()
+        decomp_data.coor_x = self.x_mesh.flatten()
+        decomp_data.coor_y = self.y_mesh.flatten()
+        decomp_data.disp_x = u_x.flatten()
+        decomp_data.disp_y = u_y.flatten()
+        decomp_data.disp_z = u_z.flatten()
+        decomp_data.eps_x = eps_xx.flatten()
+        decomp_data.eps_y = eps_yy.flatten()
+        decomp_data.eps_xy = eps_xy.flatten()
+        decomp_data.eps_xz = eps_xz.flatten()
+        decomp_data.eps_yz = eps_yz.flatten()
+        decomp_data.sigma_xz = sigma_xz.flatten()
+        decomp_data.sigma_yz = sigma_yz.flatten()
+
+        # recalc Von Mises strains and stresses
+        decomp_data.calc_stresses(self.material)
+        decomp_data.calc_eps_vm()
+        decomp_data._calc_sig_vm()
+
+        return decomp_data
+
+    ################################
+    # HELPER FUNCTIONS FOR MESHING #
+    ################################
+
+    def _map_displacement_data_on_regular_grid(self, grid_points: int):
+        left = np.min(self.np_integration_points[:, 0])
+        right = np.max(self.np_integration_points[:, 0])
+        bottom = np.min(self.np_integration_points[:, 1])
+        top = np.max(self.np_integration_points[:, 1])
+
+        grid_size_x = max(abs(left), abs(right)) * 1.2
+        grid_size_y = max(abs(bottom), abs(top)) * 1.2
+
+        self.grid_points = int(grid_points)
+        self.x_coordinates = np.linspace(-grid_size_x, grid_size_x, self.grid_points, endpoint=True)
+        self.y_coordinates = np.linspace(-grid_size_y, grid_size_y, self.grid_points, endpoint=True)
+
+        # used for j decomposition
+        self.x_mesh, self.y_mesh = np.meshgrid(self.x_coordinates, self.y_coordinates, indexing="xy")
+
+        grid_points = np.c_[self.x_mesh.ravel(), self.y_mesh.ravel()]
+
+        interp_disp = ReusableLinearInterpolator(self.data.coor_x, self.data.coor_y, grid_points)
+        uvw = interp_disp.interpolate(np.c_[self.data.disp_x, self.data.disp_y, self.data.disp_z])
+        uvw = uvw.reshape(self.x_mesh.shape + (3,))
+        self.disp_u_mesh, self.disp_v_mesh, self.disp_w_mesh = uvw[:,:,0], uvw[:,:,1], uvw[:,:,2]
+        pass
+
+
+    ###########################################
+    # HELPER FUNCTIONS FOR DATA INTERPOLATION #
+    ###########################################
+
+    def _interpolate_on_integration_points(self):
+        """Interpolates full field data onto the integration path coordinates.
+        Further, calculates the interpolated results for shifted points for derivatives."""
+
+        self.pos_shifted_np_int_points = np.asarray(self.np_integration_points[:, 0]) + self.x_shift
+        self.neg_shifted_np_int_points = np.asarray(self.np_integration_points[:, 0]) - self.x_shift
+
+        if self.mask_tol is not None:
+            # mask out areas away from the integration points
+            left = np.min(self.np_integration_points[:, 0])
+            right = np.max(self.np_integration_points[:, 0])
+            bottom = np.min(self.np_integration_points[:, 1])
+            top = np.max(self.np_integration_points[:, 1])
+
+            tol = self.mask_tol
+            outer_square = (left - tol <= self.data.coor_x) * (self.data.coor_x <= right + tol) * \
+                           (bottom - tol <= self.data.coor_y) * (self.data.coor_y <= top + tol)
+            inner_square = (left + tol <= self.data.coor_x) * (self.data.coor_x <= right - tol) * \
+                           (bottom + tol <= self.data.coor_y) * (self.data.coor_y <= top - tol)
+            mask = np.where(outer_square * (1 - inner_square))  # outer_square \ inner_square
+            data = apply_mask(self.data, mask)
+        else:
+            data = self.data
+
+        # we reuses triangles and weights, since interpolation points are the same for all fields
+        # for the fields
+        interpolator = ReusableLinearInterpolator(data.coor_x, data.coor_y, np.c_[self.np_integration_points[:, 0], self.np_integration_points[:, 1]])
+        intp_data = interpolator.interpolate(np.c_[data.eps_x, data.eps_y, data.eps_xy,
+                                                    data.sig_x, data.sig_y, data.sig_xy,
+                                                    data.disp_x, data.disp_y])
+        (self.interpolated_eps_x, self.interpolated_eps_y, self.interpolated_eps_xy,
+         self.interpolated_sig_x, self.interpolated_sig_y, self.interpolated_sig_xy,
+         self.interpolated_disp_x, self.interpolated_disp_y) = (intp_data[:, 0], intp_data[:, 1], intp_data[:, 2],
+                                                                   intp_data[:, 3], intp_data[:, 4], intp_data[:, 5],
+                                                                   intp_data[:, 6], intp_data[:, 7])
+
+        # for the derivative of disp_y w.r.t. x, we reuse the standard griddata approach (since points are different)
+        self.interpolated_disp_y_dx_positive = griddata((data.coor_x, data.coor_y), data.disp_y,
+                                                        (self.pos_shifted_np_int_points,
+                                                         self.np_integration_points[:, 1]),
+                                                        method='linear')
+        self.interpolated_disp_y_dx_negative = griddata((data.coor_x, data.coor_y), data.disp_y,
+                                                        (self.neg_shifted_np_int_points,
+                                                         self.np_integration_points[:, 1]),
+                                                        method='linear')
+        self.interpolated_disp_y_dx = (self.interpolated_disp_y_dx_positive -
+                                       self.interpolated_disp_y_dx_negative) / (2.0 * self.x_shift)
+
+        pass
+
+    def _interpolate_on_integration_points_z(self, mask_tol: float = None):
+        """Interpolates full field data onto the integration path coordinates.
+        Further, calculates the interpolated results for shifted points for derivatives.
+        This method is used for the mode III decomposition of J integral.
+        """
+
+        self.pos_shifted_np_int_points = np.asarray(self.np_integration_points[:, 0]) + self.x_shift
+        self.neg_shifted_np_int_points = np.asarray(self.np_integration_points[:, 0]) - self.x_shift
+
+        if mask_tol is not None:
+            # mask out areas away from the integration points
+            left = np.min(self.np_integration_points[:, 0])
+            right = np.max(self.np_integration_points[:, 0])
+            bottom = np.min(self.np_integration_points[:, 1])
+            top = np.max(self.np_integration_points[:, 1])
+
+            tol = mask_tol
+            outer_square = (left - tol <= self.data.coor_x) * (self.data.coor_x <= right + tol) * \
+                           (bottom - tol <= self.data.coor_y) * (self.data.coor_y <= top + tol)
+            inner_square = (left + tol <= self.data.coor_x) * (self.data.coor_x <= right - tol) * \
+                           (bottom + tol <= self.data.coor_y) * (self.data.coor_y <= top - tol)
+            mask = np.where(outer_square * (1 - inner_square))  # outer_square \ inner_square
+            data = apply_mask(self.data, mask)
+        else:
+            data = self.data
+
+        interpolator = ReusableLinearInterpolator(data.coor_x, data.coor_y, np.c_[self.np_integration_points[:, 0], self.np_integration_points[:, 1]])
+        intp_data = interpolator.interpolate(np.c_[data.eps_xz, data.eps_yz, data.sigma_xz, data.sigma_yz])
+        (self.interpolated_eps_xz, self.interpolated_eps_yz,
+         self.interpolated_sigma_xz, self.interpolated_sigma_yz) = (intp_data[:, 0], intp_data[:, 1],
+                                                                    intp_data[:, 2], intp_data[:, 3])
+
+        pass
+
+    ########
+    # MISC #
+    ########
+
     @staticmethod
     def _unit_m_to_mm(quantity_in_m, n=1):
         return quantity_in_m * 1000 ** (1 - n / 2)
@@ -721,3 +1011,18 @@ class LineIntegral:
         r = np.sqrt(x ** 2.0 + y ** 2.0)
         phi = np.arctan2(y, x)
         return r, phi
+
+    @staticmethod
+    def ensure_defaults_buckner_chen(options: IntegralProperties):
+        """Ensures that the default terms for the Buckner-Chen Integral are provided."""
+        if options.buckner_williams_terms is None:
+            options.buckner_williams_terms = [1, 2, 3, 4, 5]
+        elif 1 not in options.buckner_williams_terms:
+            options.buckner_williams_terms.append(1)
+            print('Buckner-Williams terms should include 1. Added to terms.')
+        if 0 in options.buckner_williams_terms:
+            options.buckner_williams_terms.remove(0)
+            print('Buckner-Williams terms should not include 0. Removed from terms.')
+        options.buckner_williams_terms.sort()
+        pass
+

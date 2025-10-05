@@ -58,7 +58,7 @@ lint_crack_detection:
   script:
     - pip install pylint --quiet
     - pylint crackpy/crack_detection --rcfile='.pylintrc'
-#    - pylint crackpy/tests/test_crack_detection --rcfile='.pylintrc'
+    - pylint crackpy/tests/test_crack_detection --rcfile='.pylintrc'
 
 
 # Run Unit Tests
@@ -77,6 +77,16 @@ fracture_analysis:
   script:
     - pip install pytest --quiet
     - pytest crackpy/tests/test_fracture_analysis --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+
+test_utils:
+  stage: Unit Tests
+  script:
+    - pip install pytest --quiet
+    - pytest crackpy/tests/test_utils --junitxml=report.xml
   artifacts:
     when: always
     reports:

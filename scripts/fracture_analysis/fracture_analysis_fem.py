@@ -47,8 +47,8 @@ int_props = IntegralProperties(
     number_of_paths=10,
     number_of_nodes=100,
 
-    bottom_offset=-0,
-    top_offset=0,
+    bottom_offset=-0.5,
+    top_offset=0.5,
 
     integral_size_left=-5,
     integral_size_right=5,
@@ -60,7 +60,7 @@ int_props = IntegralProperties(
     paths_distance_right=0.5,
     paths_distance_bottom=0.5,
 
-    mask_tolerance=2,
+    #mask_tolerance=2,
 
     buckner_williams_terms=[-1, 1, 2, 3, 4, 5]
 )

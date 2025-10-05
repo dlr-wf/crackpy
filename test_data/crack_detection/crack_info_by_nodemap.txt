@@ -3,3 +3,7 @@
             Dummy2_WPXXX_DummyVersuch_2_dic_results_1_53.txt,           -15.77,             0.41,      181.88,  left
             Dummy2_WPXXX_DummyVersuch_2_dic_results_1_54.txt,           -15.77,             0.41,      181.88,  left
             Dummy2_WPXXX_DummyVersuch_2_dic_results_1_55.txt,           -15.77,             0.41,      181.88,  left
+            Dummy2_WPXXX_DummyVersuch_2_dic_results_1_52.txt,            14.90,             0.66,       -2.21, right
+            Dummy2_WPXXX_DummyVersuch_2_dic_results_1_53.txt,            15.70,             0.69,       -0.06, right
+            Dummy2_WPXXX_DummyVersuch_2_dic_results_1_54.txt,            15.70,             0.69,       -0.06, right
+            Dummy2_WPXXX_DummyVersuch_2_dic_results_1_55.txt,            15.70,             0.69,       -0.06, right

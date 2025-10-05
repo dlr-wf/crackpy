@@ -12,7 +12,7 @@ Output:
 
 import os
 
-from crackpy.fracture_analysis.crack_tip import cjp_stress_field, cjp_displ_field
+from crackpy.fracture_analysis.crack_tip import cjp_stress_field_mixedmode, cjp_displ_field_mixedmode
 from crackpy.structure_elements.material import Material
 from crackpy.fracture_analysis.optimization import Optimization
 
@@ -70,8 +70,8 @@ r_grid, phi_grid = np.mgrid[min_radius:max_radius:tick_size, -np.pi:np.pi:tick_s
 coeffs = A_r, B_r, B_i, C, E
 
 # Calculate the stress and displacement fields
-sigma_xx, sigma_yy, sigma_xy = cjp_stress_field(coeffs, phi_grid, r_grid)
-disp_x, disp_y = cjp_displ_field(coeffs, phi_grid, r_grid, material)
+sigma_xx, sigma_yy, sigma_xy = cjp_stress_field_mixedmode(coeffs, phi_grid, r_grid)
+disp_x, disp_y = cjp_displ_field_mixedmode(coeffs, phi_grid, r_grid, material)
 
 sigma_vm = np.sqrt(sigma_xx ** 2 + sigma_yy ** 2 - sigma_xx * sigma_yy + 3 * sigma_xy ** 2)
 
