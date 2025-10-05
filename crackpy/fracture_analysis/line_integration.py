@@ -102,7 +102,7 @@ class IntegralProperties:
         if data.sig_vm is None:
             raise ValueError("Stresses need to be calculated before using ``data`` by calling data.calc_stresses()")
         # Calculate face size
-        facet_size = data.calc_facet_size()
+        facet_size = data.get_facet_size()
         # Map data on regular grid
         x_min = facet_size * 2.0
         grid_x, grid_y = np.mgrid[-x_min:max(data.coor_x): 500j, min(data.coor_y):max(data.coor_y): 500j]

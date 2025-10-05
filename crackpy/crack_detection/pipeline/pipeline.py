@@ -127,7 +127,7 @@ class CrackDetectionPipeline:
             print(f'\r Progress... {i+1}/{len(self.stages_to_nodemaps)}', end='')
             input_nodemap = Nodemap(name=self.stages_to_nodemaps[stage], folder=self.data_path)
             data = InputData()
-            data.set_data_file(os.path.join(input_nodemap.folder, input_nodemap.name))
+            data.set_nodemap_file(os.path.join(input_nodemap.folder, input_nodemap.name))
             data.read_header()
 
             if data.force is None:

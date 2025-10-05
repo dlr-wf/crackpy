@@ -26,6 +26,15 @@ class TestInputData(unittest.TestCase):
         # check equality to calculated results
         self.assertAlmostEqual(np.sum((self.data.eps_vm - eps_vm_exp)).item(), 0, delta=1e-5)
 
+    def test_require_fields_missing(self):
+        with self.assertRaises(ValueError):
+            self.data.require_fields('coor_z')
+
+    def test_validate_shapes_detects_mismatch(self):
+        self.data.disp_x = self.data.disp_x[:-1]
+        with self.assertRaises(ValueError):
+            self.data._validate_data_shapes()
+
     def test_calc_sig_vm(self):
         sig_vm_exp = np.asarray([478110.36, 602247.03, 731257.40])
         self.data.calc_stresses(material=Material())

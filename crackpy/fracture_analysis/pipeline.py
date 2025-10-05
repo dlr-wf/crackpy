@@ -202,7 +202,7 @@ class FractureAnalysisPipeline:
             stage = int(data["Filename"].split("_")[-1].split(".")[0])
             nodemap = Nodemap(name=data["Filename"], folder=self.nodemap_path, structure=self.nodemap_structure)
             data = InputData()
-            data.set_data_file(os.path.join(nodemap.folder, nodemap.name))
+            data.set_nodemap_file(os.path.join(nodemap.folder, nodemap.name))
             data.read_header()
 
             if data.force is None:
