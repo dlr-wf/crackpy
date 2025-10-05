@@ -1,11 +1,12 @@
 from fractions import Fraction
+from typing import Union
 
 import numpy as np
 
 from crackpy.structure_elements.material import Material
 
 
-def williams_stress_field(a: list or np.array, b: list or np.array, terms: list or np.array,
+def williams_stress_field(a: Union[list, np.ndarray], b: Union[list, np.ndarray], terms: Union[list, np.ndarray],
                           phi: float, r: float) -> list:
     """Formula for the stress field around the crack tip in polar coordinates by Williams.
     [Meinhard Kuna - Numerische Beanspruchungsanalyse formulas (3.41)-(3.42)]
@@ -25,91 +26,22 @@ def williams_stress_field(a: list or np.array, b: list or np.array, terms: list 
     sigma_y = 0.0
     sigma_xy = 0.0
     for index, n in enumerate(terms):
-        sigma_x += n/2 * r**(n/2 - 1) * (a[index] * ((2 + n/2 + (-1)**n) * np.cos((n/2 - 1) * phi)
-                                                 - (n / 2 - 1) * np.cos((n / 2 - 3) * phi))
-                                         - b[index] * ((2 + n/2 - (-1)**n) * np.sin((n/2 - 1) * phi)
-                                                   - (n/2 - 1) * np.sin((n/2 - 3) * phi)))
-        sigma_y += n/2 * r**(n/2 - 1) * (a[index] * ((2 - n/2 - (-1)**n) * np.cos((n/2 - 1) * phi)
-                                                 + (n/2 - 1) * np.cos((n/2 - 3) * phi))
-                                         - b[index] * ((2 - n/2 + (-1)**n) * np.sin((n/2 - 1) * phi)
-                                                   + (n/2 - 1) * np.sin((n/2 - 3) * phi)))
-        sigma_xy += n/2 * r**(n/2 - 1) * (a[index] * ((n/2 - 1) * np.sin((n/2 - 3) * phi)
-                                                  - (n/2 + (-1)**n) * np.sin((n/2 - 1) * phi))
-                                          + b[index] * ((n/2 - 1) * np.cos((n/2 - 3) * phi)
-                                                    - (n/2 - (-1)**n) * np.cos((n/2 - 1) * phi)))
+        sigma_x += n / 2 * r ** (n / 2 - 1) * (a[index] * ((2 + n / 2 + (-1) ** n) * np.cos((n / 2 - 1) * phi)
+                                                           - (n / 2 - 1) * np.cos((n / 2 - 3) * phi))
+                                               - b[index] * ((2 + n / 2 - (-1) ** n) * np.sin((n / 2 - 1) * phi)
+                                                             - (n / 2 - 1) * np.sin((n / 2 - 3) * phi)))
+        sigma_y += n / 2 * r ** (n / 2 - 1) * (a[index] * ((2 - n / 2 - (-1) ** n) * np.cos((n / 2 - 1) * phi)
+                                                           + (n / 2 - 1) * np.cos((n / 2 - 3) * phi))
+                                               - b[index] * ((2 - n / 2 + (-1) ** n) * np.sin((n / 2 - 1) * phi)
+                                                             + (n / 2 - 1) * np.sin((n / 2 - 3) * phi)))
+        sigma_xy += n / 2 * r ** (n / 2 - 1) * (a[index] * ((n / 2 - 1) * np.sin((n / 2 - 3) * phi)
+                                                            - (n / 2 + (-1) ** n) * np.sin((n / 2 - 1) * phi))
+                                                + b[index] * ((n / 2 - 1) * np.cos((n / 2 - 3) * phi)
+                                                              - (n / 2 - (-1) ** n) * np.cos((n / 2 - 1) * phi)))
     return [sigma_x, sigma_y, sigma_xy]
 
 
-def cjp_displ_field(coeffs: list or np.array, phi: float, r: float, material: Material) -> tuple:
-    """Displacement fields around the crack tip in real polar coordinates by means of the **five-parameter CJP model**.
-    [see formulas 10 and 11 in Christopher et al. Extension of the CJP model to mixed mode I and mode II (2013)]
-
-    Args:
-        coeffs: Z = (A_r, B_r, B_i, C, E) as in Christopher et al. '13
-        phi: angle from polar coordinates [rad]
-        r: radius from polar coordinates [mm]
-        material: obj of class Material used to calculate *kappa* and **G**
-
-    Returns:
-        displacements disp_x, disp_y
-
-    """
-    A_r, B_r, B_i, C, E = coeffs
-    kappa = material.kappa
-    disp_x = r**0.5 * (-A_r - 2*B_r*kappa - 2*E) * np.cos(phi/2) + r**0.5 * (2*B_i*kappa - 3*B_i) * np.sin(phi/2) + \
-             r**0.5 * (B_r + 2*E) * np.cos(3*phi/2) - r**0.5 * B_i * np.sin(3*phi/2) + \
-             r**0.5 * E * (np.log(r) * (np.cos(3*phi/2) + (1 - 2*kappa) * np.cos(phi/2)) +
-                           phi * (np.sin(3*phi/2) + (1 + 2*kappa) * np.sin(phi/2))) - \
-             C/4 * r * (1 + kappa) * np.cos(phi)
-    disp_y = r**0.5 * (-2*B_i*kappa - 3*B_i) * np.cos(phi/2) + r**0.5 * (A_r - 2*B_r*kappa + 2*E) * np.sin(phi/2) + \
-             r**0.5 * (B_r + 2*E) * np.sin(3*phi/2) + r**0.5 * B_i * np.cos(3*phi/2) + \
-             r**0.5 * E * (np.log(r) * (np.sin(3*phi/2) - (1 + 2*kappa) * np.sin(phi/2)) -
-                           phi * (np.cos(3*phi/2) + (1 + 2*kappa) * np.cos(phi/2))) + \
-             C/4 * r * (3 - kappa) * np.sin(phi)
-    disp_x = disp_x / (2*material.G)
-    disp_y = disp_y / (2*material.G)
-
-    return disp_x, disp_y
-
-
-def cjp_stress_field(coeffs: list or np.array, phi: float, r: float) -> list:
-    """Formula for the stress field around the crack tip in real polar coordinates by means of the **five-parameter CJP model**.
-    [see formulas 3 in Christopher et al. Extension of the CJP model to mixed mode I and mode II (2013)]
-
-    Args:
-        coeffs: Z = (A_r, B_r, B_i, C, E) as in Christopher et al. '13
-        phi: angle from polar coordinates [rad]
-        r: radius from polar coordinates [mm]
-
-    Returns:
-        stresses sigma_x, sigma_y, and sigma_xy
-
-    """
-    A_r, B_r, B_i, C, E = coeffs
-    sigma_x = (1 / r ** 0.5) * (
-            -0.5 * (A_r + 4 * B_r + 8 * E) * np.cos(phi / 2) - 0.5 * B_r * np.cos(5 * phi / 2) + \
-            0.5 * B_i * (np.sin(5*phi/2) + 7 * np.sin(phi/2)) - \
-            0.5 * E * (np.log(r) * (np.cos(5 * phi / 2) + 3 * np.cos(phi / 2)) + phi * (
-            np.sin(5 * phi / 2) + 3 * np.sin(phi / 2)))
-    ) - C
-
-    sigma_y = (1 / r ** 0.5) * (
-            0.5 * (A_r - 4 * B_r - 8 * E) * np.cos(phi / 2) + 0.5 * B_r * np.cos(5 * phi / 2) - \
-            0.5 * B_i * (np.sin(5*phi/2) - np.sin(phi/2)) + \
-            0.5 * E * (np.log(r) * (np.cos(5 * phi / 2) - 5 * np.cos(phi / 2)) + phi * (
-                np.sin(5 * phi / 2) - 5 * np.sin(phi / 2)))
-    )
-
-    sigma_xy = (1 / r ** 0.5) * (
-            -0.5* (A_r * np.sin(phi / 2) + B_r * np.sin(5 * phi / 2)) +\
-            0.5 * B_i * (np.cos(5 * phi / 2) + 3 * np.cos(phi / 2)) - \
-            - E * np.sin(phi) * (np.log(r) * np.cos(3 * phi / 2) + phi * np.sin(3 * phi / 2))
-    )
-
-    return [sigma_x, sigma_y, sigma_xy]
-
-
-def williams_displ_field(a: list or np.array, b: list or np.array, terms: list or np.array,
+def williams_displ_field(a: Union[list, np.ndarray], b: Union[list, np.ndarray], terms: Union[list, np.ndarray],
                          phi: float, r: float, material: Material) -> tuple:
     """Formula for the displacement fields around the crack tip in polar coordinates by Williams.
     [Meinhard Kuna - Numerische Beanspruchungsanalyse formulas (3.43)-(3.44)]
@@ -141,6 +73,244 @@ def williams_displ_field(a: list or np.array, b: list or np.array, terms: list o
     return disp_x, disp_y
 
 
+def williams_stress_field_3d(a: Union[list, np.ndarray], b: Union[list, np.ndarray], c: Union[list, np.ndarray],
+                             terms: Union[list, np.ndarray],
+                             phi: float, r: float) -> list:
+    """Formula for the stress field around the crack tip in polar coordinates by Williams.
+    [Meinhard Kuna - Numerische Beanspruchungsanalyse formulas (3.41)-(3.55)]
+
+    Args:
+        a: Williams coefficient
+        b: Williams coefficient
+        c: Williams coefficient
+        terms: defines the used Williams coefficients
+        phi: angle from polar coordinates [rad]
+        r: radius from polar coordinates [mm]
+
+    Returns:
+        stresses sigma_x, sigma_y, sigma_xy, sigma_xz, and sigma_yz,
+
+    """
+    sigma_x = 0.0
+    sigma_y = 0.0
+    sigma_xy = 0.0
+    sigma_xz = 0.0
+    sigma_yz = 0.0
+    for index, n in enumerate(terms):
+        sigma_x += n / 2 * r ** (n / 2 - 1) * (a[index] * ((2 + n / 2 + (-1) ** n) * np.cos((n / 2 - 1) * phi)
+                                                           - (n / 2 - 1) * np.cos((n / 2 - 3) * phi))
+                                               - b[index] * ((2 + n / 2 - (-1) ** n) * np.sin((n / 2 - 1) * phi)
+                                                             - (n / 2 - 1) * np.sin((n / 2 - 3) * phi)))
+        sigma_y += n / 2 * r ** (n / 2 - 1) * (a[index] * ((2 - n / 2 - (-1) ** n) * np.cos((n / 2 - 1) * phi)
+                                                           + (n / 2 - 1) * np.cos((n / 2 - 3) * phi))
+                                               - b[index] * ((2 - n / 2 + (-1) ** n) * np.sin((n / 2 - 1) * phi)
+                                                             + (n / 2 - 1) * np.sin((n / 2 - 3) * phi)))
+        sigma_xy += n / 2 * r ** (n / 2 - 1) * (a[index] * ((n / 2 - 1) * np.sin((n / 2 - 3) * phi)
+                                                            - (n / 2 + (-1) ** n) * np.sin((n / 2 - 1) * phi))
+                                                - b[index] * ((n / 2 - 1) * np.cos((n / 2 - 3) * phi)
+                                                              - (n / 2 - (-1) ** n) * np.cos((n / 2 - 1) * phi)))
+
+        if n % 2 == 0:
+            L_13 = n / 2 * np.cos(n / 2 - 1) * phi
+            L_23 = -n / 2 * np.sin(n / 2 - 1) * phi
+
+        else:
+            L_13 = n / 2 * np.sin(n / 2 - 1) * phi
+            L_23 = n / 2 * np.cos(n / 2 - 1) * phi
+
+        sigma_xz += n / 2 * r ** (n / 2 - 1) * c[index] * L_13
+        sigma_yz += n / 2 * r ** (n / 2 - 1) * c[index] * L_23
+
+    return [sigma_x, sigma_y, sigma_xy, sigma_xz, sigma_yz]
+
+
+def williams_displ_field_3d(a: Union[list, np.ndarray], b: Union[list, np.ndarray], c: Union[list, np.ndarray],
+                            terms: Union[list, np.ndarray],
+                            phi: float, r: float, material: Material) -> tuple:
+    """Formula for the displacement fields around the crack tip in polar coordinates by Williams.
+    [Meinhard Kuna - Numerische Beanspruchungsanalyse formulas (3.52)-(3.55)]
+
+    Args:
+        a: Williams coefficient
+        b: Williams coefficient
+        c: Williams coefficient
+        terms: defines the used Williams coefficients
+        phi: angle from polar coordinates [rad]
+        r: radius from polar coordinates [mm]
+        material: obj of class Material used to calculate *kappa*
+
+    Returns:
+        displacements disp_x, disp_y, disp_z
+
+    """
+    kappa = material.kappa
+    disp_x = 0.0
+    disp_y = 0.0
+    disp_z = 0.0
+    for index, n in enumerate(terms):
+        F_1 = (kappa + (-1.0) ** n + n / 2) * np.cos(n / 2 * phi) - n / 2 * np.cos((n / 2 - 2) * phi)
+        G_1 = (-kappa + (-1.0) ** n - n / 2) * np.sin(n / 2 * phi) + n / 2 * np.sin((n / 2 - 2) * phi)
+        F_2 = (kappa - (-1.0) ** n - n / 2) * np.sin(n / 2 * phi) + n / 2 * np.sin((n / 2 - 2) * phi)
+        G_2 = (kappa + (-1.0) ** n - n / 2) * np.cos(n / 2 * phi) + n / 2 * np.cos((n / 2 - 2) * phi)
+
+        if n % 2 == 0:
+            H_3 = 2 * np.cos(n / 2 * phi)
+
+        else:
+            H_3 = 2 * np.sin(n / 2 * phi)
+
+        disp_x += 1 / (2 * material.G) * r ** (n / 2) * (a[index] * F_1 + b[index] * G_1)
+        disp_y += 1 / (2 * material.G) * r ** (n / 2) * (a[index] * F_2 + b[index] * G_2)
+        disp_z += 1 / (2 * material.G) * r ** (n / 2) * (c[index] * H_3)
+
+    return disp_x, disp_y, disp_z
+
+
+def cjp_stress_field_mixedmode(coeffs: Union[list, np.ndarray], phi: float, r: float) -> list:
+    """Formula for the stress field around the crack tip in real polar coordinates by means of the **five-parameter CJP model**.
+    [see formulas 3 in Christopher et al. Extension of the CJP model to mixed mode I and mode II (2013)]
+
+    Args:
+        coeffs: Z = (A_r, B_r, B_i, C, E) as in Christopher et al. '13
+        phi: angle from polar coordinates [rad]
+        r: radius from polar coordinates [mm]
+
+    Returns:
+        stresses sigma_x, sigma_y, and sigma_xy
+
+    """
+    A_r, B_r, B_i, C, E = coeffs
+    sigma_x = (1 / r ** 0.5) * (
+            -0.5 * (A_r + 4 * B_r + 8 * E) * np.cos(phi / 2) - 0.5 * B_r * np.cos(5 * phi / 2) + \
+            0.5 * B_i * (np.sin(5 * phi / 2) + 7 * np.sin(phi / 2)) - \
+            0.5 * E * (np.log(r) * (np.cos(5 * phi / 2) + 3 * np.cos(phi / 2)) + phi * (
+            np.sin(5 * phi / 2) + 3 * np.sin(phi / 2)))
+    ) - C
+
+    sigma_y = (1 / r ** 0.5) * (
+            0.5 * (A_r - 4 * B_r - 8 * E) * np.cos(phi / 2) + 0.5 * B_r * np.cos(5 * phi / 2) - \
+            0.5 * B_i * (np.sin(5 * phi / 2) - np.sin(phi / 2)) + \
+            0.5 * E * (np.log(r) * (np.cos(5 * phi / 2) - 5 * np.cos(phi / 2)) + phi * (
+            np.sin(5 * phi / 2) - 5 * np.sin(phi / 2)))
+    )
+
+    sigma_xy = (1 / r ** 0.5) * (
+            -0.5 * (A_r * np.sin(phi / 2) + B_r * np.sin(5 * phi / 2)) + \
+            0.5 * B_i * (np.cos(5 * phi / 2) + 3 * np.cos(phi / 2)) - \
+            - E * np.sin(phi) * (np.log(r) * np.cos(3 * phi / 2) + phi * np.sin(3 * phi / 2))
+    )
+
+    return [sigma_x, sigma_y, sigma_xy]
+
+
+def cjp_displ_field_mixedmode(coeffs: Union[list, np.ndarray], phi: float, r: float, material: Material) -> tuple:
+    """Displacement fields around the crack tip in real polar coordinates by means of the **five-parameter CJP model**.
+    [see formulas 10 and 11 in Christopher et al. Extension of the CJP model to mixed mode I and mode II (2013)]
+
+    Args:
+        coeffs: Z = (A_r, B_r, B_i, C, E) as in Christopher et al. '13
+        phi: angle from polar coordinates [rad]
+        r: radius from polar coordinates [mm]
+        material: obj of class Material used to calculate *kappa* and **G**
+
+    Returns:
+        displacements disp_x, disp_y
+
+    """
+    A_r, B_r, B_i, C, E = coeffs
+    kappa = material.kappa
+    disp_x = r ** 0.5 * (-A_r - 2 * B_r * kappa - 2 * E) * np.cos(phi / 2) + r ** 0.5 * (
+                2 * B_i * kappa - 3 * B_i) * np.sin(phi / 2) + \
+             r ** 0.5 * (B_r + 2 * E) * np.cos(3 * phi / 2) - r ** 0.5 * B_i * np.sin(3 * phi / 2) + \
+             r ** 0.5 * E * (np.log(r) * (np.cos(3 * phi / 2) + (1 - 2 * kappa) * np.cos(phi / 2)) +
+                             phi * (np.sin(3 * phi / 2) + (1 + 2 * kappa) * np.sin(phi / 2))) - \
+             C / 4 * r * (1 + kappa) * np.cos(phi)
+    disp_y = r ** 0.5 * (-2 * B_i * kappa - 3 * B_i) * np.cos(phi / 2) + r ** 0.5 * (
+                A_r - 2 * B_r * kappa + 2 * E) * np.sin(phi / 2) + \
+             r ** 0.5 * (B_r + 2 * E) * np.sin(3 * phi / 2) + r ** 0.5 * B_i * np.cos(3 * phi / 2) + \
+             r ** 0.5 * E * (np.log(r) * (np.sin(3 * phi / 2) - (1 + 2 * kappa) * np.sin(phi / 2)) -
+                             phi * (np.cos(3 * phi / 2) + (1 + 2 * kappa) * np.cos(phi / 2))) + \
+             C / 4 * r * (3 - kappa) * np.sin(phi)
+    disp_x = disp_x / (2 * material.G)
+    disp_y = disp_y / (2 * material.G)
+
+    return disp_x, disp_y
+
+
+def cjp_stress_field_modeI(coeffs: Union[list, np.ndarray], phi: float, r: float) -> list:
+    """Formula for the stress field around the crack tip in real polar coordinates by means of the **five-parameter CJP model**.
+    This is the mode I formulation based on the original paper Christopher et al. 2007 and recited in James et al. 2013.
+    [see formulas 1 and 12 in Camacho-Reyes et al. 2023 for the crack tip stress fields]
+
+    Args:
+        coeffs: Z = (A, B, C, E, F)
+        phi: angle from polar coordinates [rad]
+        r: radius from polar coordinates [mm]
+
+    Returns:
+        stresses sigma_x, sigma_y, and sigma_xy
+
+    """
+    A, B, C, E, F = coeffs
+    sigma_x = -(1 / r ** 0.5) * (
+            -0.5 * (A + 4 * B + 8 * E) * np.cos(phi / 2)
+            - 0.5 * B * np.cos(5 * phi / 2) - \
+            0.5 * E * (np.log(r) * (np.cos(5 * phi / 2) + 3 * np.cos(phi / 2))
+                       + phi * (np.sin(5 * phi / 2) + 3 * np.sin(phi / 2)))
+    ) - C
+
+    sigma_y = (1 / r ** 0.5) * (
+            0.5 * (A - 4 * B - 8 * E) * np.cos(phi / 2)
+            + 0.5 * B * np.cos(5 * phi / 2) + \
+            0.5 * E * (np.log(r) * (np.cos(5 * phi / 2) - 5 * np.cos(phi / 2))
+                       + phi * (np.sin(5 * phi / 2) - 5 * np.sin(phi / 2)))
+    )
+
+    sigma_xy = (1 / r ** 0.5) * -0.5 * (
+            A * np.sin(phi / 2) + B * np.sin(5 * phi / 2)
+            - E * np.sin(phi) * (np.log(r) * np.cos(3 * phi / 2) + phi * np.sin(3 * phi / 2))
+    )
+
+    return [sigma_x, sigma_y, sigma_xy]
+
+
+def cjp_displ_field_modeI(coeffs: Union[list, np.ndarray], phi: float, r: float, material: Material) -> tuple:
+    """Displacement fields around the crack tip in real polar coordinates by means of the **five-parameter CJP model**.
+    This is the mode I formulation based on the original paper Christopher et al. 2007 and recited in James et al. 2013.
+    [see formulas 10 and 11 in Camacho-Reyes et al. 2023 for the crack tip displacement fields]
+
+    Args:
+        coeffs: Z = (A, B, C, E, F) as in Yang et al. 2021; Future considerations: Camacho-Reyes et al. (2023) introduced F and split T in T_x and T_y
+        phi: angle from polar coordinates [rad]
+        r: radius from polar coordinates [mm]
+        material: obj of class Material used to calculate *kappa* and **G**
+
+    Returns:
+        displacements disp_x, disp_y
+
+    """
+    A, B, C, E, F = coeffs
+    kappa = material.kappa
+    disp_x = r ** 0.5 * (-A - 2 * B * kappa - 2 * E) * np.cos(phi / 2) + r ** 0.5 * (B + 2 * E) * np.cos(3 * phi / 2) - \
+             r ** 0.5 * E * (np.log(r) * (np.cos(3 * phi / 2) + (1 - 2 * kappa) * np.cos(phi / 2)) + phi * (
+                np.sin(3 * phi / 2) + \
+                (2 * kappa - 1) * np.sin(phi / 2))) - \
+             r * C * (1 + kappa) * np.cos(phi) / 4 + \
+             r * F * (kappa - 3) * np.cos(phi) / 4
+
+    disp_y = r ** 0.5 * (A - 2 * B * kappa + 2 * E) * np.sin(phi / 2) + r ** 0.5 * (B + 2 * E) * np.sin(3 * phi / 2) + \
+             r ** 0.5 * E * (np.log(r) * (np.sin(3 * phi / 2) - (1 + 2 * kappa) * np.sin(phi / 2)) - phi * (
+                np.cos(3 * phi / 2) + \
+                (2 * kappa + 1) * np.cos(phi / 2))) + \
+             r * C * (3 - kappa) * np.sin(phi) / 4 + \
+                r * F * (kappa + 1) * np.sin(phi) /4
+
+    disp_x = disp_x / (2 * material.G)
+    disp_y = disp_y / (2 * material.G)
+
+    return disp_x, disp_y
+
+
 def eigenfunction(n: int, a_n: float, b_n: float, r: float, theta: float, material: Material) -> tuple:
     """The n-the eigenfunctions of the planar crack problem in real polar coordinates.
     [see Meinhard Kuna equations (3.41-3.44)]
@@ -158,25 +328,25 @@ def eigenfunction(n: int, a_n: float, b_n: float, r: float, theta: float, materi
             of order n with coefficients a_n and b_n and angle theta and radius r
 
     """
-    M_11 = n/2 * ((2 + (-1)**n + n/2) * np.cos((n/2 - 1) * theta) - (n/2 - 1) * np.cos((n/2 - 3) * theta))
-    N_11 = n/2 * ((-2 + (-1)**n - n/2) * np.sin((n/2 - 1) * theta) + (n/2 - 1) * np.sin((n/2 - 3) * theta))
-    M_22 = n/2 * ((2 - (-1)**n - n/2) * np.cos((n/2 - 1) * theta) + (n/2 - 1) * np.cos((n/2 - 3) * theta))
-    N_22 = n/2 * ((-2 - (-1) ** n + n/2) * np.sin((n/2 - 1) * theta) - (n/2 - 1) * np.sin((n/2 - 3) * theta))
-    M_12 = n/2 * ((n/2 - 1) * np.sin((n/2 - 3) * theta) - (n/2 + (-1)**n) * np.sin((n/2 - 1) * theta))
-    N_12 = n/2 * ((n/2 - 1) * np.cos((n/2 - 3) * theta) - (n/2 - (-1)**n) * np.cos((n/2 - 1) * theta))
+    M_11 = n / 2 * ((2 + (-1) ** n + n / 2) * np.cos((n / 2 - 1) * theta) - (n / 2 - 1) * np.cos((n / 2 - 3) * theta))
+    N_11 = n / 2 * ((-2 + (-1) ** n - n / 2) * np.sin((n / 2 - 1) * theta) + (n / 2 - 1) * np.sin((n / 2 - 3) * theta))
+    M_22 = n / 2 * ((2 - (-1) ** n - n / 2) * np.cos((n / 2 - 1) * theta) + (n / 2 - 1) * np.cos((n / 2 - 3) * theta))
+    N_22 = n / 2 * ((-2 - (-1) ** n + n / 2) * np.sin((n / 2 - 1) * theta) - (n / 2 - 1) * np.sin((n / 2 - 3) * theta))
+    M_12 = n / 2 * ((n / 2 - 1) * np.sin((n / 2 - 3) * theta) - (n / 2 + (-1) ** n) * np.sin((n / 2 - 1) * theta))
+    N_12 = n / 2 * ((n / 2 - 1) * np.cos((n / 2 - 3) * theta) - (n / 2 - (-1) ** n) * np.cos((n / 2 - 1) * theta))
 
-    sigma_x_n = r ** (n/2 - 1) * (a_n * M_11 + b_n * N_11)
-    sigma_y_n = r ** (n/2 - 1) * (a_n * M_22 + b_n * N_22)
-    sigma_xy_n = r ** (n/2 - 1) * (a_n * M_12 + b_n * N_12)
+    sigma_x_n = r ** (n / 2 - 1) * (a_n * M_11 + b_n * N_11)
+    sigma_y_n = r ** (n / 2 - 1) * (a_n * M_22 + b_n * N_22)
+    sigma_xy_n = r ** (n / 2 - 1) * (a_n * M_12 + b_n * N_12)
 
     kappa = material.kappa
-    F_1 = (kappa + (-1)**n + n/2) * np.cos(n/2 * theta) - n/2 * np.cos((n/2 - 2) * theta)
-    G_1 = (-kappa + (-1)**n - n/2) * np.sin(n/2 * theta) + n/2 * np.sin((n/2 - 2) * theta)
-    F_2 = (kappa - (-1)**n - n/2) * np.sin(n/2 * theta) + n/2 * np.sin((n/2 - 2) * theta)
-    G_2 = (kappa + (-1)**n - n/2) * np.cos(n/2 * theta) + n/2 * np.cos((n/2 - 2) * theta)
+    F_1 = (kappa + (-1) ** n + n / 2) * np.cos(n / 2 * theta) - n / 2 * np.cos((n / 2 - 2) * theta)
+    G_1 = (-kappa + (-1) ** n - n / 2) * np.sin(n / 2 * theta) + n / 2 * np.sin((n / 2 - 2) * theta)
+    F_2 = (kappa - (-1) ** n - n / 2) * np.sin(n / 2 * theta) + n / 2 * np.sin((n / 2 - 2) * theta)
+    G_2 = (kappa + (-1) ** n - n / 2) * np.cos(n / 2 * theta) + n / 2 * np.cos((n / 2 - 2) * theta)
 
-    u_x_n = 1 / (2 * material.G) * r ** (n/2) * (a_n * F_1 + b_n * G_1)
-    u_y_n = 1 / (2 * material.G) * r ** (n/2) * (a_n * F_2 + b_n * G_2)
+    u_x_n = 1 / (2 * material.G) * r ** (n / 2) * (a_n * F_1 + b_n * G_1)
+    u_y_n = 1 / (2 * material.G) * r ** (n / 2) * (a_n * F_2 + b_n * G_2)
 
     return sigma_x_n, sigma_y_n, sigma_xy_n, u_x_n, u_y_n
 
@@ -236,12 +406,12 @@ def get_zhao_solutions(r: float, phi: float, material: Material, force: float = 
         stress_11, stress_22, stress_12, disp_x, disp_y
 
     """
-    sigma_x = - force / (np.pi * r) * np.cos(phi)**3
-    sigma_y = - force / (np.pi * r) * np.cos(phi) * np.sin(phi)**2
-    sigma_xy = - force / (np.pi * r) * np.cos(phi)**2 * np.sin(phi)
+    sigma_x = - force / (np.pi * r) * np.cos(phi) ** 3
+    sigma_y = - force / (np.pi * r) * np.cos(phi) * np.sin(phi) ** 2
+    sigma_xy = - force / (np.pi * r) * np.cos(phi) ** 2 * np.sin(phi)
 
-    u_x = - (1 - material.nu_xy**2) / material.E * force / np.pi * (np.log(r / dist)
-                                                                    + np.sin(phi)**2 / (2 * (1 - material.nu_xy)))
+    u_x = - (1 - material.nu_xy ** 2) / material.E * force / np.pi * (np.log(r / dist)
+                                                                      + np.sin(phi) ** 2 / (2 * (1 - material.nu_xy)))
     u_y = - (1 + material.nu_xy) / (2 * material.E) * force / np.pi * ((1 - 2 * material.nu_xy) * phi
                                                                        - np.cos(phi) * np.sin(phi))
 
@@ -255,5 +425,5 @@ def unit_of_williams_coefficients(n):
     if n == 2:
         unit = 'MPa'
     else:
-        unit = f'MPa*mm^{{{Fraction(-n/2+1)}}}'
+        unit = f'MPa*mm^{{{Fraction(-n / 2 + 1)}}}'
     return unit

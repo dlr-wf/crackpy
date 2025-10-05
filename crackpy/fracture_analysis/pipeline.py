@@ -8,6 +8,7 @@ from copy import deepcopy
 from rich import progress as progress_rich
 import numpy as np
 import pandas as pd
+from typing import Optional, Mapping
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
 from crackpy.fracture_analysis.data_processing import CrackTipInfo, InputData
@@ -29,7 +30,7 @@ def single_run(
         opt_props: OptimizationProperties,
         output_path: str,
         plot_sets: PlotSettings or None,
-        prog,
+        prog: Optional[Mapping[str, object]],
         task_id
 ):
     """Run fracture analysis of a single nodemap.
@@ -45,7 +46,7 @@ def single_run(
         opt_props: obj of class OptimizationProperties
         output_path: path where the plots and results are saved
         plot_sets: settings for plotting the results
-        prog: progress bar
+        prog: shared dictionary to update the progress bar of the main process
         task_id: task id of progress bar
 
     """

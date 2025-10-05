@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.fracture_analysis.crack_tip import cjp_displ_field, williams_displ_field
+from crackpy.fracture_analysis.crack_tip import cjp_displ_field_mixedmode, williams_displ_field
 
 # Fix error issued by multiprocessing + matplotlib
 # https://stackoverflow.com/questions/28903969/python-multiprocessingsavefig-leads-to-error-or-system-lockup
@@ -112,8 +112,8 @@ class Plotter:
         self._plot_results()
 
         if self.analysis.optimization_properties is not None \
-                and self.analysis.res_cjp is not None \
-                and self.analysis.sifs_fit is not None:
+                and self.analysis.cjp_res_mm is not None \
+                and self.analysis.williams_fit_res is not None:
 
             # Plot Williams fitting error
             self._plot_williams_residuals()
@@ -237,54 +237,60 @@ class Plotter:
 
             # J integral result
             props = dict(boxstyle='round', facecolor='gray', alpha=0.4)
-            text = "J-integral\n\n" + \
+            text = "J-integral\n" + \
                    f"$J$ = {self.analysis.sifs_int['rej_out_mean']['j']:.2f} $N*mm^{{-1}}$\n" + \
-                   f"$K_J$ = {self.analysis.sifs_int['rej_out_mean']['sif_j']:.2f} $MPa*m^{{1/2}}$"
-            self.ax_results.text(0.1, 0.97, text.replace('*', '\\cdot '),
+                   f"$K_J$ = {self.analysis.sifs_int['rej_out_mean']['sif_j']:.2f} $MPa*m^{{1/2}}$\n" + \
+                   f"$K_{{I}}$ = {self.analysis.sifs_int['rej_out_mean']['decomp_K_1']:.2f} $MPa*m^{{1/2}}$\n" + \
+                     f"$K_{{II}}$ = {self.analysis.sifs_int['rej_out_mean']['decomp_K_2']:.2f} $MPa*m^{{1/2}}$\n" + \
+                   f"$K_{{III}}$ = {self.analysis.sifs_int['rej_out_mean']['decomp_K_3']:.2f} $MPa*m^{{1/2}}$"
+
+            self.ax_results.text(0.1, 0.975, text.replace('*', '\\cdot '),
+                                 transform=self.ax_results.transAxes, fontsize=14,
+                                 verticalalignment='top', bbox=props)
+
+            # Interaction integral results
+            props = dict(boxstyle='round', facecolor='gray', alpha=0.4)
+            text = "Interaction integral\n" + \
+                   f"$K_I$ = {self.analysis.sifs_int['rej_out_mean']['sif_k_i']:.2f} $MPa*m^{{1/2}}$\n" + \
+                   f"$K_{{II}}$ = {self.analysis.sifs_int['rej_out_mean']['sif_k_ii']:.2f} $MPa*m^{{1/2}}$\n" + \
+                   f"$T$ = {self.analysis.sifs_int['rej_out_mean']['t_stress_int']:.2f} $MPa$"
+            self.ax_results.text(0.1, 0.72, text.replace('*', '\\cdot '),
                                  transform=self.ax_results.transAxes, fontsize=14,
                                  verticalalignment='top', bbox=props)
 
             # Williams integration results
             props = dict(boxstyle='round', facecolor='gray', alpha=0.4)
-            text = "Interaction integral\n\n" + \
-                   f"$K_I$ = {self.analysis.sifs_int['rej_out_mean']['sif_k_i']:.2f} $MPa*m^{{1/2}}$\n" + \
-                   f"$K_{{II}}$ = {self.analysis.sifs_int['rej_out_mean']['sif_k_ii']:.2f} $MPa*m^{{1/2}}$\n" + \
-                   f"$T$ = {self.analysis.sifs_int['rej_out_mean']['t_stress_int']:.2f} $MPa$"
-            self.ax_results.text(0.1, 0.8, text.replace('*', '\\cdot '),
-                                 transform=self.ax_results.transAxes, fontsize=14,
-                                 verticalalignment='top', bbox=props)
-
-            props = dict(boxstyle='round', facecolor='gray', alpha=0.4)
-            text = "Bueckner integral\n\n" + \
+            text = "Bueckner integral\n" + \
                    f"$K_I$ = {self.analysis.sifs_int['rej_out_mean']['k_i_chen']:.2f} $MPa*m^{{1/2}}$\n" + \
                    f"$K_{{II}}$ = {self.analysis.sifs_int['rej_out_mean']['k_ii_chen']:.2f} $MPa*m^{{1/2}}$\n" + \
                    f"$T$ = {self.analysis.sifs_int['rej_out_mean']['t_stress_chen']:.2f} $MPa$"
-            self.ax_results.text(0.1, 0.6, text.replace('*', '\\cdot '),
+            self.ax_results.text(0.1, 0.56, text.replace('*', '\\cdot '),
                                  transform=self.ax_results.transAxes, fontsize=14,
                                  verticalalignment='top', bbox=props)
 
         if self.analysis.optimization_properties is not None \
-                and self.analysis.sifs_fit is not None \
-                and self.analysis.res_cjp is not None:
+                and self.analysis.williams_fit_res is not None \
+                and self.analysis.cjp_res_mm is not None:
 
             # Williams fitting results
             props = dict(boxstyle='round', facecolor='gray', alpha=0.4)
-            text = "Williams fitting\n\n" + \
-                   f"$K_I$ = {self.analysis.sifs_fit['K_I']:.2f} $MPa*m^{{1/2}}$\n" + \
-                   f"$K_{{II}}$ = {self.analysis.sifs_fit['K_II']:.2f} $MPa*m^{{1/2}}$\n" + \
-                   f"$T$ = {self.analysis.sifs_fit['T']:.2f} $MPa$"
+            text = "Williams fitting\n" + \
+                   f"$K_I$ = {self.analysis.williams_fit_res['K_I']:.2f} $MPa*m^{{1/2}}$\n" + \
+                   f"$K_{{II}}$ = {self.analysis.williams_fit_res['K_II']:.2f} $MPa*m^{{1/2}}$\n" + \
+                   f"$K_{{III}}$ = {self.analysis.williams_fit_res['K_III']:.2f} $MPa*m^{{1/2}}$\n" + \
+                   f"$T$ = {self.analysis.williams_fit_res['T']:.2f} $MPa$"
             self.ax_results.text(0.1, 0.4, text.replace('*', '\\cdot '),
                                  transform=self.ax_results.transAxes, fontsize=14,
                                  verticalalignment='top', bbox=props)
 
             # CJP fitting results
             props = dict(boxstyle='round', facecolor='gray', alpha=0.4)
-            text = "CJP fitting\n\n" + \
-                   f"$K_F$ = {self.analysis.res_cjp['K_F']:.2f} $MPa*m^{{1/2}}$\n" + \
-                   f"$K_R$ = {self.analysis.res_cjp['K_R']:.2f} $MPa*m^{{1/2}}$\n" + \
-                   f"$K_S$ = {self.analysis.res_cjp['K_S']:.2f} $MPa*m^{{1/2}}$\n" + \
-                   f"$K_{{II}}$ = {self.analysis.res_cjp['K_II']:.2f} $MPa*m^{{1/2}}$\n" + \
-                   f"$T$ = {self.analysis.res_cjp['T']:.2f} $MPa$"
+            text = "CJP fitting\n" + \
+                   f"$K_F$ = {self.analysis.cjp_res_mm['K_F']:.2f} $MPa*m^{{1/2}}$\n" + \
+                   f"$K_R$ = {self.analysis.cjp_res_mm['K_R']:.2f} $MPa*m^{{1/2}}$\n" + \
+                   f"$K_S$ = {self.analysis.cjp_res_mm['K_S']:.2f} $MPa*m^{{1/2}}$\n" + \
+                   f"$K_{{II}}$ = {self.analysis.cjp_res_mm['K_II']:.2f} $MPa*m^{{1/2}}$\n" + \
+                   f"$T$ = {self.analysis.cjp_res_mm['T']:.2f} $MPa$"
             self.ax_results.text(0.1, 0.2, text.replace('*', '\\cdot '),
                                  transform=self.ax_results.transAxes, fontsize=14,
                                  verticalalignment='top', bbox=props)
@@ -293,7 +299,8 @@ class Plotter:
         self.ax_cjp_opt.set_axis_on()
 
         opt = self.analysis.optimization
-        cjp_disp_x, cjp_disp_y = cjp_displ_field(self.analysis.cjp_coeffs, opt.phi_grid, opt.r_grid, opt.material)
+        cjp_disp_x, cjp_disp_y = cjp_displ_field_mixedmode(self.analysis.cjp_coeffs_mm, opt.phi_grid, opt.r_grid,
+                                                           opt.material)
         residuals = np.asarray([cjp_disp_x - opt.interp_disp_x, cjp_disp_y - opt.interp_disp_y])
         error = np.sqrt(np.sum(residuals**2, axis=0))
 
