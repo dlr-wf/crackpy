@@ -317,6 +317,12 @@ class FractureAnalysis:
             self.williams_int_a_n = np.asarray(self.williams_int_a_n)
             self.williams_int_b_n = np.asarray(self.williams_int_b_n)
 
+            # replace any None values with 0 -> None means that the integral wasn't set to be calculated
+            res_array[res_array == None] = 0
+            self.williams_int[self.williams_int == None] = 0
+            self.williams_int_a_n[self.williams_int_a_n == None] = 0
+            self.williams_int_b_n[self.williams_int_b_n == None] = 0
+
             # Calculate means
             mean_j, mean_sif_j, mean_sif_k_i, mean_sif_k_ii, mean_t_stress_chen, mean_t_stress_sdm, mean_t_stress_int, \
                 mean_decomp_j_1, mean_decomp_j_2_, mean_decomp_j_3, mean_decomp_K_1, mean_decomp_K_2, mean_decomp_K_3 = \

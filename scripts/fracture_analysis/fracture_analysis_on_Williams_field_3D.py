@@ -39,7 +39,7 @@ def main():
     ################################
 
     K_I = 10 * np.sqrt(1000)  # MPa * sqrt(m)
-    K_II = 20 * np.sqrt(1000)  # MPa * sqrt(m)
+    K_II = -20 * np.sqrt(1000)  # MPa * sqrt(m)
     K_III = 30 * np.sqrt(1000)  # MPa * sqrt(m)
     T = 40  # MPa
     A_1 = K_I / np.sqrt(2 * np.pi)

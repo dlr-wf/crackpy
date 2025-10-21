@@ -389,9 +389,6 @@ class LineIntegral:
         self.np_integration_points = self.integration_path.get_integration_points()
         self._interpolate_on_integration_points()
 
-
-
-
     def integrate_all(self):
         """Call this method to solve all integrals
         - J-integral
@@ -410,6 +407,10 @@ class LineIntegral:
         if self.buckner_williams_terms is not None:
             self.integrate_buckner_chen()
 
+    ###########################################
+    # METHODS FOR CALCULATING THE DESCRIPTORS #
+    ###########################################
+
     def integrate_j(self):
         """Call this method to solve integrals for J-integral :math:`J`
         """
@@ -425,48 +426,35 @@ class LineIntegral:
         # see: Molteno, M. R., & Becker, T. H. (2015). Mode I-III decomposition of the j-integral from DIC
         # displacement data. Strain, 51(6), 492–503. https://doi.org/10.1111/str.12166
         #############################################
+        self.data_orig = deepcopy(self.data)
+        self._map_displacement_data_on_regular_grid(grid_points=200)
 
-        try:
-            self.data_orig = deepcopy(self.data)
-            self._map_displacement_data_on_regular_grid(grid_points=200)
+        # Mode I
+        self.data = self._prepare_mode_data(mode='I')
+        self._interpolate_on_integration_points()
+        self.decomp_j_integral_I = self._solve_j_integral()  # in N/mm
+        self.decomp_j_integral_K_I = np.sqrt(self.decomp_j_integral_I * self.material.E / 1000)  # MPa*sqrt(m)
+        #print(f'J_1= {self.decomp_j_integral_I}, K_I = {self.decomp_j_integral_K_I}')
 
-            # Mode I
-            #self.data = self._prepare_mode_I_data()
-            self.data = self._prepare_mode_data(mode='I')
-            self._interpolate_on_integration_points()
-            self.decomp_j_integral_I = self._solve_j_integral()  # in N/mm
-            self.decomp_j_integral_K_I = np.sqrt(self.decomp_j_integral_I * self.material.E / 1000)  # MPa*sqrt(m)
-            #print(f'J_1= {self.decomp_j_integral_I}, K_I = {self.decomp_j_integral_K_I}')
+        # Mode II
+        self.data = self._prepare_mode_data(mode='II')
+        self._interpolate_on_integration_points()
+        self.decomp_j_integral_II = self._solve_j_integral()  # in N/mm
+        self.decomp_j_integral_K_II = np.sqrt(self.decomp_j_integral_II * self.material.E / 1000)  # MPa*sqrt(m)
+        #print(f'J_2= {self.decomp_j_integral_II}, K_II = {self.decomp_j_integral_K_II}')
 
-            # Mode II
-            #self.data = self._prepare_mode_II_data()
-            self.data = self._prepare_mode_data(mode='II')
-            self._interpolate_on_integration_points()
-            self.decomp_j_integral_II = self._solve_j_integral()  # in N/mm
-            self.decomp_j_integral_K_II = np.sqrt(self.decomp_j_integral_II * self.material.E / 1000)  # MPa*sqrt(m)
-            #print(f'J_2= {self.decomp_j_integral_II}, K_II = {self.decomp_j_integral_K_II}')
+        # Mode III
+        self.data = self._prepare_mode_data(mode='III')
+        self._interpolate_on_integration_points()
+        self._interpolate_on_integration_points_z()
+        self.decomp_j_integral_III = self._solve_j_integral_III()  # in N/mm
+        self.decomp_j_integral_K_III = np.sqrt(self.decomp_j_integral_III / 1000 * self.material.E /
+                                               (1 + self.material.nu_xy))  # MPa*sqrt(m)
+        #print(f'J_3= {self.decomp_j_integral_III}, K_III = {self.decomp_j_integral_K_III}')
 
-            # Mode III
-            #self.data = self._prepare_mode_III_data()
-            self.data = self._prepare_mode_data(mode='III')
-            self._interpolate_on_integration_points()
-            self._interpolate_on_integration_points_z()
-            self.decomp_j_integral_III = self._solve_j_integral_III()  # in N/mm
-            self.decomp_j_integral_K_III = np.sqrt(np.abs(self.decomp_j_integral_III) / 1000 * self.material.E /
-                                                   (1 + self.material.nu_xy))  # MPa*sqrt(m)
-            #print(f'J_3= {self.decomp_j_integral_III}, K_III = {self.decomp_j_integral_K_III}')
-        except Exception as e:
-            print(f'Mode decomposition of J integral failed: {e}')
-            # set values to nan
-            self.decomp_j_integral_I = np.nan
-            self.decomp_j_integral_K_I = np.nan
-            self.decomp_j_integral_II = np.nan
-            self.decomp_j_integral_K_II = np.nan
-            self.decomp_j_integral_III = np.nan
-            self.decomp_j_integral_K_III = np.nan
-        finally:
-            self.data = self.data_orig
-            self._interpolate_on_integration_points()
+        # Restore original data
+        self.data = self.data_orig
+        self._interpolate_on_integration_points()
 
     def integrate_i_k1_k2(self):
         #############################################
@@ -526,9 +514,9 @@ class LineIntegral:
         a_n = self._williams_coeff_from_chen_integral(a_aux=c_m, n=n)
         self.t_stress_chen = 4 * a_n  # MPa
 
-    #############################################
-    # FUNCTIONS FOR CALCULATING THE DESCRIPTORS #
-    #############################################
+    #####################################
+    # METHODS FOR SOLVING THE INTEGRALS #
+    #####################################
 
     # base method for J-integral, used in child classes
     def _solve_j_integral(self) -> float:
@@ -836,20 +824,20 @@ class LineIntegral:
             InputData instance populated for requested mode.
         """
 
-        if mode in [1, 'I', 'i']:
+        if mode == 'I':
             u_x = 0.5 * (self.disp_u_mesh + np.flipud(self.disp_u_mesh))
             u_y = 0.5 * (self.disp_v_mesh - np.flipud(self.disp_v_mesh))
             u_z = np.zeros_like(u_x)
-        elif mode in [2, 'II', 'ii']:
+        elif mode == 'II':
             u_x = 0.5 * (self.disp_u_mesh - np.flipud(self.disp_u_mesh))
             u_y = 0.5 * (self.disp_v_mesh + np.flipud(self.disp_v_mesh))
             u_z = np.zeros_like(u_x)
-        elif mode in [3, 'III', 'iii']:
+        elif mode == 'III':
             u_z = 0.5 * (self.disp_w_mesh - np.flipud(self.disp_w_mesh))
             u_x = np.zeros_like(u_z)
             u_y = np.zeros_like(u_z)
         else:
-            raise ValueError("Mode has to be 1/'I', 2/'II' or 3/'III'.")
+            raise ValueError("Mode has to be 'I', 'II' or 'III'!")
 
         eps_xx, eps_yy, eps_xy = self._compute_strains_xy(u_x, u_y, 2)
         eps_xz, eps_yz, sigma_xz, sigma_yz = self._compute_stress_strain_z(u_z, 2)

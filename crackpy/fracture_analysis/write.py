@@ -75,9 +75,9 @@ class OutputWriter:
             if self.analysis.optimization_properties is not None:
 
                 file.write('\n')
-                file.write("#############################\n")
-                file.write("#         CJP model         #\n")
-                file.write("#############################\n")
+                file.write("#######################################\n")
+                file.write("#     CJP model (Mode I / Mode II)    #\n")
+                file.write("#######################################\n")
                 file.write('\n')
                 file.write('<CJP_results>\n')
                 file.write(f'{"Param":>10}, {"Unit":>20}, {"Result":>20} \n')
@@ -90,7 +90,7 @@ class OutputWriter:
                 file.write('</CJP_results>\n')
                 file.write('\n')
                 file.write("##############################\n")
-                file.write("#    CJP model (original)    #\n")
+                file.write("#     CJP model (Mode I)     #\n")
                 file.write("##############################\n")
                 file.write("\n")
                 file.write('<CJP_modeI_results>\n')
@@ -101,7 +101,7 @@ class OutputWriter:
                 file.write(f'{"K_S":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.cjp_res_m1["K_S"]:20.10f} \n')
                 file.write(f'{"T_x":>10}, {"MPa":>20}, {self.analysis.cjp_res_m1["T_x"]:20.10f} \n')
                 file.write(f'{"T_y":>10}, {"MPa":>20}, {self.analysis.cjp_res_m1["T_y"]:20.10f} \n')
-                file.write('</CJP_results>\n')
+                file.write('</CJP_modeI_results>\n')
                 file.write("#############################\n")
                 file.write("#      Williams fitting     #\n")
                 file.write("#############################\n")
@@ -217,9 +217,9 @@ class OutputWriter:
                 file.write("\n")
 
                 if self.analysis.integral_properties.buckner_williams_terms is not None:
-                    file.write("#################################\n")
-                    file.write("#    Bueckner-Chen integral     #\n")
-                    file.write("#################################\n")
+                    file.write("##################################\n")
+                    file.write("#     Bueckner-Chen integral     #\n")
+                    file.write("##################################\n")
                     file.write('\n')
                     file.write('<Bueckner_Chen_integral>\n')
 
