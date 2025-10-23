@@ -110,8 +110,6 @@ class Optimization:
 
     def optimize_cjp_displacements_modeI(self, method='lm', init_coeffs=None):
         """Optimizes CJP displacements.
-        (see Yang et al. (2021) New algorithm for optimized fitting of DIC data
-        to crack tip plastic zone using the CJP model)
 
         Args:
             method: method from scipy.optimize.least_squares, defaults to 'lm' - Levenberg-Marquardt iterative algorithm
@@ -129,8 +127,6 @@ class Optimization:
 
     def optimize_cjp_displacements_mixedmode(self, method='lm', init_coeffs=None):
         """Optimizes CJP displacements.
-        (see Yang et al. (2021) New algorithm for optimized fitting of DIC data
-        to crack tip plastic zone using the CJP model)
 
         Args:
             method: method from scipy.optimize.least_squares, defaults to 'lm' - Levenberg-Marquardt iterative algorithm
@@ -148,8 +144,6 @@ class Optimization:
 
     def optimize_williams_displacements(self, method='lm', init_coeffs=None):
         """Optimizes Williams displacements.
-        (see Yang et al. (2021) New algorithm for optimized fitting of DIC data
-        to crack tip plastic zone using the CJP model)
 
         Args:
             method: method from scipy.optimize.least_squares, defaults to 'lm' - Levenberg-Marquardt iterative algorithm
@@ -165,9 +159,7 @@ class Optimization:
                                       method=method)
 
     def optimize_williams_displacements_3d(self, method='lm', init_coeffs=None):
-        """Optimizes Williams displacements.
-        (see Yang et al. (2021) New algorithm for optimized fitting of DIC data
-        to crack tip plastic zone using the CJP model)
+        """Optimizes Williams displacements in 3D.
 
         Args:
             method: method from scipy.optimize.least_squares, defaults to 'lm' - Levenberg-Marquardt iterative algorithm
