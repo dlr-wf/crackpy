@@ -25,7 +25,7 @@ before_script:
   # Install required packages
   - pip install --upgrade pip
   - pip list
-  - pip install -r requirements.txt --quiet
+  - pip install -r pyproject.toml --quiet
   - pip list
 
 stages:
