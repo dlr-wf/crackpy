@@ -20,8 +20,8 @@ from matplotlib import pyplot as plt
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.fracture_analysis.pipeline import FractureAnalysisPipeline
-from crackpy.fracture_analysis.plot import PlotSettings
-from crackpy.fracture_analysis.read import OutputReader
+from crackpy.results.plot import PlotSettings
+from crackpy.results.read import OutputReader
 from crackpy.structure_elements.material import Material
 
 # Paths

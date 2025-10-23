@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.interpolate import griddata
 
-from crackpy.fracture_analysis.data_processing import InputData
+from crackpy.input.input_data import InputData
 
 
 def interpolate_on_array(input_by_nodemap, interp_size, offset=(0, 0), pixels=256):

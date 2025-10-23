@@ -3,7 +3,7 @@ import shutil
 import unittest
 import tempfile
 
-from crackpy.fracture_analysis.read import OutputReader
+from crackpy.results.read import OutputReader
 
 
 class TestOutputReader(unittest.TestCase):

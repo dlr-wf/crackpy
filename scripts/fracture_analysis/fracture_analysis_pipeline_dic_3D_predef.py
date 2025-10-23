@@ -17,15 +17,14 @@
 import os
 
 from matplotlib import pyplot as plt
-from numpy.f2py.crackfortran import dimensionpattern
 
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
-from crackpy.fracture_analysis.read import OutputReader
+from crackpy.results.read import OutputReader
 from crackpy.crack_detection.model import get_model
 from crackpy.crack_detection.pipeline.pipeline import CrackDetectionSetup, CrackDetectionPipeline
 from crackpy.fracture_analysis.pipeline import FractureAnalysisPipeline
-from crackpy.fracture_analysis.plot import PlotSettings
+from crackpy.results.plot import PlotSettings
 from crackpy.structure_elements.material import Material
 
 plt.rcParams['image.cmap'] = 'coolwarm'

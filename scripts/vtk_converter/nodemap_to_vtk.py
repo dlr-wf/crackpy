@@ -19,7 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.tri as mtri
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from crackpy.fracture_analysis.data_processing import InputData
+from crackpy.input.input_data import InputData
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 

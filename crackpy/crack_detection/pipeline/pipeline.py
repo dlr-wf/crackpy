@@ -6,7 +6,7 @@ import torch
 from crackpy.crack_detection.utils.plot import plot_prediction
 from crackpy.crack_detection.utils.utilityfunctions import get_nodemaps_and_stage_nums
 from crackpy.crack_detection.detection import CrackTipDetection, CrackPathDetection, CrackAngleEstimation, CrackDetection
-from crackpy.fracture_analysis.data_processing import InputData
+from crackpy.input.input_data import InputData
 from crackpy.structure_elements.data_files import Nodemap
 
 

@@ -8,7 +8,7 @@ from crackpy.crack_detection.data import preprocess
 from crackpy.crack_detection.deep_learning.nets import ParallelNets, UNet
 from crackpy.crack_detection.data.interpolation import interpolate
 from crackpy.crack_detection.utils.utilityfunctions import calculate_segmentation, find_most_likely_tip_pos
-from crackpy.fracture_analysis.data_processing import InputData
+from crackpy.input.input_data import InputData
 
 
 class CrackDetection:

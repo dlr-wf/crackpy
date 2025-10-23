@@ -8,13 +8,14 @@ import numpy as np
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
 from crackpy.fracture_analysis.crack_tip import williams_displ_field_3d
-from crackpy.fracture_analysis.data_processing import CrackTipInfo, InputData
+from crackpy.input.input_data import InputData
+from crackpy.input.crack_tip_info import CrackTipInfo
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.fracture_analysis.pipeline import FractureAnalysisPipeline
-from crackpy.fracture_analysis.plot import PlotSettings, Plotter
-from crackpy.fracture_analysis.read import OutputReader
-from crackpy.fracture_analysis.write import OutputWriter
+from crackpy.results.plot import PlotSettings, Plotter
+from crackpy.results.read import OutputReader
+from crackpy.results.write import OutputWriter
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 
@@ -75,7 +76,6 @@ class TestFractureAnalysis(unittest.TestCase):
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['j'], 1.8699, delta=1e-4)
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['sif_j'], 11.6028, delta=1e-4)
 
-        #TODO: assertion for Mode Decomposition --> currently not working as expected on DIC Data
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['decomp_K_1'], 10.2195, delta=1e-4)
 
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['sif_k_i'], 11.0096, delta=1e-4)
@@ -145,7 +145,6 @@ class TestFractureAnalysis(unittest.TestCase):
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['j'], 1.8813, delta=1e-4)
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['sif_j'], 11.6381, delta=1e-4)
 
-        #TODO: assertion for Mode Decomposition --> currently not working on DIC Data
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['decomp_K_1'], 10.2961, delta=1e-4)
 
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['sif_k_i'], 11.0188, delta=1e-4)

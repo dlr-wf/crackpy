@@ -1,7 +1,7 @@
 import os
 import json
 import numpy as np
-from datetime import datetime
+import datetime
 
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
@@ -370,10 +370,9 @@ class OutputWriter:
             self.json_path = self._make_path(path)
 
 
-        json_dict = {}
-        json_dict['filename'] = self.filename
-        json_dict['evaluation_UTC_datetime'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%f")
-        json_dict['experiment_data'] = {}
+        json_dict = {'filename': self.filename,
+                     'evaluation_UTC_datetime': datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S.%f"),
+                     'experiment_data': {}}
         json_dict['experiment_data']['crack_tip_x'] = {"unit": "mm",
                                                        "result": self.analysis.crack_tip.crack_tip_x}
         json_dict['experiment_data']['crack_tip_y'] = {"unit": "mm",

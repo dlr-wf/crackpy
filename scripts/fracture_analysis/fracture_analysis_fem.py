@@ -19,17 +19,15 @@
 
 import os
 
-import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib import cm
-from matplotlib.colors import ListedColormap
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.fracture_analysis.data_processing import InputData, CrackTipInfo
+from crackpy.input.input_data import InputData
+from crackpy.input.crack_tip_info import CrackTipInfo
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
-from crackpy.fracture_analysis.plot import PlotSettings, Plotter
-from crackpy.fracture_analysis.write import OutputWriter
+from crackpy.results.plot import PlotSettings, Plotter
+from crackpy.results.write import OutputWriter
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 

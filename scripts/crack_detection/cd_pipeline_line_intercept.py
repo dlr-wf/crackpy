@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 from crackpy.crack_detection.line_intercept import CrackDetectionLineIntercept
 from crackpy.crack_detection.correction import CrackTipCorrection
 from crackpy.crack_detection.utils.utilityfunctions import get_nodemaps_and_stage_nums
-from crackpy.fracture_analysis.data_processing import InputData
+from crackpy.input.input_data import InputData
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material

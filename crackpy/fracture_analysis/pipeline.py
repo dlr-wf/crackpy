@@ -1,21 +1,21 @@
 import os
-
 import multiprocessing
 import warnings
 from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
+from multiprocessing.managers import DictProxy
 
 from rich import progress as progress_rich
 import numpy as np
 import pandas as pd
-from typing import Optional, Mapping
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.fracture_analysis.data_processing import CrackTipInfo, InputData
+from crackpy.input.input_data import InputData
+from crackpy.input.crack_tip_info import CrackTipInfo
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.fracture_analysis.line_integration import IntegralProperties
-from crackpy.fracture_analysis.plot import PlotSettings, Plotter
-from crackpy.fracture_analysis.write import OutputWriter
+from crackpy.results.plot import PlotSettings, Plotter
+from crackpy.results.write import OutputWriter
 from crackpy.structure_elements.data_files import NodemapStructure, Nodemap
 from crackpy.structure_elements.material import Material
 
@@ -30,7 +30,7 @@ def single_run(
         opt_props: OptimizationProperties,
         output_path: str,
         plot_sets: PlotSettings or None,
-        prog: Optional[Mapping[str, object]],
+        prog: DictProxy,
         task_id
 ):
     """Run fracture analysis of a single nodemap.

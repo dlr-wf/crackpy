@@ -2,10 +2,12 @@ import warnings
 from typing import Union, Optional, Mapping
 
 import numpy as np
+from multiprocessing.managers import DictProxy
 import rich.progress as progress_rich
 
 from crackpy.fracture_analysis import line_integration
-from crackpy.fracture_analysis.data_processing import InputData, CrackTipInfo
+from crackpy.input.input_data import InputData
+from crackpy.input.crack_tip_info import CrackTipInfo
 from crackpy.fracture_analysis.line_integration import (IntegralProperties,
                                                         LineIntegral)
 from crackpy.fracture_analysis.optimization import Optimization, OptimizationProperties
@@ -231,7 +233,7 @@ class FractureAnalysis:
 
         pass
 
-    def _run_line_integrals(self, progress_bar: Optional[Mapping[str, object]] = None, task_id=None) -> None:
+    def _run_line_integrals(self, progress_bar: Optional[DictProxy] = None, task_id=None) -> None:
         """Run line integrals if integral properties are provided."""
 
         # calculate Williams coefficients with Bueckner-Chen integral method

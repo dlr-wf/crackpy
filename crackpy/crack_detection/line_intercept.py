@@ -6,7 +6,7 @@ from scipy import optimize
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from crackpy.fracture_analysis.data_processing import InputData
+from crackpy.input.input_data import InputData
 
 
 class CrackDetectionLineIntercept:

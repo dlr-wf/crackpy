@@ -7,7 +7,7 @@ from crackpy.crack_detection.line_intercept import CrackDetectionLineIntercept
 from crackpy.crack_detection.correction import CrackTipCorrection
 from crackpy.crack_detection.model import get_model
 from crackpy.crack_detection.detection import CrackTipDetection, CrackPathDetection, CrackAngleEstimation, CrackDetection
-from crackpy.fracture_analysis.data_processing import InputData
+from crackpy.input.input_data import InputData
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material

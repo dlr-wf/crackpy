@@ -22,7 +22,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 
 from crackpy.crack_detection.line_intercept import CrackDetectionLineIntercept
-from crackpy.fracture_analysis.data_processing import InputData
+from crackpy.input.input_data import InputData
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 
@@ -118,6 +118,7 @@ ax = fig.add_subplot(111)
 for index in indexes:
     ax.plot(cd.y_grid[:, index], cd.disp_y_grid[:, index],
             'k-', linewidth=2, label=f'x = {cd.x_grid[0,index]:3.1} mm')
+    # noinspection PyProtectedMember
     ax.plot(cd.y_grid[:, index], cd._tanh_funct(cd.coefficients_fitted[:,index], cd.y_grid[:, index]),
             'r--', linewidth=2, label=f'x = {cd.x_grid[0,index]:3.1} mm (tanh)')
     ax.text(cd.y_grid[0, index], cd.disp_y_grid[0, index], f'x = {cd.x_grid[0,index]:3.1f} mm')

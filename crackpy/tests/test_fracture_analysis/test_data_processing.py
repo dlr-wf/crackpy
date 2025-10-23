@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from crackpy.fracture_analysis.data_processing import InputData
+from crackpy.input.input_data import InputData
 from crackpy.structure_elements.material import Material
 
 

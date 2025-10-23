@@ -1,9 +1,5 @@
 import crackpy.fracture_analysis.analysis
 import crackpy.fracture_analysis.crack_tip
-import crackpy.fracture_analysis.data_processing
 import crackpy.fracture_analysis.line_integration
 import crackpy.fracture_analysis.pipeline
-import crackpy.fracture_analysis.plot
-import crackpy.fracture_analysis.write
-import crackpy.fracture_analysis.read
 import crackpy.fracture_analysis.utils

@@ -13,7 +13,7 @@
 # Imports
 import os
 import time
-from crackpy.fracture_analysis.data_processing import InputData
+from crackpy.input.input_data import InputData
 from crackpy.structure_elements.data_files import Nodemap
 
 # Settings

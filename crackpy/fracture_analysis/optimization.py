@@ -3,7 +3,7 @@ from typing import Union, Optional
 from scipy import optimize
 
 from crackpy.fracture_analysis.crack_tip import williams_displ_field, cjp_displ_field_mixedmode, williams_displ_field_3d, cjp_displ_field_modeI
-from crackpy.fracture_analysis.data_processing import InputData
+from crackpy.input.input_data import InputData
 from crackpy.structure_elements.material import Material
 from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
 

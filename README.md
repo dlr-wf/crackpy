@@ -16,13 +16,14 @@ This Python package provides a pipeline, which takes an arbitrary number of DIC 
 fracture mechanical parameters.
 
 | ![Schematic overview](./example_images/overview.png) |
-|:--:|
-| **_Schematic overview of data flow in CrackPy_** |
+|:----------------------------------------------------:|
+|  **_Schematic overview of data flow in CrackPy._**   |
 
 To do so, we use a specific DIC data format which is stored as a `_Nodemap_.txt` text file.
 This file contains the nodal full-field displacement and strain data as well as information about the 
-experiment and metadata. For every single file (referring to one time step of the experiment), the crack 
-tip location and crack path geometry is detected using a trained artificial neural network [**4**]. After that, 
+experiment and metadata. For each file (referring to one time step of the experiment), crack 
+tip location and crack path geometry are detected utilizing a trained artificial neural network [**4**] or the line intercept method [**15**].
+The tip location can optionally be refined further via several crack tip correction methods [**15**]. After that, 
 the crack tip information together with the displacements and strains are used by our fracture analysis module. 
 This module contains a pipeline that computes stress intensity factors based on J-, interaction, and conjugate-work integrals, 
 fits the Williams expansion to calculate arbitrary Williams series coefficients or fits the CJP model to calculate 
@@ -30,38 +31,43 @@ stress intensity factors which take effects of plasticity into account.
    
 ## Scope of the Package
 
-The following graph shows an overview over the main CrackPy modules **structure elements**, **dic**, **simulation**, **crack detection**, and 
+The following graph shows an overview over the main CrackPy modules **structure elements**, **crack detection**, and 
 **fracture analysis**.
 
-| ![CrackPy](./example_images/overview_package.png) |
-|:--:|
-| **_Overview of main modules, functions and files in CrackPy_** |
+|                                             ![CrackPy](./example_images/overview_package.png)                                             |
+|:-----------------------------------------------------------------------------------------------------------------------------------------:|
+|                                      **_Overview of main modules, functions and files in CrackPy_**                                       |
+| [**a**]: https://github.com/dlr-wf/aramis-data-exporter. <br/>[**b**]: https://github.com/dlr-wf/crack_tip_correction_symbolic_regression |
+
+
 
 The structure element module provides classes for structural elements such as _experiment_ or
 _data file_. Most of these are currently just placeholders to add functionality later on. However, a very important structural element is the _Material_ class containing information about the
 material law (elastic & shear moduli, stiffness matrix, etc.) as well as the _Nodemap_ class, containing information about the data structure of the nodemap.
-We provide two modules, i.e. **dic** and **simulation**, which feature utilities to generate nodemaps from a 
+We provide the **dic** model elsewhere [**a**], which feature utilities to generate nodemaps from a 
 specific software. Therefore, these modules can only be used if CrackPy is installed on an Aramis system equipped with 
-an actual GOM Aramis Professional software >v2020 (in case of **dic**) or if a valid version and license of Ansys is available 
-(in case of **simulation**). For more details, we refer to our Wiki. Once you have stored your nodemap files either from dic, 
+an actual GOM Aramis Professional software >v2020 (in case of **dic**). For more details, we refer to our Wiki. Once you have stored your nodemap files either from dic, 
 simulation or from a different source, you reach the heart of our fracture analysis. You can detect crack paths and crack tips fully automatically
 using our **crack detection** module. This module provides two independent methodologies for crack detection -
 our line intercept method together with an iterative crack tip correction algorithm based on the Williams expansion [**15**] and our trained convolutional neural networks [**4**, **9**]. 
 We store the crack tip information in a file (this can also be generated manually) and use it as input for 
 the **fracture analysis** pipeline. Here we offer a wide range of methods and algorithms: 
 1. Calculate _J-integral_ [**5**, **10**]
-2. Calculate stress intensity factors (mode I, mode II) by _interaction integral technique_ [**11**, **12**]
-3. Calculate stress intensity factors and Williams series coefficients using _Bueckner's conjugate work integral_ [**6**, **14**]
-4. Calculate _higher order singular terms (HOSTs)_ or _higher order regular terms (HORTs)_ of the Williams series [**7**] by fitting the 
+2. Decompose the J-integral into mode I, mode II and mode III contributions [**16**]
+3. Calculate stress intensity factors (mode I, mode II) by _interaction integral technique_ [**11**, **12**]
+4. Calculate stress intensity factors and Williams series coefficients using _Bueckner's conjugate work integral_ [**6**, **14**]
+5. Calculate _higher order singular terms (HOSTs)_ or _higher order regular terms (HORTs)_ of the Williams series [**7**] by fitting the 
    theoretical displacement field to the experimental (or simulated) data.
-5. Calculate CJP stress intensity factors which may take effects of plasticity into account by fitting the theoretical displacement field of the _CJP model_ [**8**] the experimental (or simulated) data [**13**]   
+6. Calculate CJP stress intensity factors which may take effects of plasticity into account by fitting the theoretical displacement field of the _CJP model_ [**8**] the experimental (or simulated) data [**13**]   
 
 
 Here is an example of the output plot for one single time step...
 
-| ![](./example_images/example_image_output.png) |
-|:--:|
-| **_Example output for a single input_** |
+|   ![](./example_images/example_image_output_DIC.png)    |
+|:-------------------------------------------------------:|
+|    **_Example output for a single input from DIC_**     |
+|   ![](./example_images/example_image_output_SIM.png)    | 
+| **_Example output for a single input from simulation_** |
 
 ... and an example of how these methods can enable _hybrid approaches of mechanical and data-driven analysis_.
 
@@ -126,8 +132,14 @@ References:
 15. **Melching D et al. (2024)** A universal crack tip correction algorithm discovered by physical deep symbolic regression.
     _Preprint_
     [https://arxiv.org/abs/2403.10320](https://arxiv.org/abs/2403.10320)
+16. **Molteno M. R. & Becker T. H. (2015)** Mode I-III decomposition of the j-integral from DIC displacement data. 
+    _Strain, 51(6), 492–503._ 
+    [https://doi.org/10.1111/str.12166](https://doi.org/10.1111/str.12166)
+17. **Christopher C.J. et al. (2013)** Extension of the CJP model to mixed mode I and mode II.
+    _Frattura ed Integrità Strutturale 2013, 7, 161–166_ 
+    [https://doi.org/10.3221/IGF-ESIS.25.23](https://doi.org/10.3221/IGF-ESIS.25.23)
 
-
+    
 ## Installation
 Just install via pip from the GitHub repository
 ```
@@ -167,13 +179,13 @@ _Tobias Strohmann_\
 _David Melching_\
 _Florian Paysan_\
 _Eric Dietrich_\
+_Vanessa Schöne_\
+_Ferdinand Dömling_\
 _Guillermo Requena_\
 _Eric Breitbarth_
 
 **Contributors:**\
 We thank\
-_Vanessa Schöne_\
 _Alina Klein_\
-_Ferdinand Dömling_\
 _Erik Schultheis_\
 for continuous support regarding tests and user feedback for the package.

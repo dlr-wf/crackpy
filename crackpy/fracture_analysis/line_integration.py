@@ -5,7 +5,7 @@ from scipy.interpolate import griddata
 from scipy.ndimage import label
 
 from crackpy.fracture_analysis.crack_tip import get_crack_nearfield, eigenfunction, get_zhao_solutions
-from crackpy.fracture_analysis.data_processing import InputData, apply_mask
+from crackpy.input.input_data import InputData, apply_mask
 from crackpy.structure_elements.material import Material
 from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
 
@@ -355,6 +355,7 @@ class LineIntegral:
         """
         # input
         self.data = data
+        self.data_orig = None # for mode decomposition
         self.integration_path = integration_path
         self.x_shift = integration_path.path_properties.tick_size
         self.origin_x = integration_path.origin_x
@@ -434,14 +435,12 @@ class LineIntegral:
         self._interpolate_on_integration_points()
         self.decomp_j_integral_I = self._solve_j_integral()  # in N/mm
         self.decomp_j_integral_K_I = np.sqrt(self.decomp_j_integral_I * self.material.E / 1000)  # MPa*sqrt(m)
-        #print(f'J_1= {self.decomp_j_integral_I}, K_I = {self.decomp_j_integral_K_I}')
 
         # Mode II
         self.data = self._prepare_mode_data(mode='II')
         self._interpolate_on_integration_points()
         self.decomp_j_integral_II = self._solve_j_integral()  # in N/mm
         self.decomp_j_integral_K_II = np.sqrt(self.decomp_j_integral_II * self.material.E / 1000)  # MPa*sqrt(m)
-        #print(f'J_2= {self.decomp_j_integral_II}, K_II = {self.decomp_j_integral_K_II}')
 
         # Mode III
         self.data = self._prepare_mode_data(mode='III')
@@ -450,7 +449,6 @@ class LineIntegral:
         self.decomp_j_integral_III = self._solve_j_integral_III()  # in N/mm
         self.decomp_j_integral_K_III = np.sqrt(self.decomp_j_integral_III / 1000 * self.material.E /
                                                (1 + self.material.nu_xy))  # MPa*sqrt(m)
-        #print(f'J_3= {self.decomp_j_integral_III}, K_III = {self.decomp_j_integral_K_III}')
 
         # Restore original data
         self.data = self.data_orig
@@ -858,9 +856,8 @@ class LineIntegral:
         decomp_data.sigma_yz = sigma_yz.flatten()
 
         # recalc Von Mises strains and stresses
-        decomp_data.calc_stresses(self.material)
         decomp_data.calc_eps_vm()
-        decomp_data._calc_sig_vm()
+        decomp_data.calc_stresses(self.material)
 
         return decomp_data
 
