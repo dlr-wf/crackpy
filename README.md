@@ -61,13 +61,17 @@ the **fracture analysis** pipeline. Here we offer a wide range of methods and al
 6. Calculate CJP stress intensity factors which may take effects of plasticity into account by fitting the theoretical displacement field of the _CJP model_ [**8**] the experimental (or simulated) data [**13**]   
 
 
-Here is an example of the output plot for one single time step...
+Here is an example of the output plot for one single time step of a laboratory experiment...
 
 |   ![](./example_images/example_image_output_DIC.png)    |
 |:-------------------------------------------------------:|
 |    **_Example output for a single input from DIC_**     |
-|   ![](./example_images/example_image_output_SIM.png)    | 
-| **_Example output for a single input from simulation_** |
+
+... and an example of the output plot for one arbitrary analytical field ...
+
+|    ![](./example_images/example_image_output_SIM.png)     | 
+|:---------------------------------------------------------:|
+|        **_Example output for synthetical input_**         |
 
 ... and an example of how these methods can enable _hybrid approaches of mechanical and data-driven analysis_.
 
@@ -179,8 +183,6 @@ _Tobias Strohmann_\
 _David Melching_\
 _Florian Paysan_\
 _Eric Dietrich_\
-_Vanessa Schöne_\
-_Ferdinand Dömling_\
 _Guillermo Requena_\
 _Eric Breitbarth_
 
@@ -188,4 +190,6 @@ _Eric Breitbarth_
 We thank\
 _Alina Klein_\
 _Erik Schultheis_\
+_Vanessa Schöne_\
+_Ferdinand Dömling_\
 for continuous support regarding tests and user feedback for the package.

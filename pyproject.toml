@@ -9,14 +9,13 @@ authors = [
     {name = "David Melching", email = "David.Melching@dlr.de"},
     {name = "Florian Paysan"},
     {name = "Eric Dietrich"},
-    {name = "Vanessa Schöne"},
-    {name = "Ferdinand Dömling"},
     {name = "Eric Breitbarth", email = "Eric.Breitbarth@dlr.de"},
 ]
 description = "Crack Analysis Tool in Python (CrackPy) - automatic detection and fracture mechanical analysis of (fatigue) cracks using digital image correlation"
 readme = "README.md"
 requires-python = ">=3.8"
-keywords = ["Crack Tip Analysis", "Crack Tip Detection", "Fatigue", "Digital Image Correlation"]
+keywords = ["Fracture Analysis", "Crack Tip Detection", "Fatigue", "Digital Image Correlation"]
+license = "MIT"
 license-files = ["LICENSE.*"]
 classifiers = [
     "Programming Language :: Python :: 3",
