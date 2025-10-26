@@ -247,36 +247,8 @@ class OutputReader:
         return params, results
 
     @staticmethod
-    def _restructure_results(df: pd.DataFrame, tag: str | None = None) -> tuple:
-        """
-        Restructure results to be saved into csv file.
-
-        Args:
-            df: obj of class DataFrame
-            tag: tag name
-
-        Returns:
-            params and results as lists
-
-        """
-        results = []
-        params = []
-        param_keys = df["Param"].to_list()
-        units = df["Unit"].to_list()
-        values = df["Result"].to_list()
-        for i in range(len(values)):
-            if tag is not None:
-                param = tag + "_" + param_keys[i]
-            else:
-                param = param_keys[i]
-            params.append(param + " [" + units[i] + "]")
-            results.append(values[i])
-        return params, results
-
-    @staticmethod
-    def _restructure_path_statistics(df: pd.DataFrame, tag: str | None) -> tuple:
-        """
-        Internal method to restructure the Dataframe for path statistics data.
+    def _restructure_path_statistics(df: pd.DataFrame, tag: str) -> tuple:
+        """Internal method to restructure the Dataframe for path dependent output data.
 
         Args:
             df: obj of class DataFrame
@@ -286,30 +258,70 @@ class OutputReader:
             a list for all parameter names for given tag and all values for these parameters
 
         """
-        params = df.columns.to_list()
-        results = df.values.max(axis=0)
-        params = [tag + "_" + param for param in params]
+        params = []
+        results = []
+        for col in df.columns:
+
+            # get col name
+            name = col.split(' ')[0]
+
+            # calculate path statisitics
+            stat_attributes = {
+                'mean': np.mean(df[col]),
+                'median': np.median(df[col]),
+                'quantile10': np.quantile(df[col], .10),
+                'quantile90': np.quantile(df[col], .90),
+
+                'max': np.max(df[col]),
+                'min': np.min(df[col])
+            }
+
+            for param in stat_attributes.keys():
+                params.append(f"{tag}_{name}_{param}")
+                results.append(stat_attributes[param])
+        return params, results
+
+    @staticmethod
+    def _restructure_results(df: pd.DataFrame, tag: str = None) -> tuple:
+        """Internal method to restructure the Dataframe for path independent output data.
+
+        Args:
+            df: obj of class DataFrame
+            tag: tag
+
+        Returns:
+            a list for all parameter names for given tag and all values for these parameters
+
+        """
+        params = df["Param"].to_list()
+        results = df["Result"].to_list()
+        for param_index in range(len(params)):
+            if tag is not None:
+                params[param_index] = tag + "_" + params[param_index]
         return params, results
 
     def _search_for_tags(self, filename: str, path: str | Path) -> list:
-        """Search for tags in fracture analysis output file.
+        """
+        Internal Method to search for any possible tag in a given filename and path.
 
         Args:
-            filename: output file's name
-            path: path to the output file
+            filename: filename of output file
+            path: path to this file
 
         Returns:
-            list of tags in fracture analysis output file
+            list of possible tags
 
         """
-        tags = []
-        file_path = Path(path) / filename
-        with open(file_path) as file:
-            for line in file:
-                if '<' in line and '>' in line:
-                    tags.append(line.strip('\n').strip('<').strip('>'))
-        self.possible_tags = tags
-        return tags
-
+        if self.possible_tags is None:
+            tag_list = []
+            with open(Path(path) / filename) as file:
+                for line in file:
+                    if '<' in line and '>' in line and '/' not in line:
+                        tag = line.strip('<>\n')
+                        tag_list.append(tag)
+            self.possible_tags = tag_list
+        else:
+            pass
+        return self.possible_tags
 
 
