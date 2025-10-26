@@ -89,7 +89,7 @@ class Plotter:
 
     def __init__(
             self,
-            path: str,
+            path: str | Path,
             fracture_analysis: FractureAnalysis,
             plot_sets: PlotSettings
     ):

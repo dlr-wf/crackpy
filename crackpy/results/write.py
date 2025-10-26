@@ -20,7 +20,7 @@ class OutputWriter:
 
     """
 
-    def __init__(self, path: str, fracture_analysis: FractureAnalysis):
+    def __init__(self, path: str | Path, fracture_analysis: FractureAnalysis):
         """Initialize OutputWriter arguments.
 
         Args:
