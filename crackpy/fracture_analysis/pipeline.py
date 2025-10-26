@@ -32,7 +32,7 @@ def single_run(
         integral_props_by_nodemap: dict,
         opt_props: OptimizationProperties,
         output_path: str,
-        plot_sets: PlotSettings or None,
+        plot_sets: PlotSettings | None,
         prog: DictProxy,
         task_id
 ):
@@ -229,7 +229,7 @@ class FractureAnalysisPipeline:
 
         return self.stages_to_max_force_stages
 
-    def find_integral_props(self, stages_to_max_force_stages: dict or None = None):
+    def find_integral_props(self, stages_to_max_force_stages: dict | None = None):
         """Find the integral properties at maximal load automatically
         and assign these also to the subsequent smaller load steps.
 

@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from datetime import datetime
 
 
@@ -54,7 +54,7 @@ class Documentation:
         self.num_epochs = num_epochs
         self.train_docu = train_docu
 
-    def save_metadata(self, path: str, name: str):
+    def save_metadata(self, path: str | Path, name: str):
         """Save the training Meta-Data in a text-file together with the produced trained model.
 
         Args:
@@ -77,10 +77,10 @@ class Documentation:
         deviation = self.train_docu.deviation if self.train_docu is not None else None
         reliability = self.train_docu.reliability if self.train_docu is not None else None
 
-        if not os.path.exists(os.path.join(path)):
-            os.makedirs(os.path.join(path))
+        path_obj = Path(path)
+        path_obj.mkdir(parents=True, exist_ok=True)
 
-        with open(os.path.join(path, name + '.txt'), mode='w') as metafile:
+        with open(path_obj / f'{name}.txt', mode='w') as metafile:
             metafile.write(
                 '#'*100 + '\n'
                 f'# Current time: {time}\n'

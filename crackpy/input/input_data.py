@@ -116,16 +116,18 @@ class InputData:
     # DATA HANDLING METHODS #
     #########################
 
-    def set_nodemap_file(self, nodemap_file: str | Path):
+    def set_nodemap_file(self, nodemap_file: str | Path) -> None:
         """Set nodemap data file path.
 
         Args:
             nodemap_file: name of data file
+
         """
         self.nodemap_file = str(nodemap_file)
+        logger.debug(f"Nodemap file set to: {self.nodemap_file}")
 
 
-    def set_connection_file(self, connection_file: str, folder: str | Path):
+    def set_connection_file(self, connection_file: str, folder: str | Path) -> None:
         """Set connection file path.
 
         Args:
@@ -134,6 +136,8 @@ class InputData:
 
         """
         connection_file_path = Path(folder) / connection_file
+        logger.debug(f"Reading connection file: {connection_file_path}")
+
         np_df = np.genfromtxt(connection_file_path, dtype=int, delimiter=';', skip_header=1)
 
         # Check if there are any elements with -1 as node number
@@ -149,7 +153,9 @@ class InputData:
         # Check if there are any elements with -1 as node number
         self.connections = self._cut_none_elements(self.connections)
 
-    def read_nodemap_file(self):
+        logger.debug(f"Connection file loaded: {len(self.connections)} elements")
+
+    def read_nodemap_file(self) -> None:
         """Read data from nodemap file."""
         logger.debug(f"Reading nodemap file: {self.nodemap_file}")
 
@@ -187,14 +193,16 @@ class InputData:
 
         self._validate_data_shapes()
 
-    def read_header(self, meta_attributes_to_keywords: dict = None):
+    def read_header(self, meta_attributes_to_keywords: dict = None) -> None:
         """Get metadata by reading from header.
 
         Args:
-            meta_attributes_to_keywords: dictionary with metadata attributes as keys and corresponding keyword in header as values
-                                         if None, the class attributes are used as keywords
+            meta_attributes_to_keywords: dictionary with metadata attributes as keys and corresponding keyword in header as values.
+                                         If None, the class attributes are used as keywords.
 
         """
+        logger.debug(f"Reading header from: {self.nodemap_file}")
+
         if meta_attributes_to_keywords is None:
             # set default meta data keywords
             meta_attributes_to_keywords = {}

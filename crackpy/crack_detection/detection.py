@@ -17,14 +17,26 @@ logger = logging.getLogger(__name__)
 class CrackDetection:
     """Crack detection setup class.
 
+    This class configures the detection window and preprocessing for crack tip detection
+    using neural network models.
+
+    Attributes:
+        side: Side of specimen ('left' or 'right')
+        detection_window_size: Size of detection window in mm
+        offset: (x, y) offset tuple in mm
+        interp_size: Interpolation size (derived from window size and side)
+        angle_det_radius: Radius around crack tip for angle detection in mm
+        device: PyTorch device for computation
+
     Methods:
         * preprocess - prepare interpolated displacements for input to NN
         * interpolate - interpolate nodemap data on arrays (256 x 256 pixels)
 
     """
 
-    def __init__(self, side: str = 'right', detection_window_size: float = 70, offset: tuple = (0, 0),
-                 angle_det_radius: float = 10, device=None):
+    def __init__(self, side: str = 'right', detection_window_size: float = 70,
+                 offset: tuple = (0, 0), angle_det_radius: float = 10,
+                 device: torch.device = None) -> None:
         """Initialize class arguments.
 
         Args:
@@ -44,6 +56,9 @@ class CrackDetection:
             self.device = device
         else:
             self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+        logger.debug(f"CrackDetection initialized: side={side}, window_size={detection_window_size}, "
+                    f"offset={offset}, angle_radius={angle_det_radius}, device={self.device}")
 
     @staticmethod
     def preprocess(interp_disps: np.ndarray) -> torch.Tensor:
@@ -67,14 +82,15 @@ class CrackDetection:
 
         return input_ch
 
-    def interpolate(self, data: InputData):
-        """Interpolate nodemap data on arrays (256 x 256 pixels)
+    def interpolate(self, data: InputData) -> tuple[np.ndarray, np.ndarray]:
+        """Interpolate nodemap data on arrays (256 x 256 pixels).
 
         Args:
             data: nodemap data
 
         Returns:
-            interpolated displacements, interpolated von Mises strains as arrays of size 256x256
+            Tuple of (interpolated_displacements, interpolated_von_mises_strains)
+            both as arrays of size 256x256
 
         """
         logger.debug(f"Interpolating data on 256x256 grid with size={self.interp_size} mm, offset={self.offset}")
@@ -90,6 +106,12 @@ class CrackDetection:
 class CrackTipDetection:
     """Crack tip detection class.
 
+    This class handles the actual crack tip detection using a trained neural network model.
+
+    Attributes:
+        detection: CrackDetection setup instance
+        tip_detector: Trained neural network model for tip detection
+
     Methods:
         * calculate_position_in_mm - converts crack tip position from pixels to mm
         * make_prediction - predict crack tips as segmented pixels
@@ -98,17 +120,20 @@ class CrackTipDetection:
 
     """
 
-    def __init__(self, detection: CrackDetection, tip_detector: ParallelNets):
+    def __init__(self, detection: CrackDetection, tip_detector: ParallelNets) -> None:
         """Initialize class arguments.
 
         Args:
             detection: crack detection setup
-            tip_detector: crack tip detection model
+            tip_detector: crack tip detection model (ParallelNets)
+
         """
         self.detection = detection
         self.tip_detector = tip_detector
 
-    def calculate_position_in_mm(self, crack_tip_px: list) -> tuple:
+        logger.debug(f"CrackTipDetection initialized with detector model")
+
+    def calculate_position_in_mm(self, crack_tip_px: list) -> tuple[float, float]:
         """Converts the crack tip position from pixels to mm.
 
         Args:

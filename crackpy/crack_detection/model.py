@@ -8,8 +8,9 @@ from crackpy.crack_detection.deep_learning.nets import ParallelNets, UNet
 logger = logging.getLogger(__name__)
 
 
-def get_model(model_name: str, map_location=torch.device('cpu')):
+def get_model(model_name: str, map_location: torch.device = torch.device('cpu')) -> ParallelNets | UNet:
     """Return the trained crack detection model *model_name* as a PyTorch model.
+
     If the model is not found, it will be downloaded from Zenodo DOI:10.5281/zenodo.7245516 first.
 
     Args:
@@ -17,7 +18,7 @@ def get_model(model_name: str, map_location=torch.device('cpu')):
         map_location: map_location for torch.load()-function, e.g. torch.device('cpu') or torch.device('cuda:0')
 
     Returns:
-        torch model
+        Trained PyTorch model (either ParallelNets or UNet)
 
     """
     # model urls on Zenodo
@@ -30,22 +31,26 @@ def get_model(model_name: str, map_location=torch.device('cpu')):
 
     # Use importlib.resources.files() to get the model path
     model_folder = resources.files('crackpy').joinpath('crack_detection/models')
-    model_path = Path(str(model_folder.joinpath(f'{model_name}.pth')))
+    model_path = Path(str(model_folder)) / f'{model_name}.pth'
 
     # check if model folder exists
-    origin = model_path.parent
-    origin.mkdir(parents=True, exist_ok=True)
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    logger.debug(f"Model folder ensured: {model_path.parent}")
 
     if not model_path.exists():
         logger.info(f"Downloading model file for {model_name} …")
         torch.hub.download_url_to_file(model_urls[model_name], str(model_path))
+    else:
+        logger.debug(f"Loading existing model from {model_path}")
 
     if model_name == 'ParallelNets':
         model = ParallelNets(in_ch=2, out_ch=1, init_features=64)
         model.load_state_dict(torch.load(str(model_path), map_location=map_location))
+        logger.debug(f"ParallelNets model loaded successfully to {map_location}")
 
     else:  # model_name == 'UNetPath'
         model = UNet(in_ch=2, out_ch=1, init_features=64)
         model.load_state_dict(torch.load(str(model_path), map_location=map_location))
+        logger.debug(f"UNetPath model loaded successfully to {map_location}")
 
     return model

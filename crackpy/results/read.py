@@ -7,7 +7,15 @@ logger = logging.getLogger(__name__)
 
 
 def is_stringfloat(element: str) -> bool:
-    """Checks if element can be converted to a float"""
+    """Check if element can be converted to a float.
+
+    Args:
+        element: string to check
+
+    Returns:
+        True if element can be converted to float, False otherwise
+
+    """
     try:
         float(element)
         return True
@@ -18,17 +26,23 @@ def is_stringfloat(element: str) -> bool:
 class OutputReader:
     """This class is designed to read tagged data from fracture analysis output file **filename** in folder **path**.
 
+    Attributes:
+        path: Path to output files
+        filename: Output filename
+        possible_tags: List of available tags in file
+        data: Dictionary storing read data
+
     Methods:
         * read_tag_data - data is read into a pandas Dataframe
         * make_csv_from_results - saves data in csv file
 
     """
 
-    def __init__(self):
-        self.path = None
-        self.filename = None
-        self.possible_tags = None
-        self.data = {}
+    def __init__(self) -> None:
+        self.path: Path | None = None
+        self.filename: str | None = None
+        self.possible_tags: list | None = None
+        self.data: dict = {}
 
     def read_tag_data(self, path: str | Path, filename: str, tag: str) -> pd.DataFrame:
         """Read data into Pandas dataframe and saves results to results dictionary
@@ -42,6 +56,8 @@ class OutputReader:
             df: dataframe with columns and values
 
         """
+        logger.debug(f"Reading tag '{tag}' from file: {Path(path) / filename}")
+
         if tag not in self._search_for_tags(filename=filename, path=path):
             raise ValueError(f"The tag {tag} does not exist! \n"
                              f"Possible tags: {self.possible_tags}")
@@ -50,6 +66,8 @@ class OutputReader:
         with open(file_path, 'r') as text_file:
             read_header = False
             read_values = False
+            columns = []
+            data_rows = []
 
             try:
                 _ = self.data[filename]
@@ -67,10 +85,10 @@ class OutputReader:
                     # read header of tagged content
                     columns = line.strip('\n').strip(' ').split(',')
                     columns = [element.strip(' ') for element in columns]
-                    df = pd.DataFrame(columns=columns)
                     read_header = False
                     read_values = True
                     continue
+
                 if read_values:
                     # convert to float if possible
                     values = []
@@ -78,16 +96,20 @@ class OutputReader:
                         val = val.strip(' ')
                         if is_stringfloat(val):
                             val = float(val)
-                        values.append([val])
+                        values.append(val)
 
-                    # read values of tagged content
-                    columns_to_values = pd.DataFrame.from_dict(dict(zip(columns, values)))
-                    df = pd.concat([df, columns_to_values], ignore_index=True)
+                    # collect values in list
+                    data_rows.append(values)
 
-                    # save to results
-                    self.data[filename].update({tag: df})
+            # create DataFrame once after collecting all rows
+            df = pd.DataFrame(data_rows, columns=columns)
 
-                # always read meta data
+            # save to results
+            self.data[filename].update({tag: df})
+
+            logger.debug(f"Read {len(data_rows)} rows for tag '{tag}'")
+
+            # always read meta data
             if "Experiment_data" not in self.data[filename].keys():
                 _ = self.read_tag_data(path, filename, "Experiment_data")
             return df

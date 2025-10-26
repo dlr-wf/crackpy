@@ -17,8 +17,25 @@ logger = logging.getLogger(__name__)
 
 
 class PlotSettings:
-    def __init__(self, xlim_down: float = None, xlim_up: float = None, ylim_down: float = None, ylim_up: float = None,
-                 background: str = 'eps_vm', min_value: float = None, max_value: float = None, extend: str = None):
+    """Settings for plotting fracture analysis results.
+
+    Attributes:
+        xlim_down: Lower x-axis limit
+        xlim_up: Upper x-axis limit
+        ylim_down: Lower y-axis limit (negative)
+        ylim_up: Upper y-axis limit
+        background: Background field to plot
+        min_value: Minimum value for colormap
+        max_value: Maximum value for colormap
+        extend: Colorbar extension setting
+        legend_label: Auto-generated legend label
+
+    """
+
+    def __init__(self, xlim_down: float = None, xlim_up: float = None,
+                 ylim_down: float = None, ylim_up: float = None,
+                 background: str = 'eps_vm', min_value: float = None,
+                 max_value: float = None, extend: str = None) -> None:
         """Define plot settings for Plotter class object.
 
         Args:
@@ -82,6 +99,17 @@ class PlotSettings:
 class Plotter:
     """Make plots of Fracture Analysis results and integration paths.
 
+    Attributes:
+        analysis: FractureAnalysis instance
+        plot_sets: Plot settings
+        path: Output path for plots
+        filename: Output filename
+        figure: Matplotlib figure
+        ax_results: Results axis
+        ax_williams_opt: Williams optimization axis
+        ax_cjp_opt: CJP optimization axis
+        ax_int: Integration axis
+
     Methods
         * plot - create and save the plot
 
@@ -92,7 +120,7 @@ class Plotter:
             path: str | Path,
             fracture_analysis: FractureAnalysis,
             plot_sets: PlotSettings
-    ):
+    ) -> None:
         """Initialize Plotter arguments.
 
         Args:
@@ -109,7 +137,9 @@ class Plotter:
 
         self.figure, self.ax_results, self.ax_williams_opt, self.ax_cjp_opt, self.ax_int = self._plot_base_figure()
 
-    def plot(self):
+        logger.debug(f"Plotter initialized: {self.filename} with background={plot_sets.background}")
+
+    def plot(self) -> None:
         """Main function to plot and save Fracture Analysis results."""
         # Plot results as text boxes
         self._plot_results()

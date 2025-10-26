@@ -1,20 +1,37 @@
 import numpy as np
 from scipy.spatial import Delaunay
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class ReusableLinearInterpolator:
-    """
-    Precompute Delaunay triangulation + barycentric weights for a fixed set of
-    evaluation points (grid or arbitrary points). Reuse for many fields.
+    """Precompute Delaunay triangulation and barycentric weights for a fixed set of
+    evaluation points (grid or arbitrary points). Reuse for many fields efficiently.
 
-    by ChatGPT5
+    This class significantly improves performance when interpolating multiple fields
+    on the same grid by precomputing the triangulation and weights.
+
+    Attributes:
+        bary: Barycentric coordinates for each evaluation point
+        vidx: Vertex indices for each simplex
+        valid: Mask indicating which points are inside the convex hull
+        n_eval: Number of evaluation points
+
     """
 
     def __init__(self, coor_x: np.ndarray, coor_y: np.ndarray, eval_points: np.ndarray) -> None:
-        """
+        """Initialize interpolator with scattered data points and evaluation points.
+
         Args:
-            coor_x, coor_y : (N,) 1D arrays of measurement/scattered coords (length N)
-            eval_points    : (M, 2) array of target points where you want interpolation
+            coor_x: 1D array of x-coordinates at measurement points (length N)
+            coor_y: 1D array of y-coordinates at measurement points (length N)
+            eval_points: (M, 2) array of target points where interpolation is desired
+
         """
+        logger.debug(f"Initializing ReusableLinearInterpolator with {len(coor_x)} source points "
+                    f"and {len(eval_points)} evaluation points")
+
         pts = np.c_[coor_x, coor_y]   # (N, 2)
         tri = Delaunay(pts)
 
@@ -28,15 +45,18 @@ class ReusableLinearInterpolator:
         self.valid: np.ndarray = simp >= 0                      # inside convex hull mask
         self.n_eval: int = eval_points.shape[0]
 
+        n_valid = np.sum(self.valid)
+        logger.debug(f"Interpolator initialized: {n_valid}/{self.n_eval} points inside convex hull")
+
     def interpolate(self, values: np.ndarray) -> np.ndarray:
-        """
-        Interpolate a new field onto eval_points.
+        """Interpolate a new field onto the evaluation points.
 
         Args:
-            values : (N,) or (N, k) array of field values at scattered coords
+            values: (N,) or (N, k) array of field values at scattered coordinates
 
         Returns:
-            (M,) or (M, k) array of interpolated values
+            (M,) or (M, k) array of interpolated values. Points outside the convex hull are set to NaN.
+
         """
         values = np.asarray(values)
         out_shape = (self.n_eval,) if values.ndim == 1 else (self.n_eval, values.shape[1])

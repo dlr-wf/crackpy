@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import torch
 import cv2
@@ -359,12 +359,11 @@ class SegGradCAM:
 
         """
         stage_num = self.setup.nodemaps_to_stages[key]
-        save_folder = os.path.join(self.setup.output_path)
+        save_folder = Path(self.setup.output_path)
         if subfolder is not None:
-            save_folder = os.path.join(save_folder, subfolder)
-        if not os.path.exists(save_folder):
-            os.makedirs(save_folder)
-        plt.savefig(os.path.join(save_folder, f'{stage_num:04d}' + '.png'))
+            save_folder = save_folder / subfolder
+        save_folder.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_folder / f'{stage_num:04d}.png')
         plt.close(fig)
 
 

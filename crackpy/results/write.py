@@ -13,6 +13,12 @@ logger = logging.getLogger(__name__)
 class OutputWriter:
     """Writer class for output of Fracture Analysis Tool.
 
+    Attributes:
+        analysis: FractureAnalysis instance
+        path: Output path
+        filename: Output filename
+        json_path: JSON output path
+
     Methods:
         * write_header - write header of output file with metadata
         * write_results - write results of fracture analysis
@@ -20,7 +26,7 @@ class OutputWriter:
 
     """
 
-    def __init__(self, path: str | Path, fracture_analysis: FractureAnalysis):
+    def __init__(self, path: str | Path, fracture_analysis: FractureAnalysis) -> None:
         """Initialize OutputWriter arguments.
 
         Args:
@@ -32,6 +38,8 @@ class OutputWriter:
         self.path = self._make_path(path)
         self.filename = self._set_filename()
         self.json_path = None
+
+        logger.debug(f"OutputWriter initialized: {self.filename} in {self.path}")
 
     def write_header(self) -> None:
         """Writing a header for the output file."""

@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import torch
 
@@ -82,7 +82,7 @@ class Setup(Experiments):
         * set_output_path - sets the output path for the setup (and creates the folder)
 
     """
-    def __init__(self, data_path: str or None=None, experiment: str=None, side: str='right'):
+    def __init__(self, data_path: str | Path | None = None, experiment: str = None, side: str = 'right'):
         """Initialize default setup class and sets data path attribute.
 
         Args:
@@ -97,8 +97,8 @@ class Setup(Experiments):
         self.experiment = experiment
         self.side = side
 
-        if data_path is not None and os.path.exists(data_path):
-            self.data_path = data_path
+        if data_path is not None and Path(data_path).exists():
+            self.data_path = str(data_path)
         elif data_path is not None:
             raise ValueError("The chosen data path does not seem to exist!")
 
@@ -116,7 +116,7 @@ class Setup(Experiments):
 
         if self.experiment in self.nodemap_nums:
             self.stages_to_nodemaps, self.nodemaps_to_stages = \
-                get_nodemaps_and_stage_nums(os.path.join(self.data_path, 'Nodemaps'),
+                get_nodemaps_and_stage_nums(str(Path(self.data_path) / 'Nodemaps'),
                                             self.nodemap_nums[self.experiment])
         else:
             self.stages_to_nodemaps, self.nodemaps_to_stages = {}, {}
@@ -156,7 +156,7 @@ class Setup(Experiments):
 
         return inputs, targets
 
-    def set_model(self, model_path: str, model_name: str):
+    def set_model(self, model_path: str | Path, model_name: str):
         """Set the model path and name of this setup.
 
         Args:
@@ -164,8 +164,8 @@ class Setup(Experiments):
             model_name: name of the model
 
         """
-        if os.path.exists(model_path):
-            self.model_path = model_path
+        if Path(model_path).exists():
+            self.model_path = str(model_path)
         else:
             raise ValueError("The model path does not seem to exist!")
 
@@ -181,9 +181,9 @@ class Setup(Experiments):
         if stages != 'All':
             stages = [str(i) for i in stages]
         self.stages_to_nodemaps, self.nodemaps_to_stages = \
-            get_nodemaps_and_stage_nums(os.path.join(self.data_path, 'Nodemaps'), stages)
+            get_nodemaps_and_stage_nums(str(Path(self.data_path) / 'Nodemaps'), stages)
 
-    def set_size(self, size: int or float, offset: tuple):
+    def set_size(self, size: int | float, offset: tuple):
         """Change size in mm
 
         Args:
@@ -221,14 +221,12 @@ class Setup(Experiments):
         """
         self.out_ids = out_to_ids
 
-    def set_output_path(self, path: str):
+    def set_output_path(self, path: str | Path):
         """Sets the output path for the setup and creates the folder (if it not exists).
 
         Args:
             path: output path
 
         """
-        self.output_path = path
-
-        if not os.path.exists(self.output_path):
-            os.makedirs(self.output_path)
+        self.output_path = str(path)
+        Path(self.output_path).mkdir(parents=True, exist_ok=True)

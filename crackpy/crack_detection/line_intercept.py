@@ -13,8 +13,26 @@ logger = logging.getLogger(__name__)
 
 
 class CrackDetectionLineIntercept:
-    """Crack detection class using a line interception method,
-    where a tanh function is fitted to the x or y displacement data on vertical slices.
+    """Crack detection class using a line interception method.
+
+    This method fits a tanh function to displacement data on vertical slices
+    to detect the crack path and tip position.
+
+    Attributes:
+        data: Input nodemap data
+        x_min: Minimum x-coordinate of detection window
+        x_max: Maximum x-coordinate of detection window
+        y_min: Minimum y-coordinate of detection window
+        y_max: Maximum y-coordinate of detection window
+        tick_size_x: Tick size in x direction
+        tick_size_y: Tick size in y direction
+        grid_component: Displacement component for detection ('ux' or 'uy')
+        eps_vm_threshold: Threshold for crack detection
+        window_size: Size of sliding window for thresholding
+        angle_estimation_mm_radius: Radius for crack angle estimation in mm
+        crack_tip: Detected crack tip position
+        crack_path: Detected crack path
+        crack_angle: Detected crack angle
 
     Methods:
         * predict_tip_pos - predict the crack tip position using line interception method
@@ -34,7 +52,7 @@ class CrackDetectionLineIntercept:
             eps_vm_threshold: float = 0.01,
             window_size: float = 3,
             angle_estimation_mm_radius: float = 50
-    ):
+    ) -> None:
         """Initialize class arguments.
 
         Args:
@@ -82,7 +100,10 @@ class CrackDetectionLineIntercept:
         # map displacements to separate grid
         self._map_data_to_grid()
 
-    def run(self):
+        logger.debug(f"CrackDetectionLineIntercept initialized: window=[{x_min},{x_max}]x[{y_min},{y_max}], "
+                    f"grid_component={grid_component}, eps_vm_threshold={eps_vm_threshold}")
+
+    def run(self) -> None:
         """Run crack detection with line intercept method."""
         logger.debug(f"Starting line intercept crack detection with eps_vm_threshold={self.eps_vm_threshold:.4f}, window_size={self.window_size}")
 
