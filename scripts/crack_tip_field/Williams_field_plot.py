@@ -9,20 +9,25 @@ Output:
 
 """
 
-import os
+from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+import logging
 
 from crackpy.fracture_analysis.crack_tip import williams_stress_field, williams_displ_field
 from crackpy.fracture_analysis.optimization import Optimization
 from crackpy.structure_elements.material import Material
 
+# Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # Set matplotlib settings
 plt.rcParams.update({
     "font.size": 20,
     "text.usetex": True,
-    "font.family": "Computer Modern",
+    "font.family": "serif",
     "figure.figsize": [10, 10],
     "figure.dpi": 300
 })
@@ -50,17 +55,15 @@ coefficients_n = [1, 2, 3, 4]
 material = Material(E=72000, nu_xy=0.33, sig_yield=350.0)
 
 # Output path
-OUTPUT_PATH = os.path.join('Williams_field')
-
-# check if output path exists
-if not os.path.exists(OUTPUT_PATH):
-    os.makedirs(OUTPUT_PATH)
+OUTPUT_PATH = Path('Williams_field')
+OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 # Loop over the number of terms and add one term at a time to the Williams expansion
 for index in range(1, len(coefficients_a) + 1):
     for i in range(index):
-        print(f'a_{coefficients_n[i]}= {coefficients_a[i]:.2f} N * mm^({-1 - coefficients_n[i] / 2})'
-              f', b_{coefficients_n[i]}= {coefficients_b[i]:.2f} N * mm^({-1 - coefficients_n[i] / 2})')
+        logger.info(
+            f"a_{coefficients_n[i]} = {coefficients_a[i]:.2f} N·mm^({-1 - coefficients_n[i] / 2}), "
+            f"b_{coefficients_n[i]} = {coefficients_b[i]:.2f} N·mm^({-1 - coefficients_n[i] / 2})")
 
     min_radius = 0.01
     max_radius = 100.0
@@ -85,7 +88,7 @@ for index in range(1, len(coefficients_a) + 1):
     ####################################################################################################################
     # Plot u_x
     ####################################################################################################################
-    print(f'Plotting Williams u_x for {index} {"term" if index == 1 else "terms"}.')
+    logger.info(f"Plotting Williams u_x for {index} {'term' if index == 1 else 'terms'} …")
     # Matplotlib plot
     number_colors = 120
     number_labes = 5
@@ -130,14 +133,14 @@ for index in range(1, len(coefficients_a) + 1):
     fig.suptitle(f'Williams field with {index} {"term" if index == 1 else "terms"}', y=0.95)
     ax.set_title(title_str_a + '\n' + title_str_b, fontsize=14)
 
-    output_file = os.path.join(OUTPUT_PATH, f'{index}_Williams_u_x.png')
-    plt.savefig(output_file, bbox_inches='tight')
+    output_file = OUTPUT_PATH / f'{index}_Williams_u_x.png'
+    plt.savefig(str(output_file), bbox_inches='tight')
     plt.clf()
 
     ####################################################################################################################
     # Plot u_y
     ####################################################################################################################
-    print(f'Plotting Williams u_y for {index} {"term" if index == 1 else "terms"}.')
+    logger.info(f"Plotting Williams u_y for {index} {'term' if index == 1 else 'terms'} …")
     # Matplotlib plot
     number_colors = 120
     number_labes = 5
@@ -182,14 +185,14 @@ for index in range(1, len(coefficients_a) + 1):
     fig.suptitle(f'Williams field with {index} {"term" if index == 1 else "terms"}', y=0.95)
     ax.set_title(title_str_a + '\n' + title_str_b, fontsize=14)
 
-    output_file = os.path.join(OUTPUT_PATH, f'{index}_Williams_u_y.png')
-    plt.savefig(output_file, bbox_inches='tight')
+    output_file = OUTPUT_PATH / f'{index}_Williams_u_y.png'
+    plt.savefig(str(output_file), bbox_inches='tight')
     plt.clf()
 
     ####################################################################################################################
     # Plot sigma_xx
     ####################################################################################################################
-    print(f'Plotting Williams sigma_xx for {index} {"term" if index == 1 else "terms"}.')
+    logger.info(f"Plotting Williams sigma_xx for {index} {'term' if index == 1 else 'terms'} …")
     # Matplotlib plot
     number_colors = 120
     number_labes = 5
@@ -234,14 +237,14 @@ for index in range(1, len(coefficients_a) + 1):
     fig.suptitle(f'Williams field with {index} {"term" if index == 1 else "terms"}', y=0.95)
     ax.set_title(title_str_a + '\n' + title_str_b, fontsize=14)
 
-    output_file = os.path.join(OUTPUT_PATH, f'{index}_Williams_sigma_xx.png')
-    plt.savefig(output_file, bbox_inches='tight')
+    output_file = OUTPUT_PATH / f'{index}_Williams_sigma_xx.png'
+    plt.savefig(str(output_file), bbox_inches='tight')
     plt.clf()
 
     ####################################################################################################################
     # Plot sigma_yy
     ####################################################################################################################
-    print(f'Plotting Williams sigma_yy for {index} {"term" if index == 1 else "terms"}.')
+    logger.info(f"Plotting Williams sigma_yy for {index} {'term' if index == 1 else 'terms'} …")
     # Matplotlib plot
     number_colors = 120
     number_labes = 5
@@ -286,14 +289,14 @@ for index in range(1, len(coefficients_a) + 1):
     fig.suptitle(f'Williams field with {index} {"term" if index == 1 else "terms"}', y=0.95)
     ax.set_title(title_str_a + '\n' + title_str_b, fontsize=14)
 
-    output_file = os.path.join(OUTPUT_PATH, f'{index}_Williams_sigma_yy.png')
-    plt.savefig(output_file, bbox_inches='tight')
+    output_file = OUTPUT_PATH / f'{index}_Williams_sigma_yy.png'
+    plt.savefig(str(output_file), bbox_inches='tight')
     plt.clf()
 
     ####################################################################################################################
     # Plot sigma_xy
     ####################################################################################################################
-    print(f'Plotting Williams sigma_xy for {index} {"term" if index == 1 else "terms"}.')
+    logger.info(f"Plotting Williams sigma_xy for {index} {'term' if index == 1 else 'terms'} …")
     # Matplotlib plot
     number_colors = 120
     number_labes = 5
@@ -338,14 +341,14 @@ for index in range(1, len(coefficients_a) + 1):
     fig.suptitle(f'Williams field with {index} {"term" if index == 1 else "terms"}', y=0.95)
     ax.set_title(title_str_a + '\n' + title_str_b, fontsize=14)
 
-    output_file = os.path.join(OUTPUT_PATH, f'{index}_Williams_sigma_xy.png')
-    plt.savefig(output_file, bbox_inches='tight')
+    output_file = OUTPUT_PATH / f'{index}_Williams_sigma_xy.png'
+    plt.savefig(str(output_file), bbox_inches='tight')
     plt.clf()
 
     ####################################################################################################################
     # Plot sigma_eqv
     ####################################################################################################################
-    print(f'Plotting Williams sigma_eqv for {index} {"term" if index == 1 else "terms"}.')
+    logger.info(f"Plotting Williams sigma_eqv for {index} {'term' if index == 1 else 'terms'} …")
     # Matplotlib plot
     number_colors = 120
     number_labes = 5
@@ -390,6 +393,6 @@ for index in range(1, len(coefficients_a) + 1):
     fig.suptitle(f'Williams field with {index} {"term" if index == 1 else "terms"}', y=0.95)
     ax.set_title(title_str_a + '\n' + title_str_b, fontsize=14)
 
-    output_file = os.path.join(OUTPUT_PATH, f'{index}_Williams_sigma_eqv.png')
-    plt.savefig(output_file, bbox_inches='tight')
+    output_file = OUTPUT_PATH / f'{index}_Williams_sigma_eqv.png'
+    plt.savefig(str(output_file), bbox_inches='tight')
     plt.clf()

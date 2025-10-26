@@ -18,6 +18,7 @@
 """
 
 import os
+import logging
 
 from matplotlib import pyplot as plt
 
@@ -30,6 +31,10 @@ from crackpy.results.plot import PlotSettings, Plotter
 from crackpy.results.write import OutputWriter
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
+
+# Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 ########################
 # INPUT specifications #

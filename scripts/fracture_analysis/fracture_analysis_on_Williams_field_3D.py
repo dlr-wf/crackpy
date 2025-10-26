@@ -17,7 +17,10 @@
 
 """
 
+from pathlib import Path
 import numpy as np
+import logging
+import os
 from matplotlib import pyplot as plt
 from crackpy.fracture_analysis.analysis import FractureAnalysis
 from crackpy.input.input_data import InputData
@@ -30,7 +33,12 @@ from crackpy.results.read import OutputReader
 from crackpy.structure_elements.material import Material
 from crackpy.fracture_analysis.crack_tip import williams_displ_field_3d
 
-OUT_FOLDER = 'Fracture_Analysis_Williams_results_3D'
+# Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+OUT_FOLDER = Path('Fracture_Analysis_Williams_results_3D')
+OUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 def main():
     ################################
@@ -98,7 +106,7 @@ def main():
     fig.colorbar(c3, ax=axes[2])
     axes[2].set_title('Displacement w')
     plt.tight_layout()
-    plt.savefig(os.path.join(OUT_FOLDER, 'williams_displacement_field.png'))
+    plt.savefig(str(OUT_FOLDER / 'williams_displacement_field.png'))
     plt.close()
 
     ####################################
@@ -173,21 +181,23 @@ def main():
     plt.rcParams['figure.dpi'] = 100
 
     plot_sets = PlotSettings(background='sig_vm', min_value=0, max_value=material.sig_yield, extend='max')
-    plotter = Plotter(path=os.path.join(OUT_FOLDER, 'plots'), fracture_analysis=analysis, plot_sets=plot_sets)
+    plotter = Plotter(path=OUT_FOLDER / 'plots', fracture_analysis=analysis, plot_sets=plot_sets)
     plotter.plot()
 
-    writer = OutputWriter(path=os.path.join(OUT_FOLDER, 'results'), fracture_analysis=analysis)
+    writer = OutputWriter(path=OUT_FOLDER / 'results', fracture_analysis=analysis)
     writer.write_header()
     writer.write_results()
-    writer.write_json(path=os.path.join(OUT_FOLDER, 'json'))
+    writer.write_json(path=OUT_FOLDER / 'json')
 
     # Read results and write into CSV file
     reader = OutputReader()
-    result_path = os.path.join(OUT_FOLDER, 'results')
+    result_path = OUT_FOLDER / 'results'
 
-    files = os.listdir(result_path)
-    list_of_tags = ["CJP_results", "Williams_fit_results", "SIFs_integral", "Bueckner_Chen_integral",
-                    "Path_SIFs", "Path_Williams_a_n", "Path_Williams_b_n"]
+    files = [p.name for p in result_path.iterdir()]
+    list_of_tags = [
+        "CJP_results", "Williams_fit_results", "SIFs_integral", "Bueckner_Chen_integral",
+        "Path_SIFs", "Path_Williams_a_n", "Path_Williams_b_n"
+    ]
     for file in files:
         if file.endswith(".txt"):
             for tag in list_of_tags:
@@ -197,17 +207,17 @@ def main():
     reader.make_csv_from_results(files="all", output_path=OUT_FOLDER, output_filename='results.csv')
 
 if __name__ == '__main__':
-    # Profiling
-    import cProfile, pstats, subprocess, sys, os
+    # Profiling (optional)
+    import cProfile, pstats, subprocess, sys
     from datetime import datetime
 
-    script_dir = os.path.dirname(__file__)
-    fname = os.path.join(script_dir, f"{datetime.now():%Y%m%d%H%M%S}_profile.prof")
+    script_dir = Path(__file__).parent
+    fname = script_dir / f"{datetime.now():%Y%m%d%H%M%S}_profile.prof"
 
     pr = cProfile.Profile()
     pr.enable()
     main()
     pr.disable()
-    pstats.Stats(pr).dump_stats(fname)
+    pstats.Stats(pr).dump_stats(str(fname))
 
-    subprocess.run([sys.executable, "-m", "snakeviz", fname], check=True)
+    subprocess.run([sys.executable, "-m", "snakeviz", str(fname)], check=True)

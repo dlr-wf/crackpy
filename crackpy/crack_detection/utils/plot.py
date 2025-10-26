@@ -1,8 +1,8 @@
-import os
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import tri, cm
 from matplotlib.colors import ListedColormap
+from pathlib import Path
 
 
 def plot_prediction(
@@ -108,9 +108,9 @@ def plot_prediction(
     ax.set_ylim(coor_y.min(), coor_y.max())
 
     if path is not None:
-        if not os.path.exists(path):
-            os.makedirs(path)
-        plt.savefig(os.path.join(path, save_name + '.png'), bbox_inches='tight')
+        p = Path(path)
+        p.mkdir(parents=True, exist_ok=True)
+        plt.savefig(str(p / (save_name + '.png')), bbox_inches='tight')
     else:
         plt.show()
 

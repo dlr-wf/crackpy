@@ -17,10 +17,12 @@
 
 """
 
-import os
-
+from pathlib import Path
+import logging
 import numpy as np
+
 from matplotlib import pyplot as plt
+
 from crackpy.fracture_analysis.analysis import FractureAnalysis
 from crackpy.input.input_data import InputData
 from crackpy.input.crack_tip_info import CrackTipInfo
@@ -32,15 +34,19 @@ from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 from crackpy.fracture_analysis.crack_tip import williams_displ_field
 
+# Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 ########################
 # INPUT specifications #
 ########################
 
 
-OUT_FOLDER = 'Fracture_Analysis_Williams_results'
+OUT_FOLDER = Path('Fracture_Analysis_Williams_results')
 NODEMAP_FILENAME = 'Williams.txt'
-NODEMAP_FOLDER = os.path.join('Nodemaps')
-nodemap = Nodemap(name=NODEMAP_FILENAME, folder=NODEMAP_FOLDER)
+NODEMAP_FOLDER = Path('Nodemaps')
+nodemap = Nodemap(name=NODEMAP_FILENAME, folder=str(NODEMAP_FOLDER))
 
 material = Material(E=72000, nu_xy=0.33, sig_yield=350)
 
@@ -158,10 +164,10 @@ plt.rcParams['figure.dpi'] = 100
 
 # Plotting
 plot_sets = PlotSettings(background='sig_vm', min_value=0, max_value=material.sig_yield, extend='max')
-plotter = Plotter(path=os.path.join(OUT_FOLDER, 'plots'), fracture_analysis=analysis, plot_sets=plot_sets)
+plotter = Plotter(path=OUT_FOLDER / 'plots', fracture_analysis=analysis, plot_sets=plot_sets)
 plotter.plot()
 
-writer = OutputWriter(path=os.path.join(OUT_FOLDER, 'results'), fracture_analysis=analysis)
+writer = OutputWriter(path=OUT_FOLDER / 'results', fracture_analysis=analysis)
 writer.write_header()
 writer.write_results()
-writer.write_json(path=os.path.join(OUT_FOLDER, 'json'))
+writer.write_json(path=OUT_FOLDER / 'json')

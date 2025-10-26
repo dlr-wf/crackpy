@@ -1,4 +1,5 @@
 from copy import deepcopy
+import logging
 
 import numpy as np
 from scipy.interpolate import griddata
@@ -8,6 +9,8 @@ from crackpy.fracture_analysis.crack_tip import get_crack_nearfield, eigenfuncti
 from crackpy.input.input_data import InputData, apply_mask
 from crackpy.structure_elements.material import Material
 from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_BUCKNER_CHEN_TERMS = [1, 2, 3, 4, 5]
 
@@ -1004,10 +1007,9 @@ class LineIntegral:
             options.buckner_williams_terms = [1, 2, 3, 4, 5]
         elif 1 not in options.buckner_williams_terms:
             options.buckner_williams_terms.append(1)
-            print('Buckner-Williams terms should include 1. Added to terms.')
+            logger.info('Buckner-Williams terms should include 1. Term added.')
         if 0 in options.buckner_williams_terms:
             options.buckner_williams_terms.remove(0)
-            print('Buckner-Williams terms should not include 0. Removed from terms.')
+            logger.warning('Buckner-Williams terms should not include 0. Term removed.')
         options.buckner_williams_terms.sort()
         pass
-

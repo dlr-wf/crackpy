@@ -1,6 +1,7 @@
 import numpy as np
 from typing import Union, Optional
 from scipy import optimize
+import logging
 
 from crackpy.fracture_analysis.crack_tip import williams_displ_field, cjp_displ_field_mixedmode, williams_displ_field_3d, cjp_displ_field_modeI
 from crackpy.input.input_data import InputData
@@ -9,6 +10,8 @@ from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
 
 
 DEFAULT_WILLIAMS_OPT_TERMS = [-1, 1, 2, 3, 4, 5]
+
+logger = logging.getLogger(__name__)
 
 class OptimizationProperties:
     """Class for setting the Optimization properties."""
@@ -288,9 +291,9 @@ class Optimization:
         for i in [1, 2]:  # ensure SIFs and T can be calculated
             if i not in options.terms:
                 options.terms.append(i)
-                print(f"Williams optimization terms should include {i}. Added to terms.")
+                logger.info(f"Williams optimization terms should include {i}. Term added.")
         if options.dimensions not in [2, 3]:
             options.dimensions = 2
-            print("Displacement field dimensions in OptimizationProperties must be 2 (u,v) or 3 (u,v,w). Set to 2.")
+            logger.warning("Displacement field dimensions in OptimizationProperties must be 2 (u,v) or 3 (u,v,w). Defaulting to 2.")
         options.terms.sort()
         pass

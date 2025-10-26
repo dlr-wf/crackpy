@@ -13,7 +13,8 @@
 
 """
 # Imports
-import os
+from pathlib import Path
+import logging
 
 import matplotlib.pyplot as plt
 
@@ -25,16 +26,24 @@ from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 
+# Set up logging
+logging.basicConfig(
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
 # Set colormap
 plt.rcParams['image.cmap'] = 'coolwarm'
 plt.rcParams['figure.dpi'] = 300
 
-# Settings
-DATA_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Nodemaps')
+# Determine project root (two levels above scripts/<subdir>)
+PROJECT_ROOT = Path(__file__).parents[2]
 
-OUTPUT_PATH = 'line_intercept_pipeline'
-if not os.path.exists(OUTPUT_PATH):
-    os.makedirs(OUTPUT_PATH)
+# Settings
+DATA_PATH = PROJECT_ROOT / 'test_data' / 'crack_detection' / 'Nodemaps'
+OUTPUT_PATH = PROJECT_ROOT / 'line_intercept_pipeline'
+OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 MAX_FORCE = 15000
 # MAX_FORCE = 4500
@@ -42,7 +51,8 @@ MAX_FORCE = 15000
 material = Material(E=72000, nu_xy=0.33, sig_yield=350)
 
 # open empty file
-with open(os.path.join(OUTPUT_PATH, f"{OUTPUT_PATH}.txt"), "w") as out_file:
+out_txt = OUTPUT_PATH / f"{OUTPUT_PATH.name}.txt"
+with open(out_txt, "w") as out_file:
     out_file.write(
         "####################################################################\n"
         "# Crack detection with line intercept method\n"
@@ -65,18 +75,18 @@ with open(os.path.join(OUTPUT_PATH, f"{OUTPUT_PATH}.txt"), "w") as out_file:
     )
 
     # iterate over all nodemaps in folder in a sorted manner
-    stages_to_filenames, _ = get_nodemaps_and_stage_nums(DATA_PATH)
+    stages_to_filenames, _ = get_nodemaps_and_stage_nums(str(DATA_PATH))
     for stage in sorted(list(stages_to_filenames)):
         file = stages_to_filenames[stage]
         if file.endswith(".txt"):
             # Get nodemap data
-            nodemap = Nodemap(name=file, folder=DATA_PATH)
+            nodemap = Nodemap(name=file, folder=str(DATA_PATH))
             data = InputData(nodemap)
             data.calc_stresses(material)
             if data.force is not None and data.force > MAX_FORCE - 50:
 
                 # Run crack detection
-                print(f"Crack detection for {file} ...")
+                logger.info(f"Running crack detection for file: {file} …")
                 cd = CrackDetectionLineIntercept(
                     x_min=0,
                     x_max=25.0,
@@ -123,7 +133,9 @@ with open(os.path.join(OUTPUT_PATH, f"{OUTPUT_PATH}.txt"), "w") as out_file:
                     'Rethore': crack_tip_corr_rethore,
                     'SymReg': crack_tip_corr_symreg
                 }
-                cd.plot(fname=file[:-4] + '.png', folder=os.path.join(OUTPUT_PATH, 'plots'),
+                plots_dir = OUTPUT_PATH / 'plots'
+                plots_dir.mkdir(parents=True, exist_ok=True)
+                cd.plot(fname=Path(file).stem + '.png', folder=str(plots_dir),
                         crack_tip_results=results, fmax=material.sig_yield)
 
                 # Write results to file

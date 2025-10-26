@@ -18,6 +18,7 @@
 """
 
 import os
+import logging
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -30,6 +31,11 @@ from crackpy.results.plot import PlotSettings, Plotter
 from crackpy.results.write import OutputWriter
 from crackpy.structure_elements.material import Material
 from crackpy.fracture_analysis.crack_tip import williams_displ_field, williams_stress_field
+
+# Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 
 ########################
 # INPUT specifications #

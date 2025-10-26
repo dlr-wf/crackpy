@@ -12,8 +12,8 @@
 """
 
 # Imports
-import os
-
+from pathlib import Path
+import logging
 import torch
 import matplotlib.pyplot as plt
 
@@ -23,11 +23,18 @@ from crackpy.crack_detection.detection import CrackDetection
 from crackpy.input.input_data import InputData
 from crackpy.structure_elements.data_files import Nodemap
 
+# Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 
 # Paths
+PROJECT_ROOT = Path(__file__).parents[2]
+
 NODEMAP_FILE = 'Dummy2_WPXXX_DummyVersuch_2_dic_results_1_52.txt'
-DATA_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Nodemaps')
-OUTPUT_PATH = 'attention'
+DATA_PATH = PROJECT_ROOT / 'test_data' / 'crack_detection' / 'Nodemaps'
+OUTPUT_PATH = PROJECT_ROOT / 'attention'
+OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 # Setup
 det = CrackDetection(
@@ -41,7 +48,7 @@ det = CrackDetection(
 setup = setup.Setup()
 setup.side = det.side
 setup.set_size(det.detection_window_size, det.offset)
-setup.set_output_path(OUTPUT_PATH)
+setup.set_output_path(str(OUTPUT_PATH))
 setup.set_visu_layers(['down1', 'down2', 'down3', 'down4', 'base', 'up1', 'up2', 'up3', 'up4'])
 
 # Load the model
@@ -51,7 +58,7 @@ model_with_hooks.load_state_dict(model.state_dict())
 model_with_hooks = model_with_hooks.unet
 
 # Get nodemap data
-nodemap = Nodemap(name=NODEMAP_FILE, folder=DATA_PATH)
+nodemap = Nodemap(name=NODEMAP_FILE, folder=str(DATA_PATH))
 data = InputData(nodemap)
 
 # Interpolate data on arrays (256 x 256 pixels)
@@ -69,5 +76,5 @@ output, heatmap = sgc(input_ch)
 # Plot and save heatmap
 plt.rcParams['image.cmap'] = 'coolwarm'
 fig = sgc.plot(output, heatmap)
-plt.savefig(os.path.join(OUTPUT_PATH, NODEMAP_FILE[:-4] + '_attention.png'), dpi=300)
+plt.savefig(str(OUTPUT_PATH / (Path(NODEMAP_FILE).stem + '_attention.png')), dpi=300)
 plt.close(fig)

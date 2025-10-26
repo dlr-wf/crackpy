@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import multiprocessing
 import warnings
 from concurrent.futures import ProcessPoolExecutor
@@ -8,6 +8,7 @@ from multiprocessing.managers import DictProxy
 from rich import progress as progress_rich
 import numpy as np
 import pandas as pd
+import logging
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
 from crackpy.input.input_data import InputData
@@ -18,6 +19,8 @@ from crackpy.results.plot import PlotSettings, Plotter
 from crackpy.results.write import OutputWriter
 from crackpy.structure_elements.data_files import NodemapStructure, Nodemap
 from crackpy.structure_elements.material import Material
+
+logger = logging.getLogger(__name__)
 
 
 def single_run(
@@ -82,14 +85,15 @@ def single_run(
     analysis.run(prog, task_id)
 
     # write output to txt file
-    writer = OutputWriter(path=os.path.join(output_path, 'txt-files'), fracture_analysis=analysis)
+    base = Path(output_path)
+    writer = OutputWriter(path=base / 'txt-files', fracture_analysis=analysis)
     writer.write_header()
     writer.write_results()
-    writer.write_json(path=os.path.join(output_path, 'json'))
+    writer.write_json(path=base / 'json')
 
     # plot paths and results_df
     if plot_sets is not None:
-        plotter = Plotter(path=os.path.join(output_path, 'plots'), fracture_analysis=analysis, plot_sets=plot_sets)
+        plotter = Plotter(path=base / 'plots', fracture_analysis=analysis, plot_sets=plot_sets)
         plotter.plot()
 
 
@@ -151,19 +155,15 @@ class FractureAnalysisPipeline:
         self.opt_props = optimization_properties
         self.output_path = self._make_path(output_path)
 
-        print("\n\nRun fracture analysis pipeline.")
+        logger.info("Starting fracture analysis pipeline …")
 
         # user warnings
         if self.plot_sets is None:
-            warnings.warn("Plotting of outputs is turned off."
-                          " If you want to plot the pipeline's outputs, use the 'plot_sets' argument.")
+            warnings.warn("Plotting of outputs is turned off. If you want to plot the pipeline's outputs, use the 'plot_sets' argument.")
         if self.opt_props is None:
-            warnings.warn("Fitting methods are turned off."
-                          " If you want to use fitting methods, use the 'optimization_properties' argument.")
+            warnings.warn("Fitting methods are turned off. If you want to use fitting methods, use the 'optimization_properties' argument.")
         if integral_properties is None:
-            warnings.warn("Integral evaluation is turned off."
-                          " If you want to evaluate integrals, use the 'integral_properties' argument "
-                          "or the method 'find_integral_props'.")
+            warnings.warn("Integral evaluation is turned off. If you want to evaluate integrals, use the 'integral_properties' argument or the method 'find_integral_props'.")
 
         # initialize stages to max force stages for storage in dictionary
         self.stages_to_max_force_stages = None
@@ -202,7 +202,7 @@ class FractureAnalysisPipeline:
             stage = int(data["Filename"].split("_")[-1].split(".")[0])
             nodemap = Nodemap(name=data["Filename"], folder=self.nodemap_path, structure=self.nodemap_structure)
             data = InputData()
-            data.set_nodemap_file(os.path.join(nodemap.folder, nodemap.name))
+            data.set_nodemap_file(str(Path(nodemap.folder) / nodemap.name))
             data.read_header()
 
             if data.force is None:
@@ -235,11 +235,10 @@ class FractureAnalysisPipeline:
             stages_to_max_force_stages: dictionary of stages to max force stages
 
         """
-        print("\n\nFind integral properties...")
+        logger.info("Finding integral properties at maximal load and propagating to other stages …")
 
         # warn the user that this function is a BETA version
-        warnings.warn("The method 'find_integral_props' is a BETA version."
-                      " Please check that detected integral paths are correct.")
+        warnings.warn("The method 'find_integral_props' is a BETA version. Please check that detected integral paths are correct.")
 
         if stages_to_max_force_stages is None:
             stages_to_max_force_stages = self.stages_to_max_force_stages
@@ -250,7 +249,7 @@ class FractureAnalysisPipeline:
         index_to_stage = {}
         side_to_stage_to_index = {'left': {}, 'right': {}}
         for index, data in self.input_df.iterrows():
-            print(f'\r Progress... {index + 1}/{len(self.input_df)}', end='')
+            logger.info(f"Progress: {index + 1}/{len(self.input_df)}")
 
             stage = int(data["Filename"].split("_")[-1].split(".")[0])
             side = data["Side"]
@@ -284,7 +283,7 @@ class FractureAnalysisPipeline:
             try:
                 integral_properties.set_automatically(input_data, auto_detect_threshold=self.material.sig_yield)
             except ValueError:
-                print(f'Could not find integral properties automatically for stage {stage}.')
+                logger.warning(f"Could not find integral properties automatically for stage {stage}.")
 
         # assign integral properties to missing stages
         for index, data in self.input_df.iterrows():
@@ -330,6 +329,7 @@ class FractureAnalysisPipeline:
                     while sum([future.done() for future in futures]) < len(futures):
                         n_finished = sum([future.done() for future in futures])
                         progress.update(overall_progress_task, completed=n_finished, total=len(futures))
+                        logger.info(f"Overall progress: {n_finished}/{len(futures)} tasks completed")
                         for task_id, update_data in _progress.items():
                             latest = update_data["progress"]
                             total = update_data["total"]
@@ -349,6 +349,6 @@ class FractureAnalysisPipeline:
     @staticmethod
     def _make_path(output_path):
         """Create and return output path."""
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
-        return output_path
+        p = Path(output_path)
+        p.mkdir(parents=True, exist_ok=True)
+        return str(p)

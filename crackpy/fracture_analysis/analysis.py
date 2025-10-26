@@ -4,6 +4,7 @@ from typing import Union, Optional, Mapping
 import numpy as np
 from multiprocessing.managers import DictProxy
 import rich.progress as progress_rich
+import logging
 
 from crackpy.fracture_analysis import line_integration
 from crackpy.input.input_data import InputData
@@ -13,6 +14,8 @@ from crackpy.fracture_analysis.line_integration import (IntegralProperties,
 from crackpy.fracture_analysis.optimization import Optimization, OptimizationProperties
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
+
+logger = logging.getLogger(__name__)
 
 
 class FractureAnalysis:
@@ -113,18 +116,18 @@ class FractureAnalysis:
 
         # Set the optimization and line integral methods that should be run
         if self.optimization_properties is not None:
-            print('Running Fitting Methods...')
+            logger.info('Running optimization (fitting) methods …')
             self._run_cjp_optimization_modeI()
             self._run_cjp_optimization_mixedmode()
             self._run_williams_optimization()
         else:
-            print('No optimization properties provided, skipping optimizations.')
+            logger.info('No optimization properties provided; skipping optimizations.')
 
         if self.integral_properties is not None:
-            print('Running Line Integral Methods...')
+            logger.info('Running line integral methods …')
             self._run_line_integrals(progress_bar, task_id)
         else:
-            print('No integral properties provided, skipping line integrals.')
+            logger.info('No integral properties provided; skipping line integrals.')
 
     pass
 
@@ -149,9 +152,8 @@ class FractureAnalysis:
             K_S /= np.sqrt(1000)
 
             self.cjp_res_m1 = {'Error': cjp_results_m1.cost, 'K_F': K_F, 'K_R': K_R, 'K_S': K_S, 'T_x': T_x, 'T_y': T_y}
-        except Exception as e:
-            print('CJP optimization (Mode I) failed.')
-            print(e)
+        except Exception:
+            logger.exception('CJP optimization (Mode I) failed.')
             self.cjp_res_m1 = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'T_x': np.nan, 'T_y': np.nan}
 
         pass
@@ -181,7 +183,7 @@ class FractureAnalysis:
             self.cjp_res_mm = {'Error': cjp_results.cost, 'K_F': K_F, 'K_R': K_R, 'K_S': K_S, 'K_II': K_II, 'T': T}
 
         except Exception:
-            print('CJP optimization failed.')
+            logger.exception('CJP optimization failed.')
             self.cjp_res_mm = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'K_II': np.nan,
                             'T': np.nan}
 
@@ -225,7 +227,7 @@ class FractureAnalysis:
             self.williams_fit_res = {'Error': williams_results.cost, 'K_I': K_I, 'K_II': K_II, 'K_III': K_III, 'T': T}
 
         except Exception:
-            print('Williams optimization failed.')
+            logger.exception('Williams optimization failed.')
             self.williams_fit_a_n = {n: np.nan for index, n in enumerate(self.optimization.terms)}
             self.williams_fit_b_n = {n: np.nan for index, n in enumerate(self.optimization.terms)}
             self.williams_fit_c_n = {n: np.nan for index, n in enumerate(self.optimization.terms)}

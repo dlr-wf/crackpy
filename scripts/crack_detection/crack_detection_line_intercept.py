@@ -16,8 +16,9 @@
 """
 
 # Imports
-import os
+from pathlib import Path
 import matplotlib.pyplot as plt
+import logging
 
 from crackpy.crack_detection.line_intercept import CrackDetectionLineIntercept,plot_grid_errors
 from crackpy.crack_detection.correction import CrackTipCorrection, CrackTipCorrectionGridSearch
@@ -26,22 +27,26 @@ from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 
+# Setup logging for script
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 # Set colormap
 plt.rcParams['image.cmap'] = 'coolwarm'
 plt.rcParams['figure.dpi'] = 300
 
 # Settings
-NODEMAP_FILE = 'Dummy2_WPXXX_DummyVersuch_2_dic_results_1_52.txt'
-DATA_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Nodemaps')
+PROJECT_ROOT = Path(__file__).parents[2]
 
-OUTPUT_PATH = 'line_intercept'
-if not os.path.exists(OUTPUT_PATH):
-    os.makedirs(OUTPUT_PATH)
+NODEMAP_FILE = 'Dummy2_WPXXX_DummyVersuch_2_dic_results_1_52.txt'
+DATA_PATH = PROJECT_ROOT / 'test_data' / 'crack_detection' / 'Nodemaps'
+
+OUTPUT_PATH = PROJECT_ROOT / 'line_intercept'
+OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 
 # Get nodemap data
-nodemap = Nodemap(name=NODEMAP_FILE, folder=DATA_PATH)
+nodemap = Nodemap(name=NODEMAP_FILE, folder=str(DATA_PATH))
 data = InputData(nodemap)
 data.read_header()
 material = Material(E=72000, nu_xy=0.33, sig_yield=350)
@@ -81,7 +86,7 @@ opt_props = OptimizationProperties(
     terms=[-1, 0, 1, 2]
 )
 
-print('Optimizing crack tip position...')
+logger.info('Optimizing crack tip position via nonlinear optimization …')
 crack_tip_corr_opt = correction.correct_crack_tip_optimization(
     opt_props,
     tol=0.01,
@@ -89,7 +94,7 @@ crack_tip_corr_opt = correction.correct_crack_tip_optimization(
     verbose=True
 )
 
-print('Optimizing crack tip position (Rethore method)...')
+logger.info('Optimizing crack tip position using Rethore method …')
 crack_tip_corr_rethore = correction.correct_crack_tip(
     opt_props,
     max_iter=50,
@@ -99,7 +104,7 @@ crack_tip_corr_rethore = correction.correct_crack_tip(
     verbose=True
 )
 
-print('Optimizing crack tip position (grid search)...')
+logger.info('Optimizing crack tip position via grid search …')
 correction_grid = CrackTipCorrectionGridSearch(data, crack_tip, crack_angle, material)
 crack_tip_corr_grid, df_grid_errors = correction_grid.correct_crack_tip_grid_search(
     opt_props,
@@ -112,8 +117,10 @@ crack_tip_corr_grid, df_grid_errors = correction_grid.correct_crack_tip_grid_sea
     workers=20,
     verbose=True
 )
-plot_grid_errors(df_grid_errors, fname=NODEMAP_FILE[:-4] + '_errors.png', folder=os.path.join(OUTPUT_PATH, 'errors'))
-df_grid_errors.to_csv(os.path.join(OUTPUT_PATH, 'errors', NODEMAP_FILE[:-4] + '_errors.csv'), index=False)
+errors_path = OUTPUT_PATH / 'errors'
+errors_path.mkdir(parents=True, exist_ok=True)
+plot_grid_errors(df_grid_errors, fname=Path(NODEMAP_FILE).stem + '_errors.png', folder=str(errors_path))
+df_grid_errors.to_csv(str(errors_path / (Path(NODEMAP_FILE).stem + '_errors.csv')), index=False)
 
 # Plot all results
 results = {
@@ -121,21 +128,23 @@ results = {
     'Rethore': crack_tip_corr_rethore,
     'Grid search': crack_tip_corr_grid
 }
-cd.plot(fname=NODEMAP_FILE[:-4] + '.png', folder=os.path.join(OUTPUT_PATH, 'plots'),
+plots_path = OUTPUT_PATH / 'plots'
+plots_path.mkdir(parents=True, exist_ok=True)
+cd.plot(fname=Path(NODEMAP_FILE).stem + '.png', folder=str(plots_path),
         fmin=0, fmax=350, crack_tip_results=results)
 
-# Print results
-print(f"\nLine Intercept:\n"
-      f"tip:  x = {crack_tip[0]:+.3f} mm, y = {crack_tip[1]:+.3f} mm, angle = {cd.crack_angle:+.3f}°")
-print(f"\nOptimization:\n"
-      f"tip:  x = {crack_tip[0] + crack_tip_corr_opt[0]:+.3f} mm, "
+# Log results
+logger.info(
+      f"Line Intercept (raw): tip -> x = {crack_tip[0]:+.3f} mm, y = {crack_tip[1]:+.3f} mm, angle = {cd.crack_angle:+.3f}°")
+logger.info(
+      f"Optimization:        tip -> x = {crack_tip[0] + crack_tip_corr_opt[0]:+.3f} mm, "
       f"y = {crack_tip[1] + crack_tip_corr_opt[1]:+.3f} mm, "
       f"angle = {cd.crack_angle + crack_tip_corr_opt[2]:+.3f}°")
-print(f"\nRethore:\n"
-      f"tip:  x = {crack_tip[0] + crack_tip_corr_rethore[0]:+.3f} mm, "
+logger.info(
+      f"Rethore:             tip -> x = {crack_tip[0] + crack_tip_corr_rethore[0]:+.3f} mm, "
       f"y = {crack_tip[1] + crack_tip_corr_rethore[1]:+.3f} mm, "
       f"angle = {cd.crack_angle:+.3f}°")
-print(f"\nGrid search:\n"
-      f"tip:  x = {crack_tip[0] + crack_tip_corr_grid[0]:+.3f} mm, "
+logger.info(
+      f"Grid search:         tip -> x = {crack_tip[0] + crack_tip_corr_grid[0]:+.3f} mm, "
       f"y = {crack_tip[1] + crack_tip_corr_grid[1]:+.3f} mm, "
       f"angle = {cd.crack_angle:+.3f}°")

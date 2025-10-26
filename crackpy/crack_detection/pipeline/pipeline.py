@@ -1,13 +1,16 @@
-import os
+from pathlib import Path
 
 import numpy as np
 import torch
+import logging
 
 from crackpy.crack_detection.utils.plot import plot_prediction
 from crackpy.crack_detection.utils.utilityfunctions import get_nodemaps_and_stage_nums
 from crackpy.crack_detection.detection import CrackTipDetection, CrackPathDetection, CrackAngleEstimation, CrackDetection
 from crackpy.input.input_data import InputData
 from crackpy.structure_elements.data_files import Nodemap
+
+logger = logging.getLogger(__name__)
 
 
 class CrackDetectionSetup:
@@ -99,7 +102,7 @@ class CrackDetectionPipeline:
             self.path_detector = self.path_detector.to(self.device)
 
         self.setup = setup
-        self.stages_to_nodemaps, _ = get_nodemaps_and_stage_nums(os.path.join(self.data_path), self.setup.stage_nums)
+        self.stages_to_nodemaps, _ = get_nodemaps_and_stage_nums(Path(self.data_path), self.setup.stage_nums)
         self.detection_stages = sorted(self.stages_to_nodemaps.keys())
 
         self.sides_to_results = None
@@ -118,16 +121,16 @@ class CrackDetectionPipeline:
             detection stage numbers
 
         """
-        print("Filter detection stages...")
+        logger.info("Filtering detection stages based on max force and tolerance …")
 
         filtered_stages = []
         det_cycles_to_stages = {}
         stages_to_cycles = {}
         for i, stage in enumerate(self.stages_to_nodemaps):
-            print(f'\r Progress... {i+1}/{len(self.stages_to_nodemaps)}', end='')
+            logger.info(f"Progress: {i+1}/{len(self.stages_to_nodemaps)}")
             input_nodemap = Nodemap(name=self.stages_to_nodemaps[stage], folder=self.data_path)
             data = InputData()
-            data.set_nodemap_file(os.path.join(input_nodemap.folder, input_nodemap.name))
+            data.set_nodemap_file(Path(input_nodemap.folder) / input_nodemap.name)
             data.read_header()
 
             if data.force is None:
@@ -140,7 +143,7 @@ class CrackDetectionPipeline:
                     det_cycles_to_stages[data.cycles] = stage
             if data.cycles is not None:
                 stages_to_cycles[stage] = data.cycles
-        print('')
+        logger.info("Finished filtering detection stages.")
         self.detection_stages = filtered_stages
         self.det_cycles_to_stages = det_cycles_to_stages
         self.stages_to_cycles = stages_to_cycles
@@ -158,7 +161,7 @@ class CrackDetectionPipeline:
         sides_to_results = {}
 
         for side in self.setup.sides:
-            print(f'\nPredict {side} side...')
+            logger.info(f"Predicting crack tip/path for side: {side} …")
 
             # Init
             offset_x, offset_y = self.setup.start_offset
@@ -255,22 +258,21 @@ class CrackDetectionPipeline:
                 results['crack_tip_y'] = crack_tip_y
                 results['angle'] = angle
                 stages_to_results[stage] = results
-                print(f'Stage {stage}/{sorted(self.detection_stages)[-1]}'
-                      f' - crack tip: {crack_tip_x:.2f} mm, {crack_tip_y:.2f} mm, angle: {angle:.2f}°')
+                logger.info(f"Stage {stage}/{sorted(self.detection_stages)[-1]} - crack tip: {crack_tip_x:.2f} mm, {crack_tip_y:.2f} mm, angle: {angle:.2f}°")
 
                 # Plot crack detection
                 plot_prediction(background=interp_eps_vm * 100,
                                 interp_size=self.setup.window_size if side == 'right' else -self.setup.window_size,
                                 offset=(offset_x, offset_y),
-                                save_name=nodemap[:-4],
+                                save_name=Path(nodemap).stem,
                                 crack_tip_prediction=np.asarray([crack_tip_pixels]),
                                 crack_tip_seg=crack_tip_seg,
                                 crack_tip_label=None,
                                 crack_path=cp_skeleton,
                                 f_min=0,
                                 f_max=0.68,
-                                title=nodemap[:-4] + f' - {side} side',
-                                path=os.path.join(self.output_path, "plots", f"{side}"),
+                                title=Path(nodemap).stem + f' - {side} side',
+                                path=str(Path(self.output_path) / "plots" / f"{side}"),
                                 label='Von Mises strain [%]')
 
             sides_to_results[side] = stages_to_results
@@ -285,7 +287,7 @@ class CrackDetectionPipeline:
             stages_to_det_stages - dictionary stage -> corresponding max load stage
 
         """
-        print("\n\nAssigning remaining stages...")
+        logger.info("Assigning remaining (non-detected) stages to nearest max-load stages …")
 
         # assign stages to there detection stage
         stages_to_det_stages = {}
@@ -311,16 +313,16 @@ class CrackDetectionPipeline:
             filename: name out output file (has to end with '.txt')
 
         """
-        print("\nWriting...")
+        logger.info("Writing crack detection results to output file …")
 
-        # open output file and write header
-        with open(os.path.join(self.output_path, filename), mode="w") as file:
+        out_file = Path(self.output_path) / filename
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(out_file, mode="w") as file:
             file.write(
                 f"{'Filename':>60},{'Crack Tip x [mm]':>17},{'Crack Tip y [mm]':>17},{'Crack Angle':>12},{'Side':>6}\n")
-
             for side in self.setup.sides:
                 for i, stage in enumerate(sorted(self.stages_to_det_stages)):
-                    print(f'\r Progress... {i+1}/{len(self.stages_to_det_stages)}', end='')
+                    logger.info(f"Progress: {i+1}/{len(self.stages_to_det_stages)}")
                     det_stage = self.stages_to_det_stages[stage]
                     ct_x = self.sides_to_results[side][det_stage]['crack_tip_x']
                     ct_y = self.sides_to_results[side][det_stage]['crack_tip_y']
@@ -331,7 +333,7 @@ class CrackDetectionPipeline:
                         file.write(f"{nodemap:>60},{ct_x:>17.2f},{ct_y:>17.2f},{ct_angle:>12.2f},{side:>6}\n")
 
     @staticmethod
-    def _make_path(path: str) -> str:
-        if not os.path.exists(path):
-            os.makedirs(path)
-        return path
+    def _make_path(path: str) -> Path:
+        p = Path(path)
+        p.mkdir(parents=True, exist_ok=True)
+        return p

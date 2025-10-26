@@ -13,9 +13,10 @@
 """
 
 # Imports
-import os
-from matplotlib import pyplot as plt
+from pathlib import Path
+import logging
 
+from matplotlib import pyplot as plt
 
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
@@ -24,9 +25,21 @@ from crackpy.results.plot import PlotSettings
 from crackpy.results.read import OutputReader
 from crackpy.structure_elements.material import Material
 
+# Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Determine project root
+PROJECT_ROOT = Path(__file__).resolve()
+for _ in range(5):
+    if (PROJECT_ROOT / 'pyproject.toml').exists():
+        break
+    PROJECT_ROOT = PROJECT_ROOT.parent
+
 # Paths
-DATA_PATH = os.path.join('..', '..', 'test_data', 'simulations')
-OUT_FOLDER = 'Fracture_Analysis_Pipeline_FE_results'
+DATA_PATH = PROJECT_ROOT / 'test_data' / 'simulations'
+OUT_FOLDER = PROJECT_ROOT / 'Fracture_Analysis_Pipeline_FE_results'
+OUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 #######################################
 #         Fracture Analysis           #
@@ -71,9 +84,9 @@ plot_sets = PlotSettings(background='sig_vm', min_value=0, max_value=material.si
 
 fa_pipeline = FractureAnalysisPipeline(
     material=material,
-    nodemap_path=os.path.join(DATA_PATH, 'Nodemaps'),
-    input_file=os.path.join(DATA_PATH, 'crack_info_by_nodemap.txt'),
-    output_path=OUT_FOLDER,
+    nodemap_path=str(DATA_PATH / 'Nodemaps'),
+    input_file=str(DATA_PATH / 'crack_info_by_nodemap.txt'),
+    output_path=str(OUT_FOLDER),
     optimization_properties=opt_props,
     integral_properties=int_props,
     plot_sets=plot_sets
@@ -82,12 +95,12 @@ fa_pipeline.run(num_of_kernels=10)
 
 # Read results and write into CSV file
 reader = OutputReader()
-fa_output_path = os.path.join(OUT_FOLDER, 'txt-files')
+fa_output_path = OUT_FOLDER / 'txt-files'
 
-files = os.listdir(fa_output_path)
+files = [p.name for p in fa_output_path.iterdir()]
 list_of_tags = ["SIFs_integral"]
 for file in files:
     for tag in list_of_tags:
-        reader.read_tag_data(path=fa_output_path, filename=file, tag=tag)
+        reader.read_tag_data(path=str(fa_output_path), filename=file, tag=tag)
 
-reader.make_csv_from_results(files="all", output_path=OUT_FOLDER, output_filename='results.csv')
+reader.make_csv_from_results(files="all", output_path=str(OUT_FOLDER), output_filename='results.csv')

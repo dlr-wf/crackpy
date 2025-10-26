@@ -15,7 +15,8 @@
 """
 
 # Imports
-import os
+import logging
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -27,10 +28,16 @@ from crackpy.crack_detection.detection import CrackTipDetection, CrackPathDetect
 from crackpy.input.input_data import InputData
 from crackpy.structure_elements.data_files import Nodemap
 
+# Logging configuration
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # Settings
 NODEMAP_FILE = 'Dummy2_WPXXX_DummyVersuch_2_dic_results_1_52.txt'
-DATA_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Nodemaps')
-OUTPUT_PATH = 'prediction'
+PROJECT_ROOT = Path(__file__).parents[2]
+DATA_PATH = PROJECT_ROOT / 'test_data' / 'crack_detection' / 'Nodemaps'
+OUTPUT_PATH = PROJECT_ROOT / 'prediction'
+OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 det = CrackDetection(
     side='right',
@@ -41,7 +48,7 @@ det = CrackDetection(
 )
 
 # Get nodemap data
-nodemap = Nodemap(name=NODEMAP_FILE, folder=DATA_PATH)
+nodemap = Nodemap(name=NODEMAP_FILE, folder=str(DATA_PATH))
 data = InputData(nodemap)
 
 # Interpolate data on arrays (256 x 256 pixels)
@@ -66,13 +73,13 @@ crack_tip_pixels = ct_det.find_most_likely_tip_pos(pred)
 
 # Calculate crack tip domain in mm
 crack_tip_seg_mm = ct_det.calculate_segmentation_in_mm(crack_tip_seg)
-print(crack_tip_seg_mm)
+logger.info(f"Crack tip segmentation (mm): {crack_tip_seg_mm}")
 
 # Calculate global crack tip positions in mm
 crack_tip_x, crack_tip_y = ct_det.calculate_position_in_mm(crack_tip_pixels)
 
-print(f"Crack tip x [mm]: {crack_tip_x}")
-print(f"Crack tip y [mm]: {crack_tip_y}")
+logger.info(f"Crack tip x [mm]: {crack_tip_x}")
+logger.info(f"Crack tip y [mm]: {crack_tip_y}")
 
 #####################
 # Path detection
@@ -86,7 +93,7 @@ cp_segmentation, cp_skeleton = cp_det.predict_path(input_ch)
 
 # Calculate crack path in mm
 cp_skeleton_mm = cp_det.calculate_path_in_mm(cp_skeleton)
-print(cp_skeleton_mm)
+logger.info(f"Crack path skeleton (mm): {cp_skeleton_mm}")
 
 ##########################
 # Crack angle estimation
@@ -101,7 +108,7 @@ cp_segmentation_largest_region = angle_est.get_largest_region(cp_segmentation_ma
 
 # Estimate the angle
 angle = angle_est.predict_angle(cp_segmentation_largest_region)
-print(f"Crack angle [deg]: {angle}")
+logger.info(f"Crack angle [deg]: {angle}")
 
 #####################
 # Plot predictions
@@ -123,5 +130,5 @@ plot_prediction(background=interp_eps_vm * 100,
                 f_min=0,
                 f_max=0.68,
                 title=NODEMAP_FILE,
-                path=OUTPUT_PATH,
+                path=str(OUTPUT_PATH),
                 label='Von Mises strain [%]')

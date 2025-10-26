@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import json
 import numpy as np
 import datetime
@@ -33,7 +33,8 @@ class OutputWriter:
 
     def write_header(self) -> None:
         """Writing a header for the output file."""
-        with open(os.path.join(self.path, self.filename), mode='w') as file:
+        out_file = Path(self.path) / self.filename
+        with open(out_file, mode='w') as file:
             file.write('############################################################################################\n')
             file.write('#                                                                                          #\n')
             file.write('#                                 Fracture Analysing Tool                                  #\n')
@@ -70,7 +71,8 @@ class OutputWriter:
 
     def write_results(self) -> None:
         """Write results of fracture analysis into output file."""
-        with open(os.path.join(self.path, self.filename), 'a') as file:
+        out_file = Path(self.path) / self.filename
+        with open(out_file, 'a') as file:
 
             if self.analysis.optimization_properties is not None:
 
@@ -440,7 +442,7 @@ class OutputWriter:
                                                           "result": self.analysis.williams_fit_res["K_III"]}
 
             json_dict['Williams_fit_results']['T'] = {"unit": "MPa",
-                                                      "result": self.analysis.williams_fit_res["T"]}
+                                                      "result": self.analysis.williams_fit_res['T']}
             for n, a in self.analysis.williams_fit_a_n.items():
                 json_dict['Williams_fit_results'][f'a_{n}'] = {"unit": unit_of_williams_coefficients(n),
                                                                "result": a}
@@ -464,52 +466,52 @@ class OutputWriter:
             json_dict['SIFs_integral']['K_I_interac'] = {"unit": "MPa*m^{1/2}",
                                                          "mean": self.analysis.sifs_int["mean"]["sif_k_i"],
                                                          "median": self.analysis.sifs_int["median"]["sif_k_i"],
-                                                         "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"][
+                                                         "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"] [
                                                              "sif_k_i"]}
             json_dict['SIFs_integral']['K_II_interac'] = {"unit": "MPa*m^{1/2}",
                                                           "mean": self.analysis.sifs_int["mean"]["sif_k_ii"],
                                                           "median": self.analysis.sifs_int["median"]["sif_k_ii"],
-                                                          "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"][
+                                                          "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"] [
                                                               "sif_k_ii"]}
             json_dict['SIFs_integral']['T_interac'] = {"unit": "MPa",
                                                        "mean": self.analysis.sifs_int["mean"]["t_stress_int"],
                                                        "median": self.analysis.sifs_int["median"]["t_stress_int"],
-                                                       "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"][
+                                                       "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"] [
                                                            "t_stress_int"]}
             json_dict['SIFs_integral']['K_I_Chen'] = {"unit": "MPa*m^{1/2}",
                                                       "mean": self.analysis.sifs_int["mean"]["k_i_chen"],
                                                       "median": self.analysis.sifs_int["median"]["k_i_chen"],
-                                                      "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"][
+                                                      "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"] [
                                                           "k_i_chen"]}
             json_dict['SIFs_integral']['K_II_Chen'] = {"unit": "MPa*m^{1/2}",
                                                        "mean": self.analysis.sifs_int["mean"]["k_ii_chen"],
                                                        "median": self.analysis.sifs_int["median"]["k_ii_chen"],
-                                                       "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"][
+                                                       "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"] [
                                                            "k_ii_chen"]}
             json_dict['SIFs_integral']['T_Chen'] = {"unit": "MPa",
                                                     "mean": self.analysis.sifs_int["mean"]["t_stress_chen"],
                                                     "median": self.analysis.sifs_int["median"]["t_stress_chen"],
-                                                    "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"][
+                                                    "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"] [
                                                         "t_stress_chen"]}
             json_dict['SIFs_integral']['T_SDM'] = {"unit": "MPa",
                                                    "mean": self.analysis.sifs_int["mean"]["t_stress_sdm"],
                                                    "median": self.analysis.sifs_int["median"]["t_stress_sdm"],
-                                                   "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"][
+                                                   "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"] [
                                                        "t_stress_sdm"]}
             json_dict['SIFs_integral']['J_I'] = {"unit": "N/mm",
                                                  "mean": self.analysis.sifs_int["mean"]["decomp_j_1"],
                                                  "median": self.analysis.sifs_int["median"]["decomp_j_1"],
-                                                 "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"][
+                                                 "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"] [
                                                      "decomp_j_1"]}
             json_dict['SIFs_integral']['J_II'] = {"unit": "N/mm",
                                                   "mean": self.analysis.sifs_int["mean"]["decomp_j_2"],
                                                   "median": self.analysis.sifs_int["median"]["decomp_j_2"],
-                                                  "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"][
+                                                  "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"] [
                                                       "decomp_j_2"]}
             json_dict['SIFs_integral']['J_III'] = {"unit": "N/mm",
                                                    "mean": self.analysis.sifs_int["mean"]["decomp_j_3"],
                                                    "median": self.analysis.sifs_int["median"]["decomp_j_3"],
-                                                   "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"][
+                                                   "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"] [
                                                        "decomp_j_3"]}
 
             json_dict['SIFs_integral']['K_I_J'] = {"unit": "MPa*m^{1/2}",
@@ -519,12 +521,12 @@ class OutputWriter:
             json_dict['SIFs_integral']['K_II_J'] = {"unit": "MPa*m^{1/2}",
                                                     "mean": self.analysis.sifs_int["mean"]["decomp_K_2"],
                                                     "median": self.analysis.sifs_int["median"]["decomp_K_2"],
-                                                    "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"][
+                                                    "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"] [
                                                         "decomp_K_2"]}
             json_dict['SIFs_integral']['K_III_J'] = {"unit": "MPa*m^{1/2}",
                                                      "mean": self.analysis.sifs_int["mean"]["decomp_K_3"],
                                                      "median": self.analysis.sifs_int["median"]["decomp_K_3"],
-                                                     "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"][
+                                                     "mean_wo_outliers": self.analysis.sifs_int["rej_out_mean"] [
                                                          "decomp_K_3"]}
 
             json_dict['Path_SIFs'] = {}
@@ -560,21 +562,21 @@ class OutputWriter:
             terms = self.analysis.williams_int[0, :, 0]
             for i, term in enumerate(terms):
                 json_dict['Bueckner_Chen_integral'][f'a_{term:.0f}'] = {"unit": unit_of_williams_coefficients(term),
-                                                                        "mean": self.analysis.sifs_int["mean"][
+                                                                        "mean": self.analysis.sifs_int["mean"] [
                                                                             "williams_int_a_n"][i],
-                                                                        "median": self.analysis.sifs_int["median"][
+                                                                        "median": self.analysis.sifs_int["median"] [
                                                                             "williams_int_a_n"][i],
                                                                         "mean_wo_outliers":
-                                                                            self.analysis.sifs_int["rej_out_mean"][
+                                                                            self.analysis.sifs_int["rej_out_mean"] [
                                                                                 "williams_int_a_n"][i]}
             for i, term in enumerate(terms):
                 json_dict['Bueckner_Chen_integral'][f'b_{term:.0f}'] = {"unit": unit_of_williams_coefficients(term),
-                                                                        "mean": self.analysis.sifs_int["mean"][
+                                                                        "mean": self.analysis.sifs_int["mean"] [
                                                                             "williams_int_b_n"][i],
-                                                                        "median": self.analysis.sifs_int["median"][
+                                                                        "median": self.analysis.sifs_int["median"] [
                                                                             "williams_int_b_n"][i],
                                                                         "mean_wo_outliers":
-                                                                            self.analysis.sifs_int["rej_out_mean"][
+                                                                            self.analysis.sifs_int["rej_out_mean"] [
                                                                                 "williams_int_b_n"][i]}
 
 
@@ -625,16 +627,17 @@ class OutputWriter:
                     if not callable(value) and not attr.startswith('__'):
                         json_dict['CrackPy_settings'][section][attr] = value
 
-        with open(os.path.join(self.json_path, self.filename[:-4] + '.json'), 'w') as outfile:
+        json_file = Path(self.json_path) / (Path(self.filename).stem + '.json')
+        with open(json_file, 'w') as outfile:
             json.dump(json_dict, outfile, indent=4, default=str)
 
     @staticmethod
-    def _make_path(output_path) -> str:
+    def _make_path(output_path) -> Path:
         """Create and return path."""
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
-        return output_path
+        p = Path(output_path)
+        p.mkdir(parents=True, exist_ok=True)
+        return p
 
     def _set_filename(self) -> str:
         """Transforms 'Filename.txt' -> 'Filename_right_Output.txt'"""
-        return os.path.split(self.analysis.nodemap_file)[-1][:-4] + '_' + self.analysis.crack_tip.left_or_right + '_Output.txt'
+        return Path(self.analysis.nodemap_file).stem + '_' + self.analysis.crack_tip.left_or_right + '_Output.txt'

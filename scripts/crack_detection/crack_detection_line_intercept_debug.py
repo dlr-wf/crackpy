@@ -16,7 +16,8 @@
 """
 
 # Imports
-import os
+from pathlib import Path
+import logging
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
@@ -26,23 +27,27 @@ from crackpy.input.input_data import InputData
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 
+# Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 
 # Set colormap
 plt.rcParams['image.cmap'] = 'coolwarm'
 plt.rcParams['figure.dpi'] = 300
 
 # Settings
+PROJECT_ROOT = Path(__file__).parents[2]
 NODEMAP_FILE = 'Dummy2_WPXXX_DummyVersuch_2_dic_results_1_52.txt'
-DATA_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Nodemaps')
+DATA_PATH = PROJECT_ROOT / 'test_data' / 'crack_detection' / 'Nodemaps'
 
 
-OUTPUT_PATH = 'line_intercept_debug'
-if not os.path.exists(OUTPUT_PATH):
-    os.makedirs(OUTPUT_PATH)
+OUTPUT_PATH = PROJECT_ROOT / 'line_intercept_debug'
+OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 
 # Get nodemap data
-nodemap = Nodemap(name=NODEMAP_FILE, folder=DATA_PATH)
+nodemap = Nodemap(name=NODEMAP_FILE, folder=str(DATA_PATH))
 data = InputData(nodemap)
 data.read_header()
 material = Material(E=72000, nu_xy=0.33, sig_yield=350)
@@ -105,7 +110,7 @@ ax.axis('image')
 ax.set_xlim(0, 25)
 ax.set_ylim(-10, 10)
 ax.tick_params(axis='x', pad=15)
-plt.savefig(os.path.join(OUTPUT_PATH, f"{NODEMAP_FILE[:-4]}.png"), bbox_inches='tight', dpi=300)
+plt.savefig(str(OUTPUT_PATH / f"{Path(NODEMAP_FILE).stem}.png"), bbox_inches='tight', dpi=300)
 
 ######################################
 # tanh fit
@@ -126,4 +131,4 @@ for index in indexes:
 ax.set_xlabel('y [mm]')
 ax.set_ylabel('$u_{y}$ [mm]')
 ax.tick_params(axis='x', pad=15)
-plt.savefig(os.path.join(OUTPUT_PATH, f"{NODEMAP_FILE[:-4]}_tanh.png"), bbox_inches='tight', dpi=300)
+plt.savefig(str(OUTPUT_PATH / f"{Path(NODEMAP_FILE).stem}_tanh.png"), bbox_inches='tight', dpi=300)

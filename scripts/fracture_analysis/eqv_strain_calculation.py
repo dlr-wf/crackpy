@@ -1,9 +1,14 @@
 import numpy as np
 from numpy import linalg as LA
+import logging
 
 """
     This script compares formulas to compute the equivalent strain from the strain tensor.
 """
+
+# Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 # Example strain tensor from ARAMIS nodemap export
@@ -50,7 +55,7 @@ eps = np.array([[eps_xx, eps_xy,      0],
 eps_dev = eps - 1 / 3 * np.trace(eps) * np.eye(3)
 eps_vm = np.sqrt(2 / 3 * np.trace(eps_dev @ eps_dev))  # @ is matrix multiplication
 
-print(f"Wikipedia with nu={nu}:   {eps_vm}")
-print(f"ARAMIS nodemap export:   {eps_eqv}")
-print(f"ARAMIS (large strains):  {eps_M_large_strains}")
-print(f"ARAMIS (small strains):  {eps_M_small_strains}")
+logger.info(f"Equivalent strain (Wikipedia, nu={nu}): {eps_vm}")
+logger.info(f"Equivalent strain (ARAMIS nodemap export): {eps_eqv}")
+logger.info(f"Equivalent strain (ARAMIS, large strains): {eps_M_large_strains}")
+logger.info(f"Equivalent strain (ARAMIS, small strains): {eps_M_small_strains}")

@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import numpy as np
 
 from crackpy.input.input_data import InputData
@@ -16,7 +16,8 @@ def ground_truth_import(path: str, side: str) -> np.ndarray:
         np.ndarray
 
     """
-    with open(path[:-4] + '_' + side + '.txt') as file:
+    p = Path(path)
+    with open(p.with_name(p.stem + '_' + side + '.txt')) as file:
         array2d = [[float(digit) for digit in line.split()] for line in file]
         array2d = np.asarray(array2d)
     if side == 'left':
@@ -42,15 +43,16 @@ def import_data(nodemaps: dict, data_path: str, side: str ='', exists_target=Tru
     inputs = {}
     ground_truths = {}
 
+    base = Path(data_path)
     for _, nodemap in sorted(nodemaps.items()):
         print(f'\r- {nodemap}. {len(inputs.keys()) + 1}/{len(nodemaps)} imported.', end='')
-        input_nodemap = Nodemap(name=nodemap, folder = os.path.join(data_path, "Nodemaps"))
+        input_nodemap = Nodemap(name=nodemap, folder=str(base / "Nodemaps"))
         input_by_nodemap = InputData(input_nodemap)
         inputs.update({nodemap + '_' + side: input_by_nodemap})
 
         if exists_target:
-            path = os.path.join(data_path, 'GroundTruth', nodemap)
-            ground_truth_by_nodemap = ground_truth_import(path, side)
+            path = base / 'GroundTruth' / nodemap
+            ground_truth_by_nodemap = ground_truth_import(str(path), side)
             ground_truths.update({nodemap + '_' + side: ground_truth_by_nodemap})
         else:
             ground_truths = None

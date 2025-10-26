@@ -7,6 +7,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -31,8 +32,14 @@ from crackpy.crack_detection.deep_learning.attention import SegGradCAM, UNetWith
 class TestCrackDetection(unittest.TestCase):
 
     def setUp(self):
-        self.origin = os.path.join(  # '..',
-                                   'test_data', 'crack_detection')
+        # Find project root iteratively by searching for pyproject.toml (up to 5 levels)
+        project_root = Path(__file__).resolve()
+        for _ in range(5):
+            if (project_root / 'pyproject.toml').exists():
+                break
+            project_root = project_root.parent
+
+        self.origin = str(project_root / 'test_data' / 'crack_detection')
         self.raw_data_path = os.path.join(self.origin, 'raw')
         self.interim_data_path = None
 

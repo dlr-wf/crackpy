@@ -1,11 +1,14 @@
 import copy
 import itertools
 from concurrent.futures import ProcessPoolExecutor
+import logging
 
 import numpy as np
 import pandas as pd
 from scipy import optimize
 from crackpy.fracture_analysis.optimization import Optimization, OptimizationProperties
+
+logger = logging.getLogger(__name__)
 
 
 def run_williams_optimization(data, material, opt_props):
@@ -108,8 +111,8 @@ class CrackTipCorrection:
             try:
                 williams_fit_a_n, williams_fit_b_n, cost = run_williams_optimization(
                     data_copy, self.material, opt_props)
-            except:
-                print('Williams fit failed. No correction applied.')
+            except Exception:
+                logger.exception('Williams fit failed. No correction applied.')
                 ct_corr = [0, 0]
                 return ct_corr
 
@@ -154,10 +157,10 @@ class CrackTipCorrection:
                 cd.plot(fname=f'iteration_{i}.png', folder=folder, crack_tip_results=res, fmax=self.material.sig_yield)
 
             if verbose:
-                print(f"Iteration {i:3d}: dx = {d_x_rot:+8.4f}, dy = {d_y_rot:+8.4f}, "
-                      f"a_-1 = {williams_fit_a_n[-1]:+9.4f}, b_-1 = {williams_fit_b_n[-1]:+9.4f}, "
-                      f"a_1 = {williams_fit_a_n[1]:+9.4f}, b_1 = {williams_fit_b_n[1]:+9.4f}, "
-                      f"crack_tip_corrected = ({crack_tip_x:+8.4f}, {crack_tip_y:+8.4f})")
+                logger.info(f"Iteration {i:3d}: dx = {d_x_rot:+8.4f}, dy = {d_y_rot:+8.4f}, "
+                            f"a_-1 = {williams_fit_a_n[-1]:+9.4f}, b_-1 = {williams_fit_b_n[-1]:+9.4f}, "
+                            f"a_1 = {williams_fit_a_n[1]:+9.4f}, b_1 = {williams_fit_b_n[1]:+9.4f}, "
+                            f"crack_tip_corrected = ({crack_tip_x:+8.4f}, {crack_tip_y:+8.4f})")
 
             # log iteration
             williams_dict = {}
@@ -178,8 +181,7 @@ class CrackTipCorrection:
                 break
 
         ct_corr = [crack_tip_x - self.crack_tip[0], crack_tip_y - self.crack_tip[1]]
-        print(ct_corr)
-        print('------------------------------------')
+        logger.info(f"Final crack tip correction (rethore/symbolic/custom): dx = {ct_corr[0]:+.4f}, dy = {ct_corr[1]:+.4f}")
         return ct_corr
 
     def correct_crack_tip_optimization(
@@ -215,8 +217,7 @@ class CrackTipCorrection:
         )
 
         ct_corr = [res.x[0], res.x[1], 0]
-        print(ct_corr)
-        print('------------------------------------')
+        logger.info(f"Final crack tip correction (optimization): dx = {ct_corr[0]:+.4f}, dy = {ct_corr[1]:+.4f}")
         return ct_corr
 
     def correct_crack_tip_differential_evolution(
@@ -263,8 +264,7 @@ class CrackTipCorrection:
         )
 
         ct_corr = [res.x[0], res.x[1], 0]
-        print(ct_corr)
-        print('------------------------------------')
+        logger.info(f"Final crack tip correction (diff-evolution): dx = {ct_corr[0]:+.4f}, dy = {ct_corr[1]:+.4f}")
         return ct_corr
 
     def _rotate_data(self, dx, dy):
@@ -303,10 +303,9 @@ class CrackTipCorrection:
         error = error * 1000
 
         if verbose:
-            print(f"dx = {disp[0]:+10.4f}, dy = {disp[1]:+10.4f}, error = {error:10.6f}, "
-                  f"a_(-1) = {williams_fit_a_n[-1]:+10.3f}, "
-                  f"b_(-1) = {williams_fit_b_n[-1]:+10.3f}")
-
+            logger.info(
+                f"dx = {disp[0]:+10.4f}, dy = {disp[1]:+10.4f}, error = {error:10.6f}, "
+                f"a_(-1) = {williams_fit_a_n[-1]:+10.3f}, b_(-1) = {williams_fit_b_n[-1]:+10.3f}")
         return error
 
     def _a_minus_one_b_minus_one_squared_error(self, disp, opt_props, verbose=False):
@@ -328,10 +327,9 @@ class CrackTipCorrection:
         error = williams_fit_a_n[-1] ** 2 + williams_fit_b_n[-1] ** 2
 
         if verbose:
-            print(f"dx = {disp[0]:+10.4f}, dy = {disp[1]:+10.4f}, error = {error:10.4f}, "
-                  f"a_(-1) = {williams_fit_a_n[-1]:+10.3f}, "
-                  f"b_(-1) = {williams_fit_b_n[-1]:+10.3f}")
-
+            logger.info(
+                f"dx = {disp[0]:+10.4f}, dy = {disp[1]:+10.4f}, error = {error:10.4f}, "
+                f"a_(-1) = {williams_fit_a_n[-1]:+10.3f}, b_(-1) = {williams_fit_b_n[-1]:+10.3f}")
         return error
 
 
@@ -387,7 +385,7 @@ class CrackTipCorrectionGridSearch:
         delta_phi = 0
         results = []
         shifts_x_y = itertools.product(delta_x, delta_y)
-        print(f"Number of grid points: {len(delta_x) * len(delta_y)}")
+        logger.info(f"Grid search size: {len(delta_x) * len(delta_y)} points")
 
         with ProcessPoolExecutor(max_workers=workers) as executor:
             for shift_x_y in shifts_x_y:
@@ -414,8 +412,7 @@ class CrackTipCorrectionGridSearch:
             output[2] += self.crack_angle
             df.loc[i] = output
 
-        print(ct_corr)
-        print('------------------------------------')
+        logger.info(f"Final crack tip correction (grid search): dx = {ct_corr[0]:+.4f}, dy = {ct_corr[1]:+.4f}")
         return ct_corr, df
 
     def _parallel_grid_search(self, shift_x_y, delta_phi, opt_props, verbose=False):
@@ -438,8 +435,9 @@ class CrackTipCorrectionGridSearch:
         williams_fit_a_n, williams_fit_b_n, error = run_williams_optimization(data_copy, self.material, opt_props)
 
         if verbose:
-            print(f"Iteration: dx = {dx:+8.4f}, dy = {dy:+8.4f}, dphi = {delta_phi:+8.4f} deg, error = {error:12.8f}, "
-                  f"a_-1 = {williams_fit_a_n[-1]:+10.4f}, b_-1 = {williams_fit_b_n[-1]:+10.4f}")
+            logger.info(
+                f"Iteration: dx = {dx:+8.4f}, dy = {dy:+8.4f}, dphi = {delta_phi:+8.4f} deg, error = {error:12.8f}, "
+                f"a_-1 = {williams_fit_a_n[-1]:+10.4f}, b_-1 = {williams_fit_b_n[-1]:+10.4f}")
 
         output = [dx, dy, delta_phi, error]
         for term in opt_props.terms:
@@ -491,11 +489,9 @@ class CustomCorrection(CrackTipCorrection):
 
         """
         if not opt_props.terms == [-3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7]:
-            print('Warning: The formulas are based on the Williams coefficients A_-3 to A_7 and B_-3 to B_7. '
-                  'Therefore skipping some of these terms in the Optimization Properties might lead to'
-                  'wrong correction results in case coefficients used in the formulas are missing.')
+            logger.warning('Formulas assume Williams coefficients A_-3..A_7 and B_-3..B_7. Missing terms may degrade correction accuracy.')
             missing_terms = list({-3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7} - set(opt_props.terms))
-            print(f'Missing terms: {missing_terms}')
+            logger.warning(f"Missing terms: {missing_terms}")
         else:
             missing_terms = []
 
@@ -511,8 +507,8 @@ class CustomCorrection(CrackTipCorrection):
             try:
                 williams_fit_a_n, williams_fit_b_n, cost = run_williams_optimization(
                     data_copy, self.material, opt_props)
-            except:
-                print('Williams fit failed. No correction applied.')
+            except Exception:
+                logger.exception('Williams fit failed. No correction applied.')
                 ct_corr = [0, 0]
                 return ct_corr
 
@@ -561,10 +557,10 @@ class CustomCorrection(CrackTipCorrection):
                 cd.plot(fname=f'iteration_{i}.png', folder=folder, crack_tip_results=res, fmax=self.material.sig_yield)
 
             if verbose:
-                print(f"Iteration {i:3d}: dx = {d_x_rot:+7.4f}, dy = {d_y_rot:+7.4f}, "
-                      f"a_-1 = {williams_fit_a_n[-1]:+9.4f}, b_-1 = {williams_fit_b_n[-1]:+9.4f}, "
-                      f"a_1 = {williams_fit_a_n[1]:+9.4f}, b_1 = {williams_fit_b_n[1]:+9.4f}, "
-                      f"crack_tip_corrected = ({crack_tip_x:+8.4f}, {crack_tip_y:+8.4f})")
+                logger.info(f"Iteration {i:3d}: dx = {d_x_rot:+8.4f}, dy = {d_y_rot:+8.4f}, "
+                            f"a_-1 = {williams_fit_a_n[-1]:+9.4f}, b_-1 = {williams_fit_b_n[-1]:+9.4f}, "
+                            f"a_1 = {williams_fit_a_n[1]:+9.4f}, b_1 = {williams_fit_b_n[1]:+9.4f}, "
+                            f"crack_tip_corrected = ({crack_tip_x:+8.4f}, {crack_tip_y:+8.4f})")
 
             # log iteration
             williams_dict = {}
@@ -585,6 +581,5 @@ class CustomCorrection(CrackTipCorrection):
                 break
 
         ct_corr = [crack_tip_x - self.crack_tip[0], crack_tip_y - self.crack_tip[1]]
-        print(ct_corr)
-        print('------------------------------------')
+        logger.info(f"Final crack tip correction (custom): dx = {ct_corr[0]:+.4f}, dy = {ct_corr[1]:+.4f}")
         return ct_corr

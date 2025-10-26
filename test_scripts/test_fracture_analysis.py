@@ -1,7 +1,7 @@
-import os
 import shutil
 import tempfile
 import unittest
+from pathlib import Path
 
 import pandas as pd
 import numpy as np
@@ -22,6 +22,13 @@ from crackpy.structure_elements.material import Material
 
 class TestFractureAnalysis(unittest.TestCase):
     def setUp(self):
+        # Find project root iteratively by searching for pyproject.toml (up to 5 levels)
+        project_root = Path(__file__).resolve()
+        for _ in range(5):
+            if (project_root / 'pyproject.toml').exists():
+                break
+            project_root = project_root.parent
+
         self.material = Material(E=72000, nu_xy=0.33, sig_yield=350)
 
         self.ct_info = CrackTipInfo(
@@ -32,9 +39,9 @@ class TestFractureAnalysis(unittest.TestCase):
         )
 
         # import and transform data
+        nodemap_folder = str(project_root / 'test_data' / 'crack_detection' / 'Nodemaps')
         self.nodemap_file = Nodemap(name='Dummy2_WPXXX_DummyVersuch_2_dic_results_1_52.txt',
-                                    folder=os.path.join(  # '..',
-                                                        'test_data', 'crack_detection', 'Nodemaps'))
+                                    folder=nodemap_folder)
 
         self.input_data = InputData(self.nodemap_file)
         self.input_data.calc_stresses(self.material)
@@ -390,12 +397,17 @@ class TestFractureAnalysis(unittest.TestCase):
 
 class TestFractureAnalysisPipeline(unittest.TestCase):
     def setUp(self):
-        self.origin = os.path.join(  # '..',
-                                   'test_data', 'crack_detection')
-        self.nodemap_path = os.path.join(self.origin, 'Nodemaps')
-        self.input_file = os.path.join(self.origin, 'crack_info_by_nodemap_fracture_analysis.txt')
-        self.output_path = os.path.join(  # '..',
-                                        'test_data', 'fracture_analysis')
+        # Find project root iteratively by searching for pyproject.toml (up to 5 levels)
+        project_root = Path(__file__).resolve()
+        for _ in range(5):
+            if (project_root / 'pyproject.toml').exists():
+                break
+            project_root = project_root.parent
+
+        self.origin = project_root / 'test_data' / 'crack_detection'
+        self.nodemap_path = str(self.origin / 'Nodemaps')
+        self.input_file = str(self.origin / 'crack_info_by_nodemap_fracture_analysis.txt')
+        self.output_path = str(project_root / 'test_data' / 'fracture_analysis')
         self.material = Material(E=72000, nu_xy=0.33, sig_yield=350)
         self.plot_sets = PlotSettings(xlim_down=-20, xlim_up=20, ylim_down=-20, ylim_up=20,
                                       background='eps_vm',
@@ -444,22 +456,22 @@ class TestFractureAnalysisPipeline(unittest.TestCase):
 
             # Read results and write into CSV file
             reader = OutputReader()
-            output_path = os.path.join(temp_dir, 'txt-files')
+            output_path = Path(temp_dir) / 'txt-files'
 
-            files = os.listdir(output_path)
+            files = [f.name for f in output_path.iterdir() if f.is_file()]
             list_of_tags = ["CJP_results", "Williams_fit_results", "SIFs_integral", "Bueckner_Chen_integral",
                             "Path_SIFs", "Path_Williams_a_n", "Path_Williams_b_n"]
             for file in files:
                 if file.endswith(".txt"):
                     for tag in list_of_tags:
-                        reader.read_tag_data(path=output_path, filename=file, tag=tag)
+                        reader.read_tag_data(path=str(output_path), filename=file, tag=tag)
 
             # Make CSV file
             reader.make_csv_from_results(files="all", output_path=temp_dir, output_filename='results.csv')
 
             # Assert
-            exp_results = pd.read_csv(os.path.join(self.output_path, 'results_auto_integral_probs.csv'))
-            act_results = pd.read_csv(os.path.join(temp_dir, 'results.csv'))
+            exp_results = pd.read_csv(Path(self.output_path) / 'results_auto_integral_probs.csv')
+            act_results = pd.read_csv(Path(temp_dir) / 'results.csv')
             pd.testing.assert_frame_equal(exp_results, act_results, atol=1e-4)
 
         finally:
@@ -514,22 +526,22 @@ class TestFractureAnalysisPipeline(unittest.TestCase):
 
             # Read results and write into CSV file
             reader = OutputReader()
-            output_path = os.path.join(temp_dir, 'txt-files')
+            output_path = Path(temp_dir) / 'txt-files'
 
-            files = os.listdir(output_path)
+            files = [f.name for f in output_path.iterdir() if f.is_file()]
             list_of_tags = ["CJP_results", "Williams_fit_results", "SIFs_integral", "Bueckner_Chen_integral",
                             "Path_SIFs", "Path_Williams_a_n", "Path_Williams_b_n"]
             for file in files:
                 if file.endswith(".txt"):
                     for tag in list_of_tags:
-                        reader.read_tag_data(path=output_path, filename=file, tag=tag)
+                        reader.read_tag_data(path=str(output_path), filename=file, tag=tag)
 
             # Make CSV file
             reader.make_csv_from_results(files="all", output_path=temp_dir, output_filename='results.csv')
 
             # Assert
-            exp_results = pd.read_csv(os.path.join(self.output_path, 'results_predef_integral_probs.csv'))
-            act_results = pd.read_csv(os.path.join(temp_dir, 'results.csv'))
+            exp_results = pd.read_csv(Path(self.output_path) / 'results_predef_integral_probs.csv')
+            act_results = pd.read_csv(Path(temp_dir) / 'results.csv')
             pd.testing.assert_frame_equal(exp_results, act_results, atol=1e-4)
 
         finally:

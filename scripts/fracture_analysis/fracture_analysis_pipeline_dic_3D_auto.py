@@ -14,8 +14,8 @@
 
 """
 
-import os
-
+from pathlib import Path
+import logging
 from matplotlib import pyplot as plt
 
 from crackpy.fracture_analysis.line_integration import IntegralProperties
@@ -27,12 +27,20 @@ from crackpy.fracture_analysis.pipeline import FractureAnalysisPipeline
 from crackpy.results.plot import PlotSettings
 from crackpy.structure_elements.material import Material
 
+# Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 plt.rcParams['image.cmap'] = 'coolwarm'
 plt.rcParams['figure.dpi'] = 300
 
+# Determine project root (two levels above scripts/<subdir>)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 # Paths
-DATA_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Nodemaps')
-OUT_FOLDER = 'Fracture_Analysis_Pipeline_DIC_results_auto'
+DATA_PATH = PROJECT_ROOT / 'test_data' / 'crack_detection' / 'Nodemaps'
+OUT_FOLDER = PROJECT_ROOT / 'Fracture_Analysis_Pipeline_DIC_results_auto'
+OUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 # crack detectors
 tip_detector = get_model('ParallelNets')
@@ -47,12 +55,10 @@ det_setup = CrackDetectionSetup(
     start_offset=(0, 0)
 )
 
-#######################################
-#          Crack detection            #
-#######################################
+# Crack detection
 cd_pipeline = CrackDetectionPipeline(
-    data_path=DATA_PATH,
-    output_path=OUT_FOLDER,
+    data_path=str(DATA_PATH),
+    output_path=str(OUT_FOLDER),
     tip_detector_model=tip_detector,
     path_detector_model=path_detector,
     setup=det_setup
@@ -62,15 +68,11 @@ cd_pipeline.run_detection()
 cd_pipeline.assign_remaining_stages()
 cd_pipeline.write_results('crack_info_by_nodemap.txt')
 
-#######################################
-#         Fracture Analysis           #
-#######################################
+# Fracture Analysis
 int_props = IntegralProperties(
     number_of_paths=5,
     number_of_nodes=100,
-
     mask_tolerance=2,
-
     buckner_williams_terms=[-1, 1, 2, 3, 4, 5]
 )
 
@@ -90,9 +92,9 @@ plot_sets = PlotSettings(background='sig_vm', min_value=0, max_value=material.si
 
 fa_pipeline = FractureAnalysisPipeline(
     material=material,
-    nodemap_path=DATA_PATH,
-    input_file=os.path.join(OUT_FOLDER, 'crack_info_by_nodemap.txt'),
-    output_path=OUT_FOLDER,
+    nodemap_path=str(DATA_PATH),
+    input_file=str(OUT_FOLDER / 'crack_info_by_nodemap.txt'),
+    output_path=str(OUT_FOLDER),
     optimization_properties=opt_props,
     integral_properties=int_props,
     plot_sets=plot_sets
@@ -103,15 +105,17 @@ fa_pipeline.run(num_of_kernels=10)
 
 # Read results and write into CSV file
 reader = OutputReader()
-fa_output_path = os.path.join(OUT_FOLDER, 'txt-files')
+fa_output_path = OUT_FOLDER / 'txt-files'
 
-files = os.listdir(fa_output_path)
-list_of_tags = ["CJP_results", "Williams_fit_results", "SIFs_integral", "Bueckner_Chen_integral",
-                "Path_SIFs", "Path_Williams_a_n", "Path_Williams_b_n"]
+files = [p.name for p in fa_output_path.iterdir()]
+list_of_tags = [
+    "CJP_results", "Williams_fit_results", "SIFs_integral", "Bueckner_Chen_integral",
+    "Path_SIFs", "Path_Williams_a_n", "Path_Williams_b_n"
+]
 for file in files:
     for tag in list_of_tags:
-        reader.read_tag_data(path=fa_output_path, filename=file, tag=tag)
+        reader.read_tag_data(path=str(fa_output_path), filename=file, tag=tag)
 
-reader.make_csv_from_results(files="all", output_path=OUT_FOLDER, output_filename='results.csv')
+reader.make_csv_from_results(files="all", output_path=str(OUT_FOLDER), output_filename='results.csv')
 reader.make_csv_from_results(files="all", filter_condition={'Force': (14900, 15100)},
-                             output_path=OUT_FOLDER, output_filename='results_maxforce.csv')
+                             output_path=str(OUT_FOLDER), output_filename='results_maxforce.csv')

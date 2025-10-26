@@ -1,6 +1,9 @@
-import os.path
+from pathlib import Path
 import pandas as pd
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def is_stringfloat(element: str) -> bool:
@@ -27,7 +30,7 @@ class OutputReader:
         self.possible_tags = None
         self.data = {}
 
-    def read_tag_data(self, path: str or os.PathLike, filename: str, tag: str) -> pd.DataFrame:
+    def read_tag_data(self, path: str | Path, filename: str, tag: str) -> pd.DataFrame:
         """Read data into Pandas dataframe and saves results to results dictionary
 
         Args:
@@ -43,7 +46,8 @@ class OutputReader:
             raise ValueError(f"The tag {tag} does not exist! \n"
                              f"Possible tags: {self.possible_tags}")
 
-        with open(os.path.join(path, filename), 'r') as text_file:
+        file_path = Path(path) / filename
+        with open(file_path, 'r') as text_file:
             read_header = False
             read_values = False
 
@@ -88,8 +92,8 @@ class OutputReader:
                 _ = self.read_tag_data(path, filename, "Experiment_data")
             return df
 
-    def make_csv_from_results(self, files: list or str, output_path: str or os.PathLike, output_filename: str,
-                              tags: list or str = "all", filter_condition: dict or None = None):
+    def make_csv_from_results(self, files: list | str, output_path: str | Path, output_filename: str,
+                              tags: list | str = "all", filter_condition: dict | None = None):
         """
         Writes data for a list of files to a csv output.
 
@@ -110,8 +114,8 @@ class OutputReader:
                     raise TypeError("The filter_condition key 'Data type' should be a string.")
                 if not isinstance(filter_condition[key], tuple):
                     raise TypeError("The filter_condition value should be a tuple of flaots.")
-                if not isinstance(filter_condition[key][0], int or float) \
-                        or not isinstance(filter_condition[key][1], int or float):
+                if not isinstance(filter_condition[key][0], (int, float)) \
+                        or not isinstance(filter_condition[key][1], (int, float)):
                     raise TypeError("The filter_condition values should be a tuple of two floats.")
                 if filter_condition[key][0] >= filter_condition[key][1]:
                     raise ValueError("The first entry of values for the filter condition should be the minimum value,\n"
@@ -180,9 +184,10 @@ class OutputReader:
         try:
             np_all_results = np.asarray(all_results)
             all_results_df = pd.DataFrame(np_all_results, columns=stage_params, index=filenames)
-            all_results_df.to_csv(os.path.join(output_path, output_filename), index_label="filename")
+            out_csv = Path(output_path) / output_filename
+            all_results_df.to_csv(out_csv, index_label="filename")
         except UnboundLocalError:
-            print(f"Filter condition is not satisfied by any file in files {files}.")
+            logger.warning(f"Filter condition not satisfied by any file. Files considered: {files}.")
 
     @staticmethod
     def _filtered_by_condition(filter_condition: dict, experiment_data: pd.DataFrame) -> bool:
@@ -210,7 +215,7 @@ class OutputReader:
             return False
 
     @staticmethod
-    def _restructure_integral_df(df: pd.DataFrame, tag: str or None) -> tuple:
+    def _restructure_integral_df(df: pd.DataFrame, tag: str | None) -> tuple:
         """
         Internal method to restructure the Dataframe for integral output data.
 
@@ -242,43 +247,36 @@ class OutputReader:
         return params, results
 
     @staticmethod
-    def _restructure_path_statistics(df: pd.DataFrame, tag: str) -> tuple:
-        """Internal method to restructure the Dataframe for path dependent output data.
+    def _restructure_results(df: pd.DataFrame, tag: str | None = None) -> tuple:
+        """
+        Restructure results to be saved into csv file.
 
         Args:
             df: obj of class DataFrame
-            tag: tag
+            tag: tag name
 
         Returns:
-            a list for all parameter names for given tag and all values for these parameters
+            params and results as lists
 
         """
-        params = []
         results = []
-        for col in df.columns:
-
-            # get col name
-            name = col.split(' ')[0]
-
-            # calculate path statisitics
-            stat_attributes = {
-                'mean': np.mean(df[col]),
-                'median': np.median(df[col]),
-                'quantile10': np.quantile(df[col], .10),
-                'quantile90': np.quantile(df[col], .90),
-
-                'max': np.max(df[col]),
-                'min': np.min(df[col])
-            }
-
-            for param in stat_attributes.keys():
-                params.append(f"{tag}_{name}_{param}")
-                results.append(stat_attributes[param])
+        params = []
+        param_keys = df["Param"].to_list()
+        units = df["Unit"].to_list()
+        values = df["Result"].to_list()
+        for i in range(len(values)):
+            if tag is not None:
+                param = tag + "_" + param_keys[i]
+            else:
+                param = param_keys[i]
+            params.append(param + " [" + units[i] + "]")
+            results.append(values[i])
         return params, results
 
     @staticmethod
-    def _restructure_results(df: pd.DataFrame, tag: str = None) -> tuple:
-        """Internal method to restructure the Dataframe for path independent output data.
+    def _restructure_path_statistics(df: pd.DataFrame, tag: str | None) -> tuple:
+        """
+        Internal method to restructure the Dataframe for path statistics data.
 
         Args:
             df: obj of class DataFrame
@@ -288,33 +286,30 @@ class OutputReader:
             a list for all parameter names for given tag and all values for these parameters
 
         """
-        params = df["Param"].to_list()
-        results = df["Result"].to_list()
-        for param_index in range(len(params)):
-            if tag is not None:
-                params[param_index] = tag + "_" + params[param_index]
+        params = df.columns.to_list()
+        results = df.values.max(axis=0)
+        params = [tag + "_" + param for param in params]
         return params, results
 
-    def _search_for_tags(self, filename: str, path: str or os.PathLike) -> list:
-        """
-        Internal Method to search for any possible tag in a given filename and path.
+    def _search_for_tags(self, filename: str, path: str | Path) -> list:
+        """Search for tags in fracture analysis output file.
 
         Args:
-            filename: filename of output file
-            path: path to this file
+            filename: output file's name
+            path: path to the output file
 
         Returns:
-            list of possible tags
+            list of tags in fracture analysis output file
 
         """
-        if self.possible_tags is None:
-            tag_list = []
-            with open(os.path.join(path, filename)) as file:
-                for line in file:
-                    if '<' in line and '>' in line and '/' not in line:
-                        tag = line.strip('<>\n')
-                        tag_list.append(tag)
-            self.possible_tags = tag_list
-        else:
-            pass
-        return self.possible_tags
+        tags = []
+        file_path = Path(path) / filename
+        with open(file_path) as file:
+            for line in file:
+                if '<' in line and '>' in line:
+                    tags.append(line.strip('\n').strip('<').strip('>'))
+        self.possible_tags = tags
+        return tags
+
+
+

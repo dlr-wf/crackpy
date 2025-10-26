@@ -4,8 +4,11 @@ import time
 
 import numpy as np
 import torch
+import logging
 
 from crackpy.crack_detection.utils import evaluate
+
+logger = logging.getLogger(__name__)
 
 
 class TrainDocu:
@@ -48,9 +51,9 @@ def train_segmentation_model(model, dataloaders, dataset_sizes, criterion, optim
     train_docu = TrainDocu()
 
     for epoch in range(num_epochs):
-        print('-' * 20)
-        print(f'Epoch {epoch+1}/{num_epochs}')
-        print('-' * 20)
+        logger.info('-' * 20)
+        logger.info(f"Epoch {epoch+1}/{num_epochs}")
+        logger.info('-' * 20)
 
         # each epoch has training and evaluation phase
         for phase in ['train', 'val']:
@@ -90,11 +93,9 @@ def train_segmentation_model(model, dataloaders, dataset_sizes, criterion, optim
                     running_deviation += deviation
                     running_reliability += reliability * inputs.shape[0]
 
-                    print(
-                        f'\r- Batch {i}/{int(dataset_sizes[phase] / inputs.shape[0])} '
-                        f'- Loss: {loss.item():.4f} '
-                        f'- Deviation: {deviation / inputs.shape[0]:.2f} '
-                        f'- Reliability: {reliability:.4f}', end='')
+                    logger.info(
+                        f"Batch {i}/{int(dataset_sizes[phase] / inputs.shape[0])} - Loss: {loss.item():.4f} "
+                        f"- Deviation: {deviation / inputs.shape[0]:.2f} - Reliability: {reliability:.4f}")
 
             # make step with lr_scheduler
             if scheduler is not None:
@@ -108,9 +109,8 @@ def train_segmentation_model(model, dataloaders, dataset_sizes, criterion, optim
             epoch_loss = running_loss / dataset_sizes[phase]
             epoch_deviation = running_deviation / dataset_sizes[phase]
             epoch_reliability = running_reliability / dataset_sizes[phase]
-            print(
-                f'\r- Phase: {phase} - Loss: {epoch_loss:.4f} '
-                f'- Deviation: {epoch_deviation:.2f} - Reliability: {epoch_reliability:.4f}', end='\n')
+            logger.info(
+                f"Phase: {phase} - Loss: {epoch_loss:.4f} - Deviation: {epoch_deviation:.2f} - Reliability: {epoch_reliability:.4f}")
 
             if tb is not None:
                 tb.add_scalar('Loss/' + phase, epoch_loss, epoch)
@@ -163,9 +163,9 @@ def train_parallel_model(model, dataloaders, dataset_sizes, criterion, optimizer
     weight_dice, weight_mse = criterion[2]
 
     for epoch in range(num_epochs):
-        print('-' * 20)
-        print(f'Epoch {epoch+1}/{num_epochs}')
-        print('-' * 20)
+        logger.info('-' * 20)
+        logger.info(f"Epoch {epoch+1}/{num_epochs}")
+        logger.info('-' * 20)
 
         # each epoch has training and evaluation phase
         for phase in ['train', 'val']:
@@ -218,11 +218,9 @@ def train_parallel_model(model, dataloaders, dataset_sizes, criterion, optimizer
                     running_deviation += deviation
                     running_reliability += reliability * inputs.shape[0]
 
-                    print("\r- Batch {}/{} - Loss: {:.4f} - Dice Loss: {:.4f} - MSE Loss: {:.6f} "
-                          "- Deviation: {:.2f} - Reliability: {:.4f}"
-                          .format(i, int(dataset_sizes[phase] / inputs.shape[0]),
-                                  loss.item(), dice_loss, mse_loss, deviation / inputs.shape[0],
-                                  reliability), end='')
+                    logger.info(
+                          f"Batch {i}/{int(dataset_sizes[phase] / inputs.shape[0])} - Loss: {loss.item():.4f} - Dice Loss: {dice_loss:.4f} - MSE Loss: {mse_loss:.6f} "
+                          f"- Deviation: {deviation / inputs.shape[0]:.2f} - Reliability: {reliability:.4f}")
 
             # make step with lr_scheduler
             if scheduler is not None:
@@ -238,10 +236,9 @@ def train_parallel_model(model, dataloaders, dataset_sizes, criterion, optimizer
             epoch_loss = running_loss / dataset_sizes[phase]
             epoch_deviation = running_deviation / dataset_sizes[phase]
             epoch_reliability = running_reliability / dataset_sizes[phase]
-            print('\r- Phase: {} - Loss: {:.4f} - Dice Loss: {:.4f} - MSE Loss: {:.6f} '
-                  '- Deviation: {:.2f} - Reliability: {:.4f}'
-                  .format(phase, epoch_loss, epoch_dice, epoch_mse,
-                          epoch_deviation, epoch_reliability), end='\n')
+            logger.info(
+                  f"Phase: {phase} - Loss: {epoch_loss:.4f} - Dice Loss: {epoch_dice:.4f} - MSE Loss: {epoch_mse:.6f} "
+                  f"- Deviation: {epoch_deviation:.2f} - Reliability: {epoch_reliability:.4f}")
             if tb is not None:
                 tb.add_scalar('Loss/' + phase, epoch_loss, epoch)
                 tb.add_scalar('Dice/' + phase, epoch_dice, epoch)

@@ -3,12 +3,15 @@ import numpy as np
 from scipy.ndimage import label
 from skimage.morphology import skeletonize
 from sklearn.linear_model import LinearRegression
+import logging
 
 from crackpy.crack_detection.data import preprocess
 from crackpy.crack_detection.deep_learning.nets import ParallelNets, UNet
 from crackpy.crack_detection.data.interpolation import interpolate
 from crackpy.crack_detection.utils.utilityfunctions import calculate_segmentation, find_most_likely_tip_pos
 from crackpy.input.input_data import InputData
+
+logger = logging.getLogger(__name__)
 
 
 class CrackDetection:
@@ -57,9 +60,8 @@ class CrackDetection:
 
         # check if NaNs are present
         if torch.isnan(input_ch).any():
-            print('NaNs in displacement data! '
-                  'Please make sure that no NaNs are present '
-                  'E.g. make the detection_window_boundary smaller.')
+            logger.warning(
+                "NaNs detected in displacement data. Consider reducing the detection window size or preprocessing the data to remove NaNs.")
 
         input_ch = preprocess.normalize(input_ch).unsqueeze(0)
 

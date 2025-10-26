@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import re
 import numpy as np
 import pyvista
@@ -6,6 +6,9 @@ from pyvista import CellType
 from copy import deepcopy
 from crackpy.structure_elements import data_files
 from crackpy.structure_elements.material import Material
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class InputData:
@@ -101,7 +104,7 @@ class InputData:
         if nodemap is not None:
             self.nodemap_folder = nodemap.folder
             self.nodemap_name = nodemap.name
-            self.nodemap_file = os.path.join(self.nodemap_folder, self.nodemap_name)
+            self.nodemap_file = str(Path(self.nodemap_folder) / self.nodemap_name)
             self.nodemap_structure = nodemap.structure
             self.read_header(meta_attributes_to_keywords=self.meta_keywords)
             if not read_header_only:
@@ -113,16 +116,16 @@ class InputData:
     # DATA HANDLING METHODS #
     #########################
 
-    def set_nodemap_file(self, nodemap_file: str):
+    def set_nodemap_file(self, nodemap_file: str | Path):
         """Set nodemap data file path.
 
         Args:
             nodemap_file: name of data file
         """
-        self.nodemap_file = nodemap_file
+        self.nodemap_file = str(nodemap_file)
 
 
-    def set_connection_file(self, connection_file: str, folder: str):
+    def set_connection_file(self, connection_file: str, folder: str | Path):
         """Set connection file path.
 
         Args:
@@ -130,7 +133,7 @@ class InputData:
             folder: folder of connection file
 
         """
-        connection_file_path = os.path.join(folder, connection_file)
+        connection_file_path = Path(folder) / connection_file
         np_df = np.genfromtxt(connection_file_path, dtype=int, delimiter=';', skip_header=1)
 
         # Check if there are any elements with -1 as node number
@@ -228,7 +231,7 @@ class InputData:
         """
         self._validate_data_shapes(required_fields=field_names)
 
-    def to_vtk(self, output_folder: str = None, metadata: bool = True, alpha: float = 1.0):
+    def to_vtk(self, output_folder: str | Path = None, metadata: bool = True, alpha: float = 1.0):
         """Returns a vtk file of the DIC data.
 
         Args:
@@ -258,9 +261,8 @@ class InputData:
             mesh = pyvista.UnstructuredGrid(elements, cell_types, nodes)
 
         else:
-            print(
-                f'No connectivity data provided for {self.nodemap_name}. '
-                f'Reconstructing a mesh from the nodes using Delaunay triangulation with alpha = {alpha}.')
+            logger.warning(
+                f'No connectivity data provided for {self.nodemap_name}. Reconstructing mesh from nodes using Delaunay triangulation with alpha={alpha}.')
             cloud = pyvista.PolyData(nodes)
             mesh = cloud.delaunay_2d(alpha=alpha)
 
@@ -300,10 +302,10 @@ class InputData:
 
         # write vtk file
         if output_folder is not None:
-            if not os.path.exists(output_folder):
-                os.makedirs(output_folder)
-            path = os.path.join(output_folder, self.nodemap_name[:-4] + '.vtk')
-            mesh.save(path, binary=False)
+            out_dir = Path(output_folder)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            path = out_dir / (Path(self.nodemap_name).stem + '.vtk')
+            mesh.save(str(path), binary=False)
         return mesh
 
 

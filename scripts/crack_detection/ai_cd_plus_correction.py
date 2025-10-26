@@ -1,7 +1,8 @@
 # Imports
-import os
+from pathlib import Path
 import time
 import matplotlib.pyplot as plt
+import logging
 
 from crackpy.crack_detection.line_intercept import CrackDetectionLineIntercept
 from crackpy.crack_detection.correction import CrackTipCorrection
@@ -12,6 +13,10 @@ from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 
+# Setup logging for script
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
 
 # Settings
 
@@ -20,11 +25,12 @@ plt.rcParams['image.cmap'] = 'coolwarm'
 plt.rcParams['figure.dpi'] = 300
 
 # settings
+PROJECT_ROOT = Path(__file__).parents[2]
+
 NODEMAP_FILE = 'Dummy2_WPXXX_DummyVersuch_2_dic_results_1_52.txt'
-DATA_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Nodemaps')
-OUTPUT_PATH = "cd_ai_plus_correction"
-if not os.path.exists(OUTPUT_PATH):
-    os.makedirs(OUTPUT_PATH)
+DATA_PATH = PROJECT_ROOT / 'test_data' / 'crack_detection' / 'Nodemaps'
+OUTPUT_PATH = PROJECT_ROOT / "cd_ai_plus_correction"
+OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 material = Material(E=72000, nu_xy=0.33, sig_yield=350)
 
@@ -36,16 +42,16 @@ det = CrackDetection(
     angle_det_radius=10,
     device='cpu'
 )
-print(det.device)
+logger.info(f"Using device: {det.device}")
 
 # Get nodemap data
-nodemap = Nodemap(name=NODEMAP_FILE, folder=DATA_PATH)
+nodemap = Nodemap(name=NODEMAP_FILE, folder=str(DATA_PATH))
 data = InputData(nodemap)
 data.calc_stresses(material)
 
 
 starttime = time.time()
-print('Start crack detection')
+logger.info('Starting AI-based crack detection …')
 # Interpolate data on arrays (256 x 256 pixels)
 interp_disps, interp_eps_vm = det.interpolate(data)
 
@@ -69,8 +75,8 @@ crack_tip_pixels = ct_det.find_most_likely_tip_pos(pred)
 # Calculate global crack tip positions in mm
 crack_tip_x, crack_tip_y = ct_det.calculate_position_in_mm(crack_tip_pixels)
 
-print(f"Crack tip x [mm]: {crack_tip_x}")
-print(f"Crack tip y [mm]: {crack_tip_y}")
+logger.info(f"Crack tip x [mm]: {crack_tip_x}")
+logger.info(f"Crack tip y [mm]: {crack_tip_y}")
 
 #####################
 # Path detection
@@ -96,13 +102,13 @@ try:
 
     # Estimate the angle
     angle = angle_est.predict_angle(cp_segmentation_largest_region)
-    print(f"Crack angle [deg]: {angle}")
+    logger.info(f"Crack angle [deg]: {angle}")
 
-except:
-    print('Crack angle estimation failed!')
+except Exception:
+    logger.exception('Crack angle estimation failed; defaulting angle to 0.')
     angle = 0
 
-print(f"Time AI-CrackDetection: {(time.time() - starttime):.2f} s")
+logger.info(f"Time AI-CrackDetection: {(time.time() - starttime):.2f} s")
 
 starttime = time.time()
 cd = CrackDetectionLineIntercept(
@@ -134,7 +140,7 @@ opt_props = OptimizationProperties(
     tick_size=0.1,
     terms=[-1, 0, 1, 2]
 )
-print('Correcting crack tip position...')
+logger.info('Correcting crack tip position using symbolic regression …')
 crack_tip_corr = correction.correct_crack_tip(
     opt_props,
     max_iter=100,
@@ -144,15 +150,16 @@ crack_tip_corr = correction.correct_crack_tip(
     verbose=True,
     plot_intermediate_results=True,
     cd=cd,
-    folder=os.path.join(OUTPUT_PATH, 'crack_tip_correction')
+    folder=str(OUTPUT_PATH / 'crack_tip_correction')
 )
 
-print(f"Time CrackTipCorrection: {(time.time() - starttime):.2f} s")
+logger.info(f"Time CrackTipCorrection: {(time.time() - starttime):.2f} s")
 
 # Plot prediction
 results_corr = {
     'SymReg': crack_tip_corr,
 }
-
-cd.plot(fname=NODEMAP_FILE[:-4] + '.png', folder=os.path.join(OUTPUT_PATH, 'crack_tip_correction'),
+plots_dir = OUTPUT_PATH / 'crack_tip_correction'
+plots_dir.mkdir(parents=True, exist_ok=True)
+cd.plot(fname=Path(NODEMAP_FILE).stem + '.png', folder=str(plots_dir),
         crack_tip_results=results_corr, fmax=material.sig_yield)

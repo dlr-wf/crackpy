@@ -12,19 +12,27 @@
 """
 
 # imports
-import os
-
+from pathlib import Path
+import logging
 from matplotlib import pyplot as plt
 
 from crackpy.crack_detection.model import get_model
 from crackpy.crack_detection.pipeline.pipeline import CrackDetectionSetup, CrackDetectionPipeline
 
+# Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 plt.rcParams['image.cmap'] = 'coolwarm'
 plt.rcParams['figure.dpi'] = 100
 
+# Determine project root (two levels above scripts/<subdir>)
+PROJECT_ROOT = Path(__file__).parents[2]
+
 # paths
-DATA_PATH = os.path.join('..', '..', 'test_data', 'crack_detection', 'Nodemaps')
-OUTPUT_PATH = 'Pipeline_Output'
+DATA_PATH = PROJECT_ROOT / 'test_data' / 'crack_detection' / 'Nodemaps'
+OUTPUT_PATH = PROJECT_ROOT / 'Pipeline_Output'
+OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 # tip detector
 tip_detector = get_model('ParallelNets')
@@ -43,8 +51,8 @@ det_setup = CrackDetectionSetup(
 
 # pipeline
 cd_pipeline = CrackDetectionPipeline(
-    data_path=DATA_PATH,
-    output_path=OUTPUT_PATH,
+    data_path=str(DATA_PATH),
+    output_path=str(OUTPUT_PATH),
     tip_detector_model=tip_detector,
     path_detector_model=path_detector,
     setup=det_setup

@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 
 class FileStructure:
@@ -40,7 +40,7 @@ class NodemapStructure(FileStructure):
 
 
 class DataFile:
-    def __init__(self, name: str, folder: str or os.path = None,
+    def __init__(self, name: str, folder: str | Path = None,
                  structure: FileStructure = None,
                  project_name: str = "example project",
                  specimen_name: str = "specimen name"):
@@ -63,7 +63,7 @@ class DataFile:
 
 
 class Nodemap(DataFile):
-    def __init__(self, name: str, folder: str or os.path,
+    def __init__(self, name: str, folder: str | Path,
                  structure: NodemapStructure = NodemapStructure(),
                  project_name: str = "example project",
                  specimen_name: str = "specimen name"):

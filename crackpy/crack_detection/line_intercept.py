@@ -1,4 +1,5 @@
-import os
+import logging
+from pathlib import Path
 
 import numpy as np
 import scipy
@@ -7,6 +8,8 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from crackpy.input.input_data import InputData
+
+logger = logging.getLogger(__name__)
 
 
 class CrackDetectionLineIntercept:
@@ -142,7 +145,7 @@ class CrackDetectionLineIntercept:
             self.crack_tip = np.asarray([np.nan, np.nan])
             self.crack_path = np.stack([np.nan, np.nan], axis=-1)
             self.crack_angle = np.nan
-            print('No crack tip detected')
+            logger.warning('No crack tip detected by line intercept method; returning NaN values.')
 
     def plot(self, fname: str, folder: str, crack_tip_results: dict= None,
              crack_tip_position: dict = None, fmin: float = 0, fmax: float = 0.0068, plot_window: list = None):
@@ -160,8 +163,8 @@ class CrackDetectionLineIntercept:
                          If None: self.x_min, self.x_max, self.y_min, self.y_max is used
 
         """
-        if not os.path.exists(folder):
-            os.makedirs(folder)
+        p = Path(folder)
+        p.mkdir(parents=True, exist_ok=True)
 
         num_colors = 120
         contour_vector = np.linspace(fmin, fmax, num_colors, endpoint=True)
@@ -200,7 +203,7 @@ class CrackDetectionLineIntercept:
             ax.set_xlim([plot_window[0], plot_window[1]])
             ax.set_ylim([plot_window[2], plot_window[3]])
 
-        plt.savefig(os.path.join(folder, fname), bbox_inches='tight')
+        plt.savefig(str(p / fname), bbox_inches='tight')
 
     def _map_data_to_grid(self):
         """Map the data to a grid."""
@@ -257,8 +260,8 @@ def plot_grid_errors(df, fname: str, folder: str):
         folder: folder
 
     """
-    if not os.path.exists(folder):
-        os.makedirs(folder)
+    p = Path(folder)
+    p.mkdir(parents=True, exist_ok=True)
 
     dx = df.iloc[:, 0]
     dy = df.iloc[:, 1]
@@ -286,5 +289,5 @@ def plot_grid_errors(df, fname: str, folder: str):
     ax.set_xlabel('dx [mm]')
     ax.set_ylabel('dy [mm]')
     ax.axis('image')
-
-    plt.savefig(os.path.join(folder, fname), bbox_inches='tight')
+    # Save figure
+    plt.savefig(str(p / fname), bbox_inches='tight')

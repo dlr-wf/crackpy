@@ -10,7 +10,8 @@ Output:
 
 """
 
-import os
+from pathlib import Path
+import logging
 
 from crackpy.fracture_analysis.crack_tip import cjp_stress_field_mixedmode, cjp_displ_field_mixedmode
 from crackpy.structure_elements.material import Material
@@ -20,11 +21,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+# Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # Set matplotlib settings
 plt.rcParams.update({
     "font.size": 20,
     "text.usetex": True,
-    "font.family": "Computer Modern",
+    "font.family": "serif",
     "figure.figsize": [10, 10],
     "figure.dpi": 300
 })
@@ -43,20 +48,13 @@ K_S = -np.sqrt(np.pi / 2) * (A_r + B_r) / np.sqrt(1000)  # MPa m^0.5
 K_II = 2 * np.sqrt(2 * np.pi) * B_i / np.sqrt(1000)  # MPa m^0.5
 T = -C  # MPa
 
-print(f'K_F = {K_F:.2f} MPa m^0.5')
-print(f'K_R = {K_R:.2f} MPa m^0.5')
-print(f'K_S = {K_S:.2f} MPa m^0.5')
-print(f'K_II = {K_II:.2f} MPa m^0.5')
-print(f'T = {T:.2f} MPa')
+logger.info(f"CJP parameters: K_F = {K_F:.2f} MPa·m^0.5, K_R = {K_R:.2f} MPa·m^0.5, K_S = {K_S:.2f} MPa·m^0.5, K_II = {K_II:.2f} MPa·m^0.5, T = {T:.2f} MPa")
 
 material = Material(E=72000, nu_xy=0.33, sig_yield=350.0)
 
 # Output path
-OUTPUT_PATH = os.path.join('CJP_field')
-
-# check if output path exists
-if not os.path.exists(OUTPUT_PATH):
-    os.makedirs(OUTPUT_PATH)
+OUTPUT_PATH = Path('CJP_field')
+OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 # Define the material
 material = Material(E=72000, nu_xy=0.33, sig_yield=350.0)
@@ -80,7 +78,7 @@ x_grid, y_grid = Optimization.make_cartesian(r_grid, phi_grid)
 #######################################################################################################################
 # Plot u_x
 #######################################################################################################################
-print('Plotting u_x')
+logger.info('Plotting CJP displacement u_x …')
 # Matplotlib plot
 number_colors = 120
 number_labes = 5
@@ -114,20 +112,20 @@ ax.axis('image')
 ax.set_xlim(-50, 50)
 ax.set_ylim(-50, 50)
 
-fig.suptitle(f'CJP field', y=0.95)
+fig.suptitle('CJP field', y=0.95)
 ax.set_title(
     f"$K_F = {K_F:.2f} \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, K_R = {K_R:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, K_S = {K_S:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}$\n"
     f"$K_{{II}} = {K_II:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, T = {T:.2f}  \\, \\mathrm{{N \\cdot mm^{{-2}}}}$",
     fontsize=14)
 
-output_file = os.path.join(OUTPUT_PATH, f'CJP_field_ux.png')
-plt.savefig(output_file, bbox_inches='tight')
+output_file = OUTPUT_PATH / 'CJP_field_ux.png'
+plt.savefig(str(output_file), bbox_inches='tight')
 plt.clf()
 
 #######################################################################################################################
 # Plot u_y
 #######################################################################################################################
-print('Plotting u_y')
+logger.info('Plotting CJP displacement u_y …')
 # Matplotlib plot
 number_colors = 120
 number_labes = 5
@@ -161,20 +159,20 @@ ax.axis('image')
 ax.set_xlim(-50, 50)
 ax.set_ylim(-50, 50)
 
-fig.suptitle(f'CJP field', y=0.95)
+fig.suptitle('CJP field', y=0.95)
 ax.set_title(
     f"$K_F = {K_F:.2f} \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, K_R = {K_R:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, K_S = {K_S:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}$\n"
     f"$K_{{II}} = {K_II:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, T = {T:.2f}  \\, \\mathrm{{N \\cdot mm^{{-2}}}}$",
     fontsize=14)
 
-output_file = os.path.join(OUTPUT_PATH, f'CJP_field_uy.png')
-plt.savefig(output_file, bbox_inches='tight')
+output_file = OUTPUT_PATH / 'CJP_field_uy.png'
+plt.savefig(str(output_file), bbox_inches='tight')
 plt.clf()
 
 #######################################################################################################################
 # Plot sigma_xx
 #######################################################################################################################
-print('Plotting sigma_xx')
+logger.info('Plotting CJP stress sigma_xx …')
 # Matplotlib plot
 number_colors = 120
 number_labes = 5
@@ -208,20 +206,20 @@ ax.axis('image')
 ax.set_xlim(-50, 50)
 ax.set_ylim(-50, 50)
 
-fig.suptitle(f'CJP field', y=0.95)
+fig.suptitle('CJP field', y=0.95)
 ax.set_title(
     f"$K_F = {K_F:.2f} \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, K_R = {K_R:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, K_S = {K_S:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}$\n"
     f"$K_{{II}} = {K_II:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, T = {T:.2f}  \\, \\mathrm{{N \\cdot mm^{{-2}}}}$",
     fontsize=14)
 
-output_file = os.path.join(OUTPUT_PATH, f'CJP_field_sigma_xx.png')
-plt.savefig(output_file, bbox_inches='tight')
+output_file = OUTPUT_PATH / 'CJP_field_sigma_xx.png'
+plt.savefig(str(output_file), bbox_inches='tight')
 plt.clf()
 
 #######################################################################################################################
 # Plot sigma_yy
 #######################################################################################################################
-print('Plotting sigma_yy')
+logger.info('Plotting CJP stress sigma_yy …')
 # Matplotlib plot
 number_colors = 120
 number_labes = 5
@@ -255,20 +253,20 @@ ax.axis('image')
 ax.set_xlim(-50, 50)
 ax.set_ylim(-50, 50)
 
-fig.suptitle(f'CJP field', y=0.95)
+fig.suptitle('CJP field', y=0.95)
 ax.set_title(
     f"$K_F = {K_F:.2f} \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, K_R = {K_R:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, K_S = {K_S:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}$\n"
     f"$K_{{II}} = {K_II:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, T = {T:.2f}  \\, \\mathrm{{N \\cdot mm^{{-2}}}}$",
     fontsize=14)
 
-output_file = os.path.join(OUTPUT_PATH, f'CJP_field_sigma_yy.png')
-plt.savefig(output_file, bbox_inches='tight')
+output_file = OUTPUT_PATH / 'CJP_field_sigma_yy.png'
+plt.savefig(str(output_file), bbox_inches='tight')
 plt.clf()
 
 #######################################################################################################################
 # Plot sigma_xy
 #######################################################################################################################
-print('Plotting sigma_xy')
+logger.info('Plotting CJP stress sigma_xy …')
 # Matplotlib plot
 number_colors = 120
 number_labes = 5
@@ -302,20 +300,20 @@ ax.axis('image')
 ax.set_xlim(-50, 50)
 ax.set_ylim(-50, 50)
 
-fig.suptitle(f'CJP field', y=0.95)
+fig.suptitle('CJP field', y=0.95)
 ax.set_title(
     f"$K_F = {K_F:.2f} \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, K_R = {K_R:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, K_S = {K_S:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}$\n"
     f"$K_{{II}} = {K_II:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, T = {T:.2f}  \\, \\mathrm{{N \\cdot mm^{{-2}}}}$",
     fontsize=14)
 
-output_file = os.path.join(OUTPUT_PATH, f'CJP_field_sigma_xy.png')
-plt.savefig(output_file, bbox_inches='tight')
+output_file = OUTPUT_PATH / 'CJP_field_sigma_xy.png'
+plt.savefig(str(output_file), bbox_inches='tight')
 plt.clf()
 
 #######################################################################################################################
 # Plot sigma_eqv
 #######################################################################################################################
-print('Plotting sigma_eqv')
+logger.info('Plotting CJP equivalent stress sigma_eqv …')
 # Matplotlib plot
 number_colors = 120
 number_labes = 5
@@ -349,12 +347,12 @@ ax.axis('image')
 ax.set_xlim(-50, 50)
 ax.set_ylim(-50, 50)
 
-fig.suptitle(f'CJP field', y=0.95)
+fig.suptitle('CJP field', y=0.95)
 ax.set_title(
     f"$K_F = {K_F:.2f} \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, K_R = {K_R:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, K_S = {K_S:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}$\n"
     f"$K_{{II}} = {K_II:.2f}  \\, \\mathrm{{N \\cdot mm^{{-1.5}}}}, T = {T:.2f}  \\, \\mathrm{{N \\cdot mm^{{-2}}}}$",
     fontsize=14)
 
-output_file = os.path.join(OUTPUT_PATH, f'CJP_field_sigma_eqv.png')
-plt.savefig(output_file, bbox_inches='tight')
+output_file = OUTPUT_PATH / 'CJP_field_sigma_eqv.png'
+plt.savefig(str(output_file), bbox_inches='tight')
 plt.clf()

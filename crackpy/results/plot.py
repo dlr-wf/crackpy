@@ -1,8 +1,9 @@
-import os
+from pathlib import Path
 
 import numpy as np
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+import logging
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
 from crackpy.fracture_analysis.crack_tip import cjp_displ_field_mixedmode, williams_displ_field
@@ -11,6 +12,8 @@ from crackpy.fracture_analysis.crack_tip import cjp_displ_field_mixedmode, willi
 # https://stackoverflow.com/questions/28903969/python-multiprocessingsavefig-leads-to-error-or-system-lockup
 import matplotlib
 matplotlib.use('Agg')
+
+logger = logging.getLogger(__name__)
 
 
 class PlotSettings:
@@ -71,7 +74,7 @@ class PlotSettings:
         if keyword == 'sig_xy':
             return 'Stress $\\sigma_{xy}$'
 
-        print(f"Warning: keyword {keyword} not recognized. Using 'sig_vm' instead.")
+        logger.warning(f"Keyword '{keyword}' not recognized. Falling back to 'sig_vm'.")
         self.background = 'sig_vm'
         return 'Von Mises stress $\\sigma_{vm}$'
 
@@ -126,8 +129,8 @@ class Plotter:
             self._plot_integration()
 
         # Save figure
-        save_path = os.path.join(self.path, self.filename)
-        plt.savefig(save_path + '.png', bbox_inches='tight')
+        save_path = Path(self.path) / self.filename
+        plt.savefig(str(save_path) + '.png', bbox_inches='tight')
         plt.clf()
         plt.close()
 
@@ -241,7 +244,7 @@ class Plotter:
                    f"$J$ = {self.analysis.sifs_int['rej_out_mean']['j']:.2f} $N*mm^{{-1}}$\n" + \
                    f"$K_J$ = {self.analysis.sifs_int['rej_out_mean']['sif_j']:.2f} $MPa*m^{{1/2}}$\n" + \
                    f"$K_{{I}}$ = {self.analysis.sifs_int['rej_out_mean']['decomp_K_1']:.2f} $MPa*m^{{1/2}}$\n" + \
-                     f"$K_{{II}}$ = {self.analysis.sifs_int['rej_out_mean']['decomp_K_2']:.2f} $MPa*m^{{1/2}}$\n" + \
+                   f"$K_{{II}}$ = {self.analysis.sifs_int['rej_out_mean']['decomp_K_2']:.2f} $MPa*m^{{1/2}}$\n" + \
                    f"$K_{{III}}$ = {self.analysis.sifs_int['rej_out_mean']['decomp_K_3']:.2f} $MPa*m^{{1/2}}$"
 
             self.ax_results.text(0.1, 0.975, text.replace('*', '\\cdot '),
@@ -354,10 +357,10 @@ class Plotter:
     @staticmethod
     def _make_path(path):
         """Create and return path."""
-        if not os.path.exists(path):
-            os.makedirs(path)
-        return path
+        p = Path(path)
+        p.mkdir(parents=True, exist_ok=True)
+        return p
 
     def _set_filename(self) -> str:
         """Returns filename with '_side' at the end. E.g. 'filename.txt' -> 'filename_side'."""
-        return os.path.split(self.analysis.nodemap_file)[-1][:-4] + '_' + self.analysis.crack_tip.left_or_right
+        return Path(self.analysis.nodemap_file).stem + '_' + self.analysis.crack_tip.left_or_right
