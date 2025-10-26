@@ -102,10 +102,14 @@ class IntegralProperties:
             auto_detect_threshold: threshold stress typically taken equal to yield stress
 
         """
+        logger.debug(f"Starting automatic integral path detection with threshold={auto_detect_threshold:.2f} MPa")
+
         if data.sig_vm is None:
             raise ValueError("Stresses need to be calculated before using ``data`` by calling data.calc_stresses()")
         # Calculate face size
         facet_size = data.get_facet_size()
+        logger.debug(f"Calculated facet size: {facet_size:.4f} mm")
+
         # Map data on regular grid
         x_min = facet_size * 2.0
         grid_x, grid_y = np.mgrid[-x_min:max(data.coor_x): 500j, min(data.coor_y):max(data.coor_y): 500j]
@@ -115,6 +119,8 @@ class IntegralProperties:
         threshold_array = ngrid > auto_detect_threshold
         threshold_array = threshold_array.astype(int)
         labeled_images, num_features = label(threshold_array)
+        logger.debug(f"Found {num_features} features above threshold")
+
         object_label = -1
 
         for i_feature in range(1, num_features + 1):
@@ -176,6 +182,12 @@ class IntegralProperties:
             self.paths_distance_top = facet_size
         if self.paths_distance_bottom is None:
             self.paths_distance_bottom = facet_size
+
+        logger.debug(f"Automatic integral path detection completed:")
+        logger.debug(f"  Integral sizes: left={self.integral_size_left:.2f}, right={self.integral_size_right:.2f}, "
+                    f"top={self.integral_size_top:.2f}, bottom={self.integral_size_bottom:.2f}")
+        logger.debug(f"  Offsets: top={self.top_offset:.2f}, bottom={self.bottom_offset:.2f}")
+        logger.debug(f"  Tick size: {self.integral_tick_size:.4f} mm")
 
 
 class PathProperties:
@@ -403,13 +415,27 @@ class LineIntegral:
         - Williams coefficients with Buckner-Chen method (if terms are given)
 
         """
+        logger.debug(f"Starting integration for all methods, integration points: {len(self.np_integration_points)}")
+
         self.integrate_j()
+        logger.debug(f"J-integral: {self.j_integral:.6f} N/mm, K_J: {self.sif_k_j:.6f} MPa√m")
+
         self.integrate_j_decompose()
+        logger.debug(f"J-decomposition completed: K_I={self.decomp_j_integral_K_I:.6f}, "
+                    f"K_II={self.decomp_j_integral_K_II:.6f}, K_III={self.decomp_j_integral_K_III:.6f} MPa√m")
+
         self.integrate_i_k1_k2()
+        logger.debug(f"Interaction integral SIFs: K_I={self.sif_k_i:.6f}, K_II={self.sif_k_ii:.6f} MPa√m")
+
         self.integrate_i_t()
+        logger.debug(f"T-stress (interaction): {self.t_stress_int:.6f} MPa")
+
         self.integrate_t_sdm()
+        logger.debug(f"T-stress (SDM): {self.t_stress_sdm:.6f} MPa")
+
         if self.buckner_williams_terms is not None:
             self.integrate_buckner_chen()
+            logger.debug(f"Buckner-Chen integral completed for {len(self.buckner_williams_terms)} terms")
 
     ###########################################
     # METHODS FOR CALCULATING THE DESCRIPTORS #

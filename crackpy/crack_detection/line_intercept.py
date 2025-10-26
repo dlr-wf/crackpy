@@ -84,6 +84,8 @@ class CrackDetectionLineIntercept:
 
     def run(self):
         """Run crack detection with line intercept method."""
+        logger.debug(f"Starting line intercept crack detection with eps_vm_threshold={self.eps_vm_threshold:.4f}, window_size={self.window_size}")
+
         # Fit a Formula to each slice of the grid
         coefficients_fitted = []
 
@@ -92,8 +94,10 @@ class CrackDetectionLineIntercept:
         init_coeff = self.y_min + (self.y_max - self.y_min) / 2.0
 
         self.x_path = []
+        num_valid_slices = 0
         for step, x_coordinate in enumerate(self.x_coords):
             if not np.isnan(self.disp_grid[:, step]).all():
+                num_valid_slices += 1
                 init_coeffs = [1.0, init_coeff, 1.0, 0.0, 0.0]
                 res = optimize.least_squares(
                     fun=self._residuals_tanh,
@@ -111,6 +115,8 @@ class CrackDetectionLineIntercept:
                 coefficients_fitted.append(fitted_coefficients)
                 self.x_path.append(x_coordinate)
 
+        logger.debug(f"Fitted tanh function to {num_valid_slices} valid slices out of {len(self.x_coords)} total slices")
+
         self.coefficients_fitted = np.asarray(coefficients_fitted).T
 
         # The y-coordinate of the crack path corresponds to the coefficient "B".
@@ -126,6 +132,9 @@ class CrackDetectionLineIntercept:
             if np.all(reversed_eps_vm_crack_path[i:i + self.window_size] > self.eps_vm_threshold):
                 self.tip_index = len(reversed_eps_vm_crack_path) - i - 1
                 break
+
+        logger.debug(f"Crack tip search: tip_index={self.tip_index} out of {len(self.x_path)} path points")
+
         if self.tip_index > 0:
             self.crack_tip = np.asarray([self.x_path[self.tip_index], self.y_path[self.tip_index]])
             self.crack_path = np.stack([self.x_path[0:self.tip_index], self.y_path[0:self.tip_index]], axis=-1)
@@ -141,6 +150,9 @@ class CrackDetectionLineIntercept:
             c = line_coeffs[1]
             yy = m * x + c
             self.crack_angle = np.arctan2(yy[-1] - yy[0], x[-1] - x[0]) * 180.0 / np.pi
+
+            logger.debug(f"Crack tip detected at ({self.crack_tip[0]:.3f}, {self.crack_tip[1]:.3f}) mm, angle={self.crack_angle:.2f}°")
+            logger.debug(f"Crack path contains {len(self.crack_path)} points")
         else:
             self.crack_tip = np.asarray([np.nan, np.nan])
             self.crack_path = np.stack([np.nan, np.nan], axis=-1)
@@ -209,6 +221,9 @@ class CrackDetectionLineIntercept:
         """Map the data to a grid."""
         steps_x = int((self.x_max - self.x_min) / self.tick_size_x)
         steps_y = int((self.y_max - self.y_min) / self.tick_size_y)
+        logger.debug(f"Mapping data to grid: {steps_x}x{steps_y} grid points")
+        logger.debug(f"Grid range: x=[{self.x_min:.2f}, {self.x_max:.2f}], y=[{self.y_min:.2f}, {self.y_max:.2f}]")
+
         self.x_coords = np.linspace(self.x_min, self.x_max, steps_x, endpoint=True)
         self.y_coords = np.linspace(self.y_min, self.y_max, steps_y, endpoint=True)
         self.x_grid, self.y_grid = np.meshgrid(self.x_coords, self.y_coords)
@@ -220,6 +235,8 @@ class CrackDetectionLineIntercept:
             self.disp_grid = self.disp_x_grid
         if self.grid_component == 'uy':
             self.disp_grid = self.disp_y_grid
+
+        logger.debug(f"Grid component '{self.grid_component}' mapped, range: [{np.nanmin(self.disp_grid):.4f}, {np.nanmax(self.disp_grid):.4f}] mm")
 
     def _tanh_funct(self, coefficients, coordinates):
         """Hyperbolic tangent function to approximate the displacements.

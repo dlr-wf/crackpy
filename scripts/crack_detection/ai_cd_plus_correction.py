@@ -14,7 +14,7 @@ from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 
 # Setup logging for script
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -147,7 +147,6 @@ crack_tip_corr = correction.correct_crack_tip(
     step_tol=0.005,
     damper=1,
     method='symbolic_regression',
-    verbose=True,
     plot_intermediate_results=True,
     cd=cd,
     folder=str(OUTPUT_PATH / 'crack_tip_correction')

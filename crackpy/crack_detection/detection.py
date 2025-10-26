@@ -77,7 +77,10 @@ class CrackDetection:
             interpolated displacements, interpolated von Mises strains as arrays of size 256x256
 
         """
+        logger.debug(f"Interpolating data on 256x256 grid with size={self.interp_size} mm, offset={self.offset}")
         _, interp_disps, interp_eps_vm = interpolate(data, self.interp_size, offset=self.offset, pixels=256)
+        logger.debug(f"Interpolation completed: disp_range=[{interp_disps.min():.4f}, {interp_disps.max():.4f}], "
+                    f"eps_vm_range=[{interp_eps_vm.min():.4f}, {interp_eps_vm.max():.4f}]")
         return interp_disps, interp_eps_vm
 
     def _get_interp_size(self):
@@ -120,6 +123,7 @@ class CrackTipDetection:
             crack_tip_x *= -1
         crack_tip_x += self.detection.offset[0]
         crack_tip_y += self.detection.offset[1]
+        logger.debug(f"Converted crack tip from pixels {crack_tip_px} to mm: ({crack_tip_x:.3f}, {crack_tip_y:.3f})")
         return crack_tip_x, crack_tip_y
 
     def calculate_segmentation_in_mm(self, crack_tip_pix: torch.Tensor) -> np.ndarray:
@@ -155,11 +159,13 @@ class CrackTipDetection:
             crack tip segmentation output
 
         """
+        logger.debug(f"Making crack tip prediction with input shape: {input_ch.shape}")
         device = self.detection.device
         self.tip_detector.to(device=device)
         self.tip_detector.eval()
         out = self.tip_detector(input_ch.to(device))
         pred = out[0].detach().to('cpu')
+        logger.debug(f"Crack tip prediction completed, output shape: {pred.shape}")
 
         return pred
 

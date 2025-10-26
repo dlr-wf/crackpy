@@ -26,7 +26,7 @@ from crackpy.results.read import OutputReader
 from crackpy.structure_elements.material import Material
 
 # Logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Determine project root

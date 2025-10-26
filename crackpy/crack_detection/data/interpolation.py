@@ -1,7 +1,10 @@
 import numpy as np
 from scipy.interpolate import griddata
+import logging
 
 from crackpy.input.input_data import InputData
+
+logger = logging.getLogger(__name__)
 
 
 def interpolate_on_array(input_by_nodemap, interp_size, offset=(0, 0), pixels=256):
@@ -61,6 +64,8 @@ def interpolate(input_data_object: InputData, size: int or float, offset=(0, 0),
         giving coordinates, displacements and Von-Mises Strains on each pixel in the array
 
     """
+    logger.debug(f"Interpolating data: size={size}, offset={offset}, pixels={pixels}")
+
     if not isinstance(size, (int, float)):
         raise TypeError(
             'Argument "size" should be an integer, indicating the edge length of field of view.\n'

@@ -18,13 +18,18 @@ def get_nodemaps_and_stage_nums(folder_path: str | Path, which='All'):
         (dicts) stage_num_to_filename, filename_to_stage_num
     """
     folder = Path(folder_path)
+    logger.debug(f"Getting nodemaps from folder: {folder}")
+
     if which == 'All':
         list_of_filenames = [p.name for p in folder.iterdir() if p.is_file()]
         which = [name.split('_')[-1].removesuffix('.txt') for name in list_of_filenames]
+        logger.debug(f"Found {len(list_of_filenames)} nodemap files")
     assert isinstance(which, (list, range)), 'Argument "which" should be a list of integers or "All".'
 
     first_file = next((p.name for p in folder.iterdir() if p.is_file()), None)
     nodemap_without_num = '_'.join(first_file.split('_')[:-1]) if first_file else ''
+    logger.debug(f"Nodemap base name: {nodemap_without_num}")
+
     stage_num_to_filename = {}
     filename_to_stage_num = {}
     for stage in which:
@@ -69,6 +74,7 @@ def find_most_likely_tip_pos(out_prob: torch.Tensor):
 
     # finds regions which are connected
     labels, num_of_labels = label(crack_tip_pixels)
+    logger.debug(f"Crack tip detection: found {num_of_labels} connected regions")
 
     if num_of_labels == 0:
         # no crack tips detected
@@ -82,8 +88,12 @@ def find_most_likely_tip_pos(out_prob: torch.Tensor):
         crack_tip_probs = np.multiply(np.where(labels == i, 1, 0), out_prob.squeeze())
         num_of_pixels = np.sum(np.where(labels == i, 1, 0))
         mean_prob = np.sum(crack_tip_probs) / num_of_pixels
+        logger.debug(f"Region {i}: {num_of_pixels} pixels, mean_prob={mean_prob:.4f}")
         if mean_prob >= region_prob:
             region_instance = i
+            region_prob = mean_prob
+
+    logger.debug(f"Selected region {region_instance} with probability {region_prob:.4f}")
 
     pixels = out_prob.shape[-1]
     coors = np.linspace(0, pixels, pixels)

@@ -105,6 +105,10 @@ class CrackDetectionPipeline:
         self.stages_to_nodemaps, _ = get_nodemaps_and_stage_nums(Path(self.data_path), self.setup.stage_nums)
         self.detection_stages = sorted(self.stages_to_nodemaps.keys())
 
+        logger.debug(f"Crack detection pipeline initialized: {len(self.stages_to_nodemaps)} nodemaps found")
+        logger.debug(f"Device: {self.device}, Sides: {self.setup.sides}, Window size: {self.setup.window_size}")
+        logger.debug(f"Detection boundary: {self.setup.detection_boundary}")
+
         self.sides_to_results = None
         self.stages_to_det_stages = None
         self.det_cycles_to_stages = None
@@ -136,8 +140,10 @@ class CrackDetectionPipeline:
             if data.force is None:
                 # no force -> add to filtered_stages
                 filtered_stages.append(stage)
+                logger.debug(f"Stage {stage}: no force data, added to filtered stages")
             elif data.force > max_force - tol:
                 filtered_stages.append(stage)
+                logger.debug(f"Stage {stage}: force={data.force:.2f} N (>= {max_force - tol:.2f} N), added to filtered stages")
                 # get cycles to stages dictionaries
                 if data.cycles is not None:
                     det_cycles_to_stages[data.cycles] = stage
@@ -208,6 +214,8 @@ class CrackDetectionPipeline:
 
                 # Calculate global crack tip positions in mm
                 crack_tip_x, crack_tip_y = ct_det.calculate_position_in_mm(crack_tip_pixels)
+                logger.debug(f"Stage {stage} ({side}): crack tip detected at pixels {crack_tip_pixels}, "
+                           f"position: ({crack_tip_x:.2f}, {crack_tip_y:.2f}) mm")
 
                 #####################
                 # Path detection
@@ -238,6 +246,8 @@ class CrackDetectionPipeline:
                 # Adjust crack detection window
                 ###############################
                 x_min, x_max, y_min, y_max = self.setup.detection_boundary
+                old_offset_x, old_offset_y = offset_x, offset_y
+
                 # Case distinction for left and right side
                 if side == 'right':
                     if offset_x <= x_max - self.setup.window_size:  # check detection boundary
@@ -252,6 +262,10 @@ class CrackDetectionPipeline:
                         offset_y += (crack_tip_y - offset_y - self.setup.window_size / 8)
                     if crack_tip_y < offset_y - self.setup.window_size / 8:
                         offset_y -= (offset_y - self.setup.window_size / 8 - crack_tip_y)
+
+                if offset_x != old_offset_x or offset_y != old_offset_y:
+                    logger.debug(f"Stage {stage} ({side}): detection window adjusted from ({old_offset_x:.2f}, {old_offset_y:.2f}) "
+                               f"to ({offset_x:.2f}, {offset_y:.2f})")
 
                 # Write results to dictionary
                 results['crack_tip_x'] = crack_tip_x

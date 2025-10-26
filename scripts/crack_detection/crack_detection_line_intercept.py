@@ -28,7 +28,7 @@ from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 
 # Setup logging for script
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Set colormap
@@ -90,9 +90,7 @@ logger.info('Optimizing crack tip position via nonlinear optimization …')
 crack_tip_corr_opt = correction.correct_crack_tip_optimization(
     opt_props,
     tol=0.01,
-    objective='error',
-    verbose=True
-)
+    objective='error',)
 
 logger.info('Optimizing crack tip position using Rethore method …')
 crack_tip_corr_rethore = correction.correct_crack_tip(
@@ -100,9 +98,7 @@ crack_tip_corr_rethore = correction.correct_crack_tip(
     max_iter=50,
     step_tol=0.001,
     damper=0.5,
-    method='rethore',
-    verbose=True
-)
+    method='rethore',)
 
 logger.info('Optimizing crack tip position via grid search …')
 correction_grid = CrackTipCorrectionGridSearch(data, crack_tip, crack_angle, material)
@@ -115,7 +111,6 @@ crack_tip_corr_grid, df_grid_errors = correction_grid.correct_crack_tip_grid_sea
     x_step=1,
     y_step=1,
     workers=20,
-    verbose=True
 )
 errors_path = OUTPUT_PATH / 'errors'
 errors_path.mkdir(parents=True, exist_ok=True)

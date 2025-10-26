@@ -151,11 +151,16 @@ class InputData:
 
     def read_nodemap_file(self):
         """Read data from nodemap file."""
+        logger.debug(f"Reading nodemap file: {self.nodemap_file}")
+
         raw_inp = np.genfromtxt(self.nodemap_file,
                                 delimiter=";", encoding="windows-1252")
         np_df = np.asarray(raw_inp, dtype=np.float64)
         # cut nans (necessary since version 2020)
         nodemap_data = self._cut_nans(np_df)
+
+        logger.debug(f"Loaded {len(nodemap_data)} data points from nodemap")
+
         self.facet_id = nodemap_data[:, self.nodemap_structure.index_facet_id]
         self.coor_x = nodemap_data[:, self.nodemap_structure.index_coor_x]
         self.coor_y = nodemap_data[:, self.nodemap_structure.index_coor_y]
@@ -178,6 +183,7 @@ class InputData:
             self.sig_y = nodemap_data[:, 12]
             self.sig_xy = nodemap_data[:, 13]
             self.sig_vm = self._calc_sig_vm()
+            logger.debug("FEM data detected, stress values loaded from file")
 
         self._validate_data_shapes()
 
@@ -358,6 +364,8 @@ class InputData:
             angle: rotation angle in degrees between 0° and 360°
 
         """
+        logger.debug(f"Transforming data: shift=({x_shift:.4f}, {y_shift:.4f}) mm, angle={angle:.2f}°")
+
         angle *= np.pi / 180.0  # deg to rad
         trafo_matrix = np.array([[np.cos(angle), np.sin(angle)],
                                  [-np.sin(angle), np.cos(angle)]])
@@ -438,6 +446,7 @@ class InputData:
         self.sig_x, self.sig_y, self.sig_xy = np.dot(material.stiffness_matrix,
                                                      [self.eps_x, self.eps_y, self.eps_xy])
         self.sig_vm = self._calc_sig_vm()
+        logger.debug(f"Calculated stresses: sig_vm range [{self.sig_vm.min():.2f}, {self.sig_vm.max():.2f}] MPa")
 
     def _calc_sig_vm(self):
         """Returns the Von Mises stress."""

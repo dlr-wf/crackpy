@@ -223,7 +223,9 @@ class FractureAnalysisPipeline:
             closest_max_force_cycle = np.argmin(np.abs(max_force_cycles_array - cycle))
             closest_max_force_stage = max_force_cycles_to_stages[max_force_cycles_array[closest_max_force_cycle]]
             stages_to_max_force_stages[stage] = closest_max_force_stage
+            logger.debug(f"Stage {stage} (cycle {cycle}) assigned to max force stage {closest_max_force_stage}")
         self.stages_to_max_force_stages = stages_to_max_force_stages
+        logger.debug(f"Found {len(filtered_stages)} filtered stages out of {len(self.input_df)} total stages")
 
         return self.stages_to_max_force_stages
 
@@ -282,6 +284,11 @@ class FractureAnalysisPipeline:
                 integral_properties = IntegralProperties()
             try:
                 integral_properties.set_automatically(input_data, auto_detect_threshold=self.material.sig_yield)
+                logger.debug(f"Integral properties set automatically for stage {stage}: "
+                           f"left={integral_properties.integral_size_left:.2f}, "
+                           f"right={integral_properties.integral_size_right:.2f}, "
+                           f"top={integral_properties.integral_size_top:.2f}, "
+                           f"bottom={integral_properties.integral_size_bottom:.2f}")
             except ValueError:
                 logger.warning(f"Could not find integral properties automatically for stage {stage}.")
 
@@ -292,6 +299,7 @@ class FractureAnalysisPipeline:
             max_force_stage = stages_to_max_force_stages[stage]
             corr_index = side_to_stage_to_index[side][max_force_stage]
             self.integral_props[index] = deepcopy(self.integral_props[corr_index])
+            logger.debug(f"Integral properties for stage {stage} ({side}) copied from max force stage {max_force_stage}")
 
     def run(self, num_of_kernels: int = 1):
         """Run fracture analysis pipeline. This method is the main method of the pipeline.
@@ -303,6 +311,9 @@ class FractureAnalysisPipeline:
         """
         # max number of processes is half of the number of CPUs
         num_of_kernels = min(multiprocessing.cpu_count() // 2, num_of_kernels)
+        logger.debug(f"Running pipeline with {num_of_kernels} kernel(s) on {len(self.input_df)} nodemap(s)")
+        logger.debug(f"Optimization enabled: {self.opt_props is not None}, "
+                    f"Integral evaluation enabled: {len(self.integral_props) > 0}")
 
         with progress_rich.Progress(
                 "[progress.description]{task.description}",

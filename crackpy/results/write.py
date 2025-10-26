@@ -2,10 +2,12 @@ from pathlib import Path
 import json
 import numpy as np
 import datetime
-
+import logging
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
 from crackpy.fracture_analysis.crack_tip import unit_of_williams_coefficients
+
+logger = logging.getLogger(__name__)
 
 
 class OutputWriter:
@@ -34,6 +36,11 @@ class OutputWriter:
     def write_header(self) -> None:
         """Writing a header for the output file."""
         out_file = Path(self.path) / self.filename
+        logger.debug(f"Writing header to output file: {out_file}")
+        logger.debug(f"Crack tip position: x={self.analysis.crack_tip.crack_tip_x:.4f}, "
+                    f"y={self.analysis.crack_tip.crack_tip_y:.4f}, "
+                    f"angle={self.analysis.crack_tip.crack_tip_angle:.2f}°")
+
         with open(out_file, mode='w') as file:
             file.write('############################################################################################\n')
             file.write('#                                                                                          #\n')
@@ -72,9 +79,12 @@ class OutputWriter:
     def write_results(self) -> None:
         """Write results of fracture analysis into output file."""
         out_file = Path(self.path) / self.filename
+        logger.debug(f"Writing fracture analysis results to: {out_file}")
+
         with open(out_file, 'a') as file:
 
             if self.analysis.optimization_properties is not None:
+                logger.debug(f"Writing CJP and Williams fitting results")
 
                 file.write('\n')
                 file.write("#######################################\n")
@@ -125,6 +135,7 @@ class OutputWriter:
                 file.write('\n')
 
             if self.analysis.integral_properties is not None:
+                logger.debug(f"Writing integral evaluation results")
                 file.write("###################################\n")
                 file.write("#    SIFs integral evaluation     #\n")
                 file.write("###################################\n")
@@ -365,6 +376,7 @@ class OutputWriter:
             path: Optional path to json file. If None, the path from the OutputWriter class is used.
 
         """
+        logger.debug(f"Writing JSON results to path: {path if path else self.path}")
 
         if path is None:
             self.json_path = self.path

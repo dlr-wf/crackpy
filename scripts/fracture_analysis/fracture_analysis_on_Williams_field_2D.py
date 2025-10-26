@@ -33,7 +33,7 @@ from crackpy.structure_elements.material import Material
 from crackpy.fracture_analysis.crack_tip import williams_displ_field, williams_stress_field
 
 # Logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 

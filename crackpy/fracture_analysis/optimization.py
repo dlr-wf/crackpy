@@ -2,16 +2,14 @@ import numpy as np
 from typing import Union, Optional
 from scipy import optimize
 import logging
+logger = logging.getLogger(__name__)
 
 from crackpy.fracture_analysis.crack_tip import williams_displ_field, cjp_displ_field_mixedmode, williams_displ_field_3d, cjp_displ_field_modeI
 from crackpy.input.input_data import InputData
 from crackpy.structure_elements.material import Material
 from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
 
-
 DEFAULT_WILLIAMS_OPT_TERMS = [-1, 1, 2, 3, 4, 5]
-
-logger = logging.getLogger(__name__)
 
 class OptimizationProperties:
     """Class for setting the Optimization properties."""
@@ -101,6 +99,7 @@ class Optimization:
         interpolator = ReusableLinearInterpolator(self.data.coor_x, self.data.coor_y, np.c_[0, 0])
         intp_data = interpolator.interpolate(np.c_[self.data.disp_x, self.data.disp_y, self.data.disp_z])
         disp_x_0_0, disp_y_0_0, disp_z_0_0 = intp_data[:,0].item(), intp_data[:,1].item(), intp_data[:,2].item()
+        logger.debug(f"Displacement at crack tip (0,0): u_x={disp_x_0_0:.4f}, u_y={disp_y_0_0:.4f}, u_z={disp_z_0_0:.4f} mm")
 
         interpolator = ReusableLinearInterpolator(self.data.coor_x, self.data.coor_y, np.c_[self.x_grid.ravel(), self.y_grid.ravel()])
         intp_data = interpolator.interpolate(np.c_[self.data.disp_x - disp_x_0_0,
@@ -109,6 +108,7 @@ class Optimization:
         self.interp_disp_x = intp_data[:,0].reshape(self.x_grid.shape)
         self.interp_disp_y = intp_data[:,1].reshape(self.x_grid.shape)
         self.interp_disp_z = intp_data[:,2].reshape(self.x_grid.shape)
+        logger.debug(f"Interpolated data on grid with shape {self.x_grid.shape}")
         pass
 
     def optimize_cjp_displacements_modeI(self, method='lm', init_coeffs=None):
@@ -124,6 +124,7 @@ class Optimization:
         else:
             init_coeffs += np.random.rand(5)
         # optimize least squares
+        logger.debug(f"Starting CJP mode I optimization using method '{method}'")
         return optimize.least_squares(fun=self.residuals_cjp_displacements_modeI,
                                       x0=init_coeffs,
                                       method=method)
@@ -140,10 +141,16 @@ class Optimization:
             init_coeffs = np.random.rand(5)
         else:
             init_coeffs += np.random.rand(5)
+
+        logger.debug(f"Starting CJP mixedmode optimization using method '{method}'")
+
         # optimize least squares
-        return optimize.least_squares(fun=self.residuals_cjp_displacements_mixedmode,
+        result = optimize.least_squares(fun=self.residuals_cjp_displacements_mixedmode,
                                       x0=init_coeffs,
                                       method=method)
+
+        logger.debug(f"CJP mixedmode optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
+        return result
 
     def optimize_williams_displacements(self, method='lm', init_coeffs=None):
         """Optimizes Williams displacements.
@@ -156,10 +163,15 @@ class Optimization:
         if init_coeffs is None:
             init_coeffs = np.random.rand(2*len(self.terms))
 
+        logger.debug(f"Starting Williams 2D optimization with {len(self.terms)} terms using method '{method}'")
+
         # optimize least squares
-        return optimize.least_squares(fun=self.residuals_williams_displacements,
+        result = optimize.least_squares(fun=self.residuals_williams_displacements,
                                       x0=init_coeffs,
                                       method=method)
+
+        logger.debug(f"Williams optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
+        return result
 
     def optimize_williams_displacements_3d(self, method='lm', init_coeffs=None):
         """Optimizes Williams displacements in 3D.
@@ -173,9 +185,12 @@ class Optimization:
             init_coeffs = np.random.rand(3*len(self.terms))
 
         # optimize least squares
-        return optimize.least_squares(fun=self.residuals_williams_displacements_3d,
+        logger.debug(f"Starting Williams 3D optimization with {len(self.terms)} terms using method '{method}'")
+        result = optimize.least_squares(fun=self.residuals_williams_displacements_3d,
                                       x0=init_coeffs,
                                       method=method)
+        logger.debug(f"Williams 3D optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
+        return result
 
     def residuals_cjp_displacements_modeI(self, inp: list or np.array) -> np.ndarray:
         """Returns the residuals of CJP displacements.

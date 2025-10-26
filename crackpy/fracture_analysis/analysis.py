@@ -5,6 +5,7 @@ import numpy as np
 from multiprocessing.managers import DictProxy
 import rich.progress as progress_rich
 import logging
+logger = logging.getLogger(__name__)
 
 from crackpy.fracture_analysis import line_integration
 from crackpy.input.input_data import InputData
@@ -14,8 +15,6 @@ from crackpy.fracture_analysis.line_integration import (IntegralProperties,
 from crackpy.fracture_analysis.optimization import Optimization, OptimizationProperties
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
-
-logger = logging.getLogger(__name__)
 
 
 class FractureAnalysis:
@@ -113,10 +112,17 @@ class FractureAnalysis:
             task_id: task id for progress bar (handed-over automatically during pipeline, not needed for single run)
 
         """
+        logger.debug(f"Starting fracture analysis for {self.nodemap_file}")
+        logger.debug(f"Crack tip: x={self.crack_tip.crack_tip_x:.2f}, y={self.crack_tip.crack_tip_y:.2f}, "
+                    f"angle={self.crack_tip.crack_tip_angle:.2f}°, side={self.crack_tip.left_or_right}")
 
         # Set the optimization and line integral methods that should be run
         if self.optimization_properties is not None:
             logger.info('Running optimization (fitting) methods …')
+            logger.debug(f"Optimization settings: min_r={self.optimization_properties.min_radius:.2f}, "
+                        f"max_r={self.optimization_properties.max_radius:.2f}, "
+                        f"angle_gap={self.optimization_properties.angle_gap}°, "
+                        f"terms={self.optimization_properties.terms}")
             self._run_cjp_optimization_modeI()
             self._run_cjp_optimization_mixedmode()
             self._run_williams_optimization()
@@ -125,9 +131,14 @@ class FractureAnalysis:
 
         if self.integral_properties is not None:
             logger.info('Running line integral methods …')
+            logger.debug(f"Integral settings: {self.integral_properties.number_of_paths} paths, "
+                        f"sizes: left={self.integral_properties.integral_size_left:.2f}, "
+                        f"right={self.integral_properties.integral_size_right:.2f}")
             self._run_line_integrals(progress_bar, task_id)
         else:
             logger.info('No integral properties provided; skipping line integrals.')
+
+        logger.debug(f"Fracture analysis completed for {self.nodemap_file}")
 
     pass
 
@@ -152,6 +163,8 @@ class FractureAnalysis:
             K_S /= np.sqrt(1000)
 
             self.cjp_res_m1 = {'Error': cjp_results_m1.cost, 'K_F': K_F, 'K_R': K_R, 'K_S': K_S, 'T_x': T_x, 'T_y': T_y}
+            logger.debug(f"CJP Mode I optimization results: K_F={K_F:.2f}, K_R={K_R:.2f}, K_S={K_S:.2f}, "
+                         f"T_x={T_x:.2f}, T_y={T_y:.2f}")
         except Exception:
             logger.exception('CJP optimization (Mode I) failed.')
             self.cjp_res_m1 = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'T_x': np.nan, 'T_y': np.nan}
@@ -181,7 +194,8 @@ class FractureAnalysis:
             K_II /= np.sqrt(1000)
 
             self.cjp_res_mm = {'Error': cjp_results.cost, 'K_F': K_F, 'K_R': K_R, 'K_S': K_S, 'K_II': K_II, 'T': T}
-
+            logger.debug(f"CJP Mixed Mode optimization results: K_F={K_F:.2f}, K_R={K_R:.2f}, K_S={K_S:.2f}, "
+                         f"K_II={K_II:.2f}, T={T:.2f}")
         except Exception:
             logger.exception('CJP optimization failed.')
             self.cjp_res_mm = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'K_II': np.nan,
@@ -225,7 +239,7 @@ class FractureAnalysis:
                 T = 4 * self.williams_fit_a_n[2]
 
             self.williams_fit_res = {'Error': williams_results.cost, 'K_I': K_I, 'K_II': K_II, 'K_III': K_III, 'T': T}
-
+            logger.debug(f"Williams optimization results: K_I={K_I:.2f}, K_II={K_II:.2f}, K_III={K_III:.2f}, T={T:.2f}")
         except Exception:
             logger.exception('Williams optimization failed.')
             self.williams_fit_a_n = {n: np.nan for index, n in enumerate(self.optimization.terms)}

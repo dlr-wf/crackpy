@@ -29,7 +29,7 @@ from crackpy.structure_elements.material import Material
 # Set up logging
 logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.DEBUG
 )
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,6 @@ with open(out_txt, "w") as out_file:
                     max_iter=100,
                     step_tol=1e-3,
                     method='rethore',
-                    verbose=True,
                     damper=0.5
                 )
                 crack_tip_corr_symreg = correction.correct_crack_tip(
@@ -124,7 +123,6 @@ with open(out_txt, "w") as out_file:
                     max_iter=100,
                     step_tol=1e-3,
                     method='symbolic_regression',
-                    verbose=True,
                     damper=0.5
                 )
 
