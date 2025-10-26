@@ -340,7 +340,6 @@ class FractureAnalysisPipeline:
                     while sum([future.done() for future in futures]) < len(futures):
                         n_finished = sum([future.done() for future in futures])
                         progress.update(overall_progress_task, completed=n_finished, total=len(futures))
-                        logger.info(f"Overall progress: {n_finished}/{len(futures)} tasks completed")
                         for task_id, update_data in _progress.items():
                             latest = update_data["progress"]
                             total = update_data["total"]
