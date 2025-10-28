@@ -33,5 +33,5 @@ loggers:
     propagate: False
 
 root:
-    level: INFO
+    level: DEBUG
     handlers: [console, file]
