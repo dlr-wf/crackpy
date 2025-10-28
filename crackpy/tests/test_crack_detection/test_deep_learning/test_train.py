@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import shutil
 import unittest
 import tempfile
@@ -18,14 +18,14 @@ class TestTrainingUNet(unittest.TestCase):
 
     def setUp(self):
         # Data paths
-        origin = os.path.join(  # '..', '..', '..', '..',
-                              'test_data', 'crack_detection', 'interim')
+        root = Path(__file__).resolve().parents[4]
+        origin = root / 'test_data' / 'crack_detection' / 'interim'
 
-        train_input = os.path.join(origin, 'lInputData_right.pt')
-        train_label = os.path.join(origin, 'lGroundTruthData_right.pt')
+        train_input = str(origin / 'lInputData_right.pt')
+        train_label = str(origin / 'lGroundTruthData_right.pt')
 
-        val_input = os.path.join(origin, 'lInputData_right.pt')
-        val_label = os.path.join(origin, 'lGroundTruthData_right.pt')
+        val_input = str(origin / 'lInputData_right.pt')
+        val_label = str(origin / 'lGroundTruthData_right.pt')
 
         # Data transforms
         self.trsfs = {
@@ -84,14 +84,14 @@ class TestTrainingParallelNets(unittest.TestCase):
 
     def setUp(self):
         # Data paths
-        origin = os.path.join(  # '..', '..', '..', '..',
-                              'test_data', 'crack_detection', 'interim')
+        root = Path(__file__).resolve().parents[4]
+        origin = root / 'test_data' / 'crack_detection' / 'interim'
 
-        train_input = os.path.join(origin, 'lInputData_right.pt')
-        train_label = os.path.join(origin, 'lGroundTruthData_right.pt')
+        train_input = str(origin / 'lInputData_right.pt')
+        train_label = str(origin / 'lGroundTruthData_right.pt')
 
-        val_input = os.path.join(origin, 'lInputData_right.pt')
-        val_label = os.path.join(origin, 'lGroundTruthData_right.pt')
+        val_input = str(origin / 'lInputData_right.pt')
+        val_label = str(origin / 'lGroundTruthData_right.pt')
 
         # Data transforms
         self.trsfs = {

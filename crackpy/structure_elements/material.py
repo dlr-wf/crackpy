@@ -47,8 +47,8 @@ class Material:
         self.inverse_stiffness_matrix = self._inverse_stiffness_matrix()
         self.kappa = (3 - self.nu_xy) / (1 + self.nu_xy) if not plane_strain else 3 - 4 * self.nu_xy
 
-        logger.debug(f"Material initialized: {name}, E={E} MPa, nu={nu_xy}, "
-                    f"plane_strain={plane_strain}, G={self.G:.2f} MPa, kappa={self.kappa:.4f}")
+        logger.debug("Material initialized: %s, E=%s MPa, nu=%s, plane_strain=%s, G=%.2f MPa, kappa=%.4f",
+                     name, E, nu_xy, plane_strain, self.G, self.kappa)
 
     def _stiffness_matrix(self) -> np.ndarray:
         """Returns stiffness matrix under plane stress condition.

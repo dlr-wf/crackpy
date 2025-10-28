@@ -42,8 +42,7 @@ class CrackTipInfo:
         self.crack_tip_angle = crack_tip_angle
         self.left_or_right = left_or_right
 
-        logger.debug(f"CrackTipInfo initialized: x={crack_tip_x}, y={crack_tip_y}, "
-                    f"angle={crack_tip_angle}, side={left_or_right}")
+        logger.debug("CrackTipInfo initialized: x=%s, y=%s, angle=%s, side=%s", crack_tip_x, crack_tip_y, crack_tip_angle, left_or_right)
 
     def set_manually(self, crack_tip_x: float, crack_tip_y: float,
                      crack_tip_angle: float, left_or_right: str) -> None:
@@ -61,5 +60,4 @@ class CrackTipInfo:
         self.crack_tip_angle = crack_tip_angle
         self.left_or_right = left_or_right
 
-        logger.debug(f"CrackTipInfo updated manually: x={crack_tip_x}, y={crack_tip_y}, "
-                    f"angle={crack_tip_angle}, side={left_or_right}")
+        logger.debug("CrackTipInfo updated manually: x=%s, y=%s, angle=%s, side=%s", crack_tip_x, crack_tip_y, crack_tip_angle, left_or_right)

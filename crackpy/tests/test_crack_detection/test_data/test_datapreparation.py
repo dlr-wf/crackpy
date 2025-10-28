@@ -1,5 +1,5 @@
 import unittest
-import os
+from pathlib import Path
 
 import numpy as np
 
@@ -10,8 +10,8 @@ from crackpy.crack_detection.utils.utilityfunctions import get_nodemaps_and_stag
 class TestDataImport(unittest.TestCase):
 
     def setUp(self):
-        self.origin = os.path.join(  # '..', '..', '..', '..',
-                                   'test_data', 'crack_detection', 'raw')
+        root = Path(__file__).resolve().parents[4]
+        self.origin = root / 'test_data' / 'crack_detection' / 'raw'
         self.side = 'left'
         self.key_list = [
             'AllDataPoints_1_7.txt_' + self.side,
@@ -19,11 +19,11 @@ class TestDataImport(unittest.TestCase):
             'AllDataPoints_1_807.txt_' + self.side
         ]
         self.stages_to_nodemaps, _ = \
-            get_nodemaps_and_stage_nums(os.path.join(self.origin, 'Nodemaps'), 'All')
+            get_nodemaps_and_stage_nums(str(self.origin / 'Nodemaps'), 'All')
 
     def test_import_data(self):
         inputs, ground_truths = dp.import_data(nodemaps=self.stages_to_nodemaps,
-                                               data_path=self.origin,
+                                               data_path=str(self.origin),
                                                side=self.side,
                                                exists_target=False)
         self.assertIsNone(ground_truths)
@@ -38,7 +38,7 @@ class TestDataImport(unittest.TestCase):
 
     def test_ground_truth_import(self):
         _, ground_truths = dp.import_data(nodemaps=self.stages_to_nodemaps,
-                                          data_path=self.origin,
+                                          data_path=str(self.origin),
                                           side=self.side,
                                           exists_target=True)
         self.assertIsNotNone(ground_truths)

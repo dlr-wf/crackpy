@@ -1,0 +1,37 @@
+version: 1
+disable_existing_loggers: False
+
+formatters:
+  standard:
+    format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+  brief:
+    format: "[%(levelname)s] %(message)s"
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: brief
+    stream: ext://sys.stdout
+
+  file:
+    class: logging.handlers.RotatingFileHandler
+    level: DEBUG
+    formatter: standard
+    filename: crackpy.log
+    maxBytes: 10485760
+    backupCount: 5
+    encoding: utf-8
+    delay: true
+
+loggers:
+  matplotlib:
+    level: WARNING
+    propagate: False
+  PIL:
+    level: WARNING
+    propagate: False
+
+root:
+    level: INFO
+    handlers: [console, file]

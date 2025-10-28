@@ -99,7 +99,8 @@ class DataFile:
         self.specimen_name = specimen_name
         self.structure = structure
 
-        logger.debug(f"DataFile initialized: {name} in {folder}")
+        # use lazy logging to avoid eager string formatting
+        logger.debug("DataFile initialized: %s in %s", name, folder)
 
 
 class Nodemap(DataFile):

@@ -89,7 +89,7 @@ class PlotSettings:
         if keyword == 'sig_xy':
             return 'Stress $\\sigma_{xy}$'
 
-        logger.warning(f"Keyword '{keyword}' not recognized. Falling back to 'sig_vm'.")
+        logger.warning("Keyword '%s' not recognized. Falling back to 'sig_vm'.", keyword)
         self.background = 'sig_vm'
         return 'Von Mises stress $\\sigma_{vm}$'
 
@@ -135,7 +135,7 @@ class Plotter:
 
         self.figure, self.ax_results, self.ax_williams_opt, self.ax_cjp_opt, self.ax_int = self._plot_base_figure()
 
-        logger.debug(f"Plotter initialized: {self.filename} with background={plot_sets.background}")
+        logger.debug("Plotter initialized: %s with background=%s", self.filename, plot_sets.background)
 
     def plot(self) -> None:
         """Main function to plot and save Fracture Analysis results."""

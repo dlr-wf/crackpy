@@ -14,11 +14,7 @@ from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 
 # Setup logging for script
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-
-
-# Settings
 
 # Set colormap and resolution
 plt.rcParams['image.cmap'] = 'coolwarm'

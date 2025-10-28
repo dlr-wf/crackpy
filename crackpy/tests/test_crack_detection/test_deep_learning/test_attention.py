@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import unittest
 import shutil
 import tempfile
@@ -16,8 +16,8 @@ class TestSegGradCAM(unittest.TestCase):
 
     def setUp(self):
         # Settings
-        self.setup = Setup(data_path=os.path.join(  # '..', '..', '..', '..',
-                                                  'test_data', 'crack_detection', 'raw'),
+        root = Path(__file__).resolve().parents[4]
+        self.setup = Setup(data_path=str(root / 'test_data' / 'crack_detection' / 'raw'),
                            experiment='EBr10', side='left')
 
         self.setup.set_stages(['407'])
@@ -39,11 +39,10 @@ class TestSegGradCAM(unittest.TestCase):
     def test_calculate_cam(self):
         input_t = next(iter(self.inputs.values()))
 
-        base_path = os.path.join(  # '..', '..', '..', '..',
-                                 'test_data', 'crack_detection', 'output',
-                                 'visualization', 'seggradcam')
-        exp_output = torch.load(os.path.join(base_path, 'exp_output.pt'))
-        exp_heatmap = np.load(os.path.join(base_path, 'exp_heatmap.npy'))
+        root = Path(__file__).resolve().parents[4]
+        base_path = root / 'test_data' / 'crack_detection' / 'output' / 'visualization' / 'seggradcam'
+        exp_output = torch.load(str(base_path / 'exp_output.pt'))
+        exp_heatmap = np.load(str(base_path / 'exp_heatmap.npy'))
 
         # calculate output and features in forward pass
         act_output, act_heatmap = self.sgc(input_t)
@@ -51,11 +50,10 @@ class TestSegGradCAM(unittest.TestCase):
         self.assertTrue(np.allclose(exp_heatmap.copy(), act_heatmap.copy(), rtol=1e-2))
 
     def test_plot_and_save(self):
-        base_path = os.path.join(  # '..', '..', '..', '..',
-                                 'test_data', 'crack_detection', 'output',
-                                 'visualization', 'seggradcam')
-        output = torch.load(os.path.join(base_path, 'exp_output.pt'))
-        heatmap = np.load(os.path.join(base_path, 'exp_heatmap.npy'))
+        root = Path(__file__).resolve().parents[4]
+        base_path = root / 'test_data' / 'crack_detection' / 'output' / 'visualization' / 'seggradcam'
+        output = torch.load(str(base_path / 'exp_output.pt'))
+        heatmap = np.load(str(base_path / 'exp_heatmap.npy'))
 
         # plot qualitative
         fig = self.sgc.plot(output, heatmap, scale='QUALITATIVE')

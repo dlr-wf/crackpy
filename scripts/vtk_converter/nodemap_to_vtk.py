@@ -25,7 +25,6 @@ from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 
 # Logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Detect project root (folder two levels above scripts/<subdir>)

@@ -20,7 +20,6 @@ from crackpy.crack_detection.model import get_model
 from crackpy.crack_detection.pipeline.pipeline import CrackDetectionSetup, CrackDetectionPipeline
 
 # Logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 plt.rcParams['image.cmap'] = 'coolwarm'

@@ -16,33 +16,35 @@
         - Fracture Analysis results (plots, txt-files)
 
 """
-
-import os
+from pathlib import Path
 import logging
 
 from matplotlib import pyplot as plt
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.input.input_data import InputData
-from crackpy.input.crack_tip_info import CrackTipInfo
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
+from crackpy.input.crack_tip_info import CrackTipInfo
+from crackpy.input.input_data import InputData
 from crackpy.results.plot import PlotSettings, Plotter
 from crackpy.results.write import OutputWriter
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 
 # Logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Determine project root
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+NODEMAP_FILENAME = 'File_F_10000.0_a_0.5_B_200.0_H_200.0.txt'
+NODEMAP_FOLDER = PROJECT_ROOT / 'test_data' / 'simulations' / 'Nodemaps'
+OUT_FOLDER = PROJECT_ROOT / 'Fracture_Analysis_FE_results'
+OUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 ########################
 # INPUT specifications #
 ########################
-
-NODEMAP_FILENAME = 'File_F_10000.0_a_0.5_B_200.0_H_200.0.txt'
-NODEMAP_FOLDER = os.path.join('..', '..', 'test_data', 'simulations', 'Nodemaps')
-OUT_FOLDER = 'Fracture_Analysis_FE_results'
 
 material = Material(E=72000, nu_xy=0.33, sig_yield=350)
 
@@ -63,7 +65,7 @@ int_props = IntegralProperties(
     paths_distance_right=0.5,
     paths_distance_bottom=0.5,
 
-    #mask_tolerance=2,
+    # mask_tolerance=2,
 
     buckner_williams_terms=[-1, 1, 2, 3, 4, 5]
 )
@@ -103,10 +105,10 @@ plt.rcParams['figure.dpi'] = 100
 
 # Plotting
 plot_sets = PlotSettings(background='sig_vm', min_value=0, max_value=material.sig_yield, extend='max')
-plotter = Plotter(path=os.path.join(OUT_FOLDER, 'plots'), fracture_analysis=analysis, plot_sets=plot_sets)
+plotter = Plotter(path=str(OUT_FOLDER / 'plots'), fracture_analysis=analysis, plot_sets=plot_sets)
 plotter.plot()
 
-writer = OutputWriter(path=os.path.join(OUT_FOLDER, 'results'), fracture_analysis=analysis)
+writer = OutputWriter(path=str(OUT_FOLDER / 'results'), fracture_analysis=analysis)
 writer.write_header()
 writer.write_results()
-writer.write_json(path=os.path.join(OUT_FOLDER, 'json'))
+writer.write_json(path=str(OUT_FOLDER / 'json'))

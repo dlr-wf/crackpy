@@ -1,10 +1,11 @@
+import logging
 import warnings
 from multiprocessing.managers import DictProxy
 from typing import Union, Optional, Mapping
 
 import numpy as np
 import rich.progress as progress_rich
-import logging
+
 logger = logging.getLogger(__name__)
 
 from crackpy.fracture_analysis import line_integration
@@ -65,22 +66,7 @@ class FractureAnalysis:
         self.data = data
         self.crack_tip = crack_tip_info
 
-        # Initialization of optimization and integral properties
-        self.optimization_properties = optimization_properties
-        if self.optimization_properties is not None:
-            Optimization.ensure_defaults_williams(self.optimization_properties, self.crack_tip.crack_tip_x)
-            self.optimization = Optimization(data=self.data,
-                                             options=self.optimization_properties,
-                                             material=self.material)
-            self._init_optimizaton_results() #TODO: initialize regardless of optimization_properties being None
-
-        self.integral_properties = integral_properties
-        if self.integral_properties is not None:
-            LineIntegral.ensure_defaults_buckner_chen(self.integral_properties)
-            self._init_integral_results() #TODO: initialize regardless of integral_results being none
-
-    def _init_optimizaton_results(self):
-        """Initialize attributes used for storing optimization results."""
+        # Available Optimization results
         self.cjp_coeffs_mm = None
         self.cjp_res_mm = None
         self.cjp_coeffs_m1 = None
@@ -91,8 +77,7 @@ class FractureAnalysis:
         self.williams_fit_c_n = None
         self.williams_fit_res = None
 
-    def _init_integral_results(self):
-        """Initialize attributes used for storing integral evaluation results."""
+        # Available Line Integral results
         self.path_results = []
         self.williams_int_a_n = []
         self.williams_int_b_n = []
@@ -102,6 +87,18 @@ class FractureAnalysis:
         self.integration_points = []
         self.tick_sizes = []
         self.num_of_path_nodes = []
+
+        # Initialization of optimization and integral properties
+        self.optimization_properties = optimization_properties
+        if self.optimization_properties is not None:
+            Optimization.ensure_defaults_williams(self.optimization_properties, self.crack_tip.crack_tip_x)
+            self.optimization = Optimization(data=self.data,
+                                             options=self.optimization_properties,
+                                             material=self.material)
+
+        self.integral_properties = integral_properties
+        if self.integral_properties is not None:
+            LineIntegral.ensure_defaults_buckner_chen(self.integral_properties)
 
     def run(self, progress_bar: Optional[Mapping[str, object]] = None, task_id=None):
         """Run fracture analysis with the provided data, crack_tip_info, and integral_properties.
@@ -114,15 +111,15 @@ class FractureAnalysis:
         """
         logger.debug(f"Starting fracture analysis for {self.nodemap_file}")
         logger.debug(f"Crack tip: x={self.crack_tip.crack_tip_x:.2f}, y={self.crack_tip.crack_tip_y:.2f}, "
-                    f"angle={self.crack_tip.crack_tip_angle:.2f}°, side={self.crack_tip.left_or_right}")
+                     f"angle={self.crack_tip.crack_tip_angle:.2f}°, side={self.crack_tip.left_or_right}")
 
         # Set the optimization and line integral methods that should be run
         if self.optimization_properties is not None:
             logger.info('Running optimization (fitting) methods …')
             logger.debug(f"Optimization settings: min_r={self.optimization_properties.min_radius:.2f}, "
-                        f"max_r={self.optimization_properties.max_radius:.2f}, "
-                        f"angle_gap={self.optimization_properties.angle_gap}°, "
-                        f"terms={self.optimization_properties.terms}")
+                         f"max_r={self.optimization_properties.max_radius:.2f}, "
+                         f"angle_gap={self.optimization_properties.angle_gap}°, "
+                         f"terms={self.optimization_properties.terms}")
             self._run_cjp_optimization_modeI()
             self._run_cjp_optimization_mixedmode()
             self._run_williams_optimization()
@@ -132,15 +129,13 @@ class FractureAnalysis:
         if self.integral_properties is not None:
             logger.info('Running line integral methods …')
             logger.debug(f"Integral settings: {self.integral_properties.number_of_paths} paths, "
-                        f"sizes: left={self.integral_properties.integral_size_left:.2f}, "
-                        f"right={self.integral_properties.integral_size_right:.2f}")
+                         f"sizes: left={self.integral_properties.integral_size_left:.2f}, "
+                         f"right={self.integral_properties.integral_size_right:.2f}")
             self._run_line_integrals(progress_bar, task_id)
         else:
             logger.info('No integral properties provided; skipping line integrals.')
 
         logger.debug(f"Fracture analysis completed for {self.nodemap_file}")
-
-        pass
 
     def _run_cjp_optimization_modeI(self) -> None:
         """Run CJP optimization if optimization properties are provided."""
@@ -169,8 +164,6 @@ class FractureAnalysis:
             logger.exception('CJP optimization (Mode I) failed.')
             self.cjp_res_m1 = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'T_x': np.nan,
                                'T_y': np.nan}
-
-        pass
 
     def _run_cjp_optimization_mixedmode(self) -> None:
         """Run CJP optimization if optimization properties are provided."""
@@ -201,8 +194,6 @@ class FractureAnalysis:
             logger.exception('CJP optimization failed.')
             self.cjp_res_mm = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'K_II': np.nan,
                                'T': np.nan}
-
-        pass
 
     def _run_williams_optimization(self) -> None:
         """Run Williams optimization if optimization properties are provided."""
@@ -247,8 +238,6 @@ class FractureAnalysis:
             self.williams_fit_b_n = {n: np.nan for index, n in enumerate(self.optimization.terms)}
             self.williams_fit_c_n = {n: np.nan for index, n in enumerate(self.optimization.terms)}
             self.williams_fit_res = {'Error': np.nan, 'K_I': np.nan, 'K_II': np.nan, 'T': np.nan}
-
-        pass
 
     def _run_line_integrals(self, progress_bar: Optional[DictProxy] = None, task_id=None) -> None:
         """Run line integrals if integral properties are provided."""
@@ -322,8 +311,6 @@ class FractureAnalysis:
 
         # Aggregate results
         self._aggregate_integral_results()
-
-        pass
 
     def _aggregate_integral_results(self) -> None:
         """Aggregate results from line integrals into class attributes."""
@@ -419,7 +406,6 @@ class FractureAnalysis:
                              'decomp_K_2': rej_decomp_K_2,
                              'decomp_K_3': rej_decomp_K_3}
         }
-        pass
 
     @staticmethod
     def mean_wo_outliers(data: np.ndarray, m=2) -> list:

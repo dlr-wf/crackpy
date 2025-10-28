@@ -20,7 +20,7 @@ variables:
 before_script:
   # Initialize and activate virtual environment
   - which virtualenv
-  - virtualenv --python=python3.12 venv
+  - virtualenv --python=python3.13 venv
   - source venv/bin/activate
   # Install required packages
   - pip install --upgrade pip

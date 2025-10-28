@@ -13,6 +13,7 @@ tom.egg-info
 /dist/
 /build/
 /crackpy.egg-info
+crackpy.log
 
 # Ignore downloaded crack detection models
 /crackpy/crack_detection/models/

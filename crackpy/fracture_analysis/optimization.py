@@ -210,6 +210,8 @@ class Optimization:
                                                   cjp_displacement_y - measured_displacement_y]
 
         """
+        logging.warning(f"EXPERIMENTAL: CJP mode I optimization is experimental and may not produce reliable results. "
+                        f"Restrict deployment to Mode I-dominated load cases. Interpret results with caution.")
         z = inp
 
         cjp_disp_x, cjp_disp_y = cjp_displ_field_modeI(z, self.phi_grid, self.r_grid, self.material)
@@ -231,6 +233,8 @@ class Optimization:
                                                   cjp_displacement_y - measured_displacement_y]
 
         """
+        logging.warning(f"EXPERIMENTAL: CJP mixedmode optimization is experimental and may not produce reliable results. "
+                        f"Restrict deployment to mode I dominated load cases. Use K_II results with great care.")
         z = inp
 
         cjp_disp_x, cjp_disp_y = cjp_displ_field_mixedmode(z, self.phi_grid, self.r_grid, self.material)

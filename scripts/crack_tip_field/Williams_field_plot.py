@@ -20,7 +20,6 @@ from crackpy.fracture_analysis.optimization import Optimization
 from crackpy.structure_elements.material import Material
 
 # Logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Set matplotlib settings

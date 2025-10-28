@@ -24,7 +24,6 @@ from crackpy.input.input_data import InputData
 from crackpy.structure_elements.data_files import Nodemap
 
 # Logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 

@@ -22,7 +22,6 @@ import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # Logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Set matplotlib settings

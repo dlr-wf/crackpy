@@ -100,12 +100,12 @@ class CrackDetectionLineIntercept:
         # map displacements to separate grid
         self._map_data_to_grid()
 
-        logger.debug(f"CrackDetectionLineIntercept initialized: window=[{x_min},{x_max}]x[{y_min},{y_max}], "
-                    f"grid_component={grid_component}, eps_vm_threshold={eps_vm_threshold}")
+        logger.debug("CrackDetectionLineIntercept initialized: window=[%s,%s]x[%s,%s], grid_component=%s, eps_vm_threshold=%s",
+                     x_min, x_max, y_min, y_max, grid_component, eps_vm_threshold)
 
     def run(self) -> None:
         """Run crack detection with line intercept method."""
-        logger.debug(f"Starting line intercept crack detection with eps_vm_threshold={self.eps_vm_threshold:.4f}, window_size={self.window_size}")
+        logger.debug("Starting line intercept crack detection with eps_vm_threshold=%.4f, window_size=%s", self.eps_vm_threshold, self.window_size)
 
         # Fit a Formula to each slice of the grid
         coefficients_fitted = []
@@ -136,7 +136,7 @@ class CrackDetectionLineIntercept:
                 coefficients_fitted.append(fitted_coefficients)
                 self.x_path.append(x_coordinate)
 
-        logger.debug(f"Fitted tanh function to {num_valid_slices} valid slices out of {len(self.x_coords)} total slices")
+        logger.debug("Fitted tanh function to %d valid slices out of %d total slices", num_valid_slices, len(self.x_coords))
 
         self.coefficients_fitted = np.asarray(coefficients_fitted).T
 
@@ -154,7 +154,7 @@ class CrackDetectionLineIntercept:
                 self.tip_index = len(reversed_eps_vm_crack_path) - i - 1
                 break
 
-        logger.debug(f"Crack tip search: tip_index={self.tip_index} out of {len(self.x_path)} path points")
+        logger.debug("Crack tip search: tip_index=%d out of %d path points", self.tip_index, len(self.x_path))
 
         if self.tip_index > 0:
             self.crack_tip = np.asarray([self.x_path[self.tip_index], self.y_path[self.tip_index]])
@@ -172,8 +172,8 @@ class CrackDetectionLineIntercept:
             yy = m * x + c
             self.crack_angle = np.arctan2(yy[-1] - yy[0], x[-1] - x[0]) * 180.0 / np.pi
 
-            logger.debug(f"Crack tip detected at ({self.crack_tip[0]:.3f}, {self.crack_tip[1]:.3f}) mm, angle={self.crack_angle:.2f}°")
-            logger.debug(f"Crack path contains {len(self.crack_path)} points")
+            logger.debug("Crack tip detected at (%.3f, %.3f) mm, angle=%.2f°", self.crack_tip[0], self.crack_tip[1], self.crack_angle)
+            logger.debug("Crack path contains %d points", len(self.crack_path))
         else:
             self.crack_tip = np.asarray([np.nan, np.nan])
             self.crack_path = np.stack([np.nan, np.nan], axis=-1)
@@ -242,8 +242,8 @@ class CrackDetectionLineIntercept:
         """Map the data to a grid."""
         steps_x = int((self.x_max - self.x_min) / self.tick_size_x)
         steps_y = int((self.y_max - self.y_min) / self.tick_size_y)
-        logger.debug(f"Mapping data to grid: {steps_x}x{steps_y} grid points")
-        logger.debug(f"Grid range: x=[{self.x_min:.2f}, {self.x_max:.2f}], y=[{self.y_min:.2f}, {self.y_max:.2f}]")
+        logger.debug("Mapping data to grid: %dx%d grid points", steps_x, steps_y)
+        logger.debug("Grid range: x=[%.2f, %.2f], y=[%.2f, %.2f]", self.x_min, self.x_max, self.y_min, self.y_max)
 
         self.x_coords = np.linspace(self.x_min, self.x_max, steps_x, endpoint=True)
         self.y_coords = np.linspace(self.y_min, self.y_max, steps_y, endpoint=True)
@@ -257,7 +257,7 @@ class CrackDetectionLineIntercept:
         if self.grid_component == 'uy':
             self.disp_grid = self.disp_y_grid
 
-        logger.debug(f"Grid component '{self.grid_component}' mapped, range: [{np.nanmin(self.disp_grid):.4f}, {np.nanmax(self.disp_grid):.4f}] mm")
+        logger.debug("Grid component '%s' mapped, range: [%.4f, %.4f] mm", self.grid_component, np.nanmin(self.disp_grid), np.nanmax(self.disp_grid))
 
     def _tanh_funct(self, coefficients, coordinates):
         """Hyperbolic tangent function to approximate the displacements.

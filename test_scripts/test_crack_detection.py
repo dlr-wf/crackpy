@@ -3,7 +3,6 @@
 Application Testing of crack detection pipeline with all functionalities.
 
 """
-import os
 import shutil
 import tempfile
 import unittest
@@ -15,35 +14,32 @@ from torch import optim
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 
-from crackpy.crack_detection.data import transforms, preprocess
 from crackpy.crack_detection.data import datapreparation as dp
+from crackpy.crack_detection.data import transforms, preprocess
 from crackpy.crack_detection.data.dataset import CrackTipDataset
-from crackpy.crack_detection.deep_learning import nets, loss, train
-from crackpy.crack_detection.deep_learning.docu import Documentation
 from crackpy.crack_detection.data.interpolation import interpolate_on_array
-from crackpy.crack_detection.utils.basic import numpy_to_tensor, dict_to_list
-from crackpy.crack_detection.utils.plot import plot_prediction
+from crackpy.crack_detection.deep_learning import nets, loss, train
+from crackpy.crack_detection.deep_learning.attention import SegGradCAM, UNetWithHooks
+from crackpy.crack_detection.deep_learning.docu import Documentation
+from crackpy.crack_detection.deep_learning.setup import Setup
 from crackpy.crack_detection.utils import evaluate
 from crackpy.crack_detection.utils import utilityfunctions as uf
-from crackpy.crack_detection.deep_learning.setup import Setup
-from crackpy.crack_detection.deep_learning.attention import SegGradCAM, UNetWithHooks
+from crackpy.crack_detection.utils.basic import numpy_to_tensor, dict_to_list
+from crackpy.crack_detection.utils.plot import plot_prediction
 
 
 class TestCrackDetection(unittest.TestCase):
 
     def setUp(self):
         # Find project root iteratively by searching for pyproject.toml (up to 5 levels)
-        project_root = Path(__file__).resolve()
-        for _ in range(5):
-            if (project_root / 'pyproject.toml').exists():
-                break
-            project_root = project_root.parent
+        project_root = Path(__file__).resolve().parents[1]
 
-        self.origin = str(project_root / 'test_data' / 'crack_detection')
-        self.raw_data_path = os.path.join(self.origin, 'raw')
+        self.origin = project_root / 'test_data' / 'crack_detection'
+        self.raw_data_path = self.origin / 'raw'
         self.interim_data_path = None
 
-        self.temp_dir = tempfile.mkdtemp()
+        # keep temp_dir as Path for easier path ops
+        self.temp_dir = Path(tempfile.mkdtemp())
 
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -65,21 +61,21 @@ class TestCrackDetection(unittest.TestCase):
             self._plot_seg_grad_cam()
 
         finally:
-            shutil.rmtree(self.temp_dir)
+            shutil.rmtree(str(self.temp_dir))
 
     def _generate_interim_data(self):
         # data generation
-        self.interim_data_path = os.path.join(self.temp_dir, 'interim')
-        if not os.path.exists(self.interim_data_path):
-            os.makedirs(self.interim_data_path)
+        self.interim_data_path = self.temp_dir / 'interim'
+        if not self.interim_data_path.exists():
+            self.interim_data_path.mkdir(parents=True, exist_ok=True)
 
         self.stages_to_nodemaps, _ = uf.get_nodemaps_and_stage_nums(
-            os.path.join(self.raw_data_path, 'Nodemaps'), 'All')
+            str(self.raw_data_path / 'Nodemaps'), 'All')
 
         for side in ['left']:
             # import
             inputs, ground_truths = dp.import_data(nodemaps=self.stages_to_nodemaps,
-                                                   data_path=self.raw_data_path,
+                                                   data_path=str(self.raw_data_path),
                                                    side=side,
                                                    exists_target=True)
 
@@ -95,22 +91,22 @@ class TestCrackDetection(unittest.TestCase):
             inputs = dict_to_list(inputs)
 
             # save inputs
-            torch.save(inputs, os.path.join(self.interim_data_path, f'lInputData_{side}.pt'))
+            torch.save(inputs, str(self.interim_data_path / f'lInputData_{side}.pt'))
 
             # get targets
             targets = numpy_to_tensor(ground_truths, dtype=torch.int64)
             targets = dict_to_list(targets)
 
             # save targets
-            torch.save(targets, os.path.join(self.interim_data_path, f'lGroundTruthData_{side}.pt'))
+            torch.save(targets, str(self.interim_data_path / f'lGroundTruthData_{side}.pt'))
 
     def _train_model(self):
         # Data
-        train_input = os.path.join(self.interim_data_path, 'lInputData_left.pt')
-        train_label = os.path.join(self.interim_data_path, 'lGroundTruthData_left.pt')
+        train_input = str(self.interim_data_path / 'lInputData_left.pt')
+        train_label = str(self.interim_data_path / 'lGroundTruthData_left.pt')
 
-        self.val_input = os.path.join(self.interim_data_path, 'lInputData_left.pt')
-        self.val_label = os.path.join(self.interim_data_path, 'lGroundTruthData_left.pt')
+        self.val_input = str(self.interim_data_path / 'lInputData_left.pt')
+        self.val_label = str(self.interim_data_path / 'lGroundTruthData_left.pt')
 
         # Data transforms
         trsfs = {
@@ -148,10 +144,10 @@ class TestCrackDetection(unittest.TestCase):
                                                           num_epochs=20)
 
         # Saving model
-        path = os.path.join(self.temp_dir, 'model')
-        if not os.path.exists(path):
-            os.makedirs(path)
-        torch.save(model.state_dict(), os.path.join(path, 'model.pt'))
+        path = self.temp_dir / 'model'
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
+        torch.save(model.state_dict(), str(path / 'model.pt'))
 
         # Save documentation
         documentation = Documentation(transforms=trsfs,
@@ -161,18 +157,18 @@ class TestCrackDetection(unittest.TestCase):
                                       criterion=criterion,
                                       optimizer=optimizer,
                                       train_docu=self.docu)
-        documentation.save_metadata(path=os.path.join(self.temp_dir, 'model'), name='docu')
+        documentation.save_metadata(path=str(path), name='docu')
 
     def _test_model(self):
         # Load model
         model = nets.UNet(init_features=16)
-        model.load_state_dict(torch.load(os.path.join(self.temp_dir, 'model', 'model.pt')))
+        model.load_state_dict(torch.load(str(self.temp_dir / 'model' / 'model.pt')))
         model.to(self.device)
         model.eval()
 
         # Load test input
-        inputs = torch.cat(torch.load(os.path.join(self.val_input)))
-        targets = torch.cat(torch.load(os.path.join(self.val_label)))
+        inputs = torch.cat(torch.load(self.val_input))
+        targets = torch.cat(torch.load(self.val_label))
         # Convert to 1-hot
         is_tip = torch.BoolTensor(targets == 2)
         labels = torch.where(is_tip, 1, 0)
@@ -196,7 +192,7 @@ class TestCrackDetection(unittest.TestCase):
     def _plot_output(self):
         # Data Import
         inputs, ground_truth = dp.import_data(nodemaps={407: self.stages_to_nodemaps[407]},
-                                              data_path=self.raw_data_path,
+                                              data_path=str(self.raw_data_path),
                                               side='left',
                                               exists_target=True)
 
@@ -215,7 +211,7 @@ class TestCrackDetection(unittest.TestCase):
 
         # Load model
         model = nets.UNet(init_features=16)
-        model.load_state_dict(torch.load(os.path.join(self.temp_dir, 'model', 'model.pt')))
+        model.load_state_dict(torch.load(str(self.temp_dir / 'model' / 'model.pt')))
         model.to(self.device)
         model.eval()
 
@@ -238,21 +234,21 @@ class TestCrackDetection(unittest.TestCase):
                         f_min=0,
                         f_max=0.68,
                         title=nodemap,
-                        path=os.path.join(self.temp_dir, 'output'),
+                        path=str(self.temp_dir / 'output'),
                         label='Von Mises Strain [%]')
 
     def _plot_seg_grad_cam(self):
         # Settings
-        setup = Setup(data_path=self.raw_data_path, experiment='EBr10', side='left')
+        setup = Setup(data_path=str(self.raw_data_path), experiment='EBr10', side='left')
         setup.set_stages(['407'])
-        setup.set_model(model_path=os.path.join(self.temp_dir, 'model'), model_name='model')
-        setup.set_output_path(path=os.path.join(self.temp_dir, 'output'))
+        setup.set_model(model_path=str(self.temp_dir / 'model'), model_name='model')
+        setup.set_output_path(path=str(self.temp_dir / 'output'))
         setup.set_visu_layers(['down4', 'base', 'up1'])
 
         # Load the model
         model = UNetWithHooks(init_features=16)
-        path = os.path.join(setup.model_path, setup.model_name + '.pt')
-        model.load_state_dict(torch.load(path, map_location=self.device))
+        path = Path(setup.model_path) / (setup.model_name + '.pt')
+        model.load_state_dict(torch.load(str(path), map_location=self.device))
 
         # Load data
         inputs, _ = setup.load_data()

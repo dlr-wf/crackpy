@@ -17,10 +17,10 @@
 
 """
 
-from pathlib import Path
-import numpy as np
 import logging
+from pathlib import Path
 
+import numpy as np
 from matplotlib import pyplot as plt
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
@@ -35,7 +35,6 @@ from crackpy.results.write import OutputWriter
 from crackpy.structure_elements.material import Material
 
 # Logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 OUT_FOLDER = Path('Fracture_Analysis_Williams_results_3D')

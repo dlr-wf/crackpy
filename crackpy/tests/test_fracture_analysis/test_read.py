@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import shutil
 import unittest
 import tempfile
@@ -12,10 +12,10 @@ class TestOutputReader(unittest.TestCase):
     def setUp(self):
 
         self.reader = OutputReader()
-        self.path = os.path.join(  # '..', '..', '..', '..',
-                                 'test_data', 'fracture_analysis', 'txt-files')
+        root = Path(__file__).resolve().parents[4]
+        self.path = root / 'test_data' / 'fracture_analysis' / 'txt-files'
 
-        self.files = os.listdir(self.path)
+        self.files = [p.name for p in self.path.iterdir() if p.is_file()]
         self.possible_tags = ["CJP_results", "Williams_fit_results", "SIFs_integral", "Bueckner_Chen_integral",
                               "Path_SIFs", "Path_Williams_a_n", "Path_Williams_b_n", "Path_Properties"]
 
@@ -27,8 +27,8 @@ class TestOutputReader(unittest.TestCase):
             for file in self.files:
                 # iterate over all possible tags
                 for tag in self.possible_tags:
-                    df = self.reader.read_tag_data(path=self.path, filename=file, tag=tag)
-                    df.to_csv(os.path.join(temp_dir, f'{file}_{tag}'))
+                    df = self.reader.read_tag_data(path=str(self.path), filename=file, tag=tag)
+                    df.to_csv(str(Path(temp_dir) / f'{file}_{tag}'))
 
         finally:
             shutil.rmtree(temp_dir)
@@ -38,7 +38,7 @@ class TestOutputReader(unittest.TestCase):
         try:
             for file in self.files:
                 for tag in self.possible_tags:
-                    self.reader.read_tag_data(path=self.path, filename=file, tag=tag)
+                    self.reader.read_tag_data(path=str(self.path), filename=file, tag=tag)
 
             # Export without filter
             self.reader.make_csv_from_results(files="all", output_path=temp_dir, output_filename='results.csv')

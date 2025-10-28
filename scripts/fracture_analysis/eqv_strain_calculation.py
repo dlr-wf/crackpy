@@ -7,9 +7,7 @@ import logging
 """
 
 # Logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
 
 # Example strain tensor from ARAMIS nodemap export
 eps_xx = -0.048588741570711 / 100.0

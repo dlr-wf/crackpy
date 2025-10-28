@@ -35,22 +35,22 @@ def get_model(model_name: str, map_location: torch.device = torch.device('cpu'))
 
     # check if model folder exists
     model_path.parent.mkdir(parents=True, exist_ok=True)
-    logger.debug(f"Model folder ensured: {model_path.parent}")
+    logger.debug("Model folder ensured: %s", model_path.parent)
 
     if not model_path.exists():
-        logger.info(f"Downloading model file for {model_name} …")
+        logger.info("Downloading model file for %s …", model_name)
         torch.hub.download_url_to_file(model_urls[model_name], str(model_path))
     else:
-        logger.debug(f"Loading existing model from {model_path}")
+        logger.debug("Loading existing model from %s", model_path)
 
     if model_name == 'ParallelNets':
         model = ParallelNets(in_ch=2, out_ch=1, init_features=64)
         model.load_state_dict(torch.load(str(model_path), map_location=map_location))
-        logger.debug(f"ParallelNets model loaded successfully to {map_location}")
+        logger.debug("ParallelNets model loaded successfully to %s", map_location)
 
     else:  # model_name == 'UNetPath'
         model = UNet(in_ch=2, out_ch=1, init_features=64)
         model.load_state_dict(torch.load(str(model_path), map_location=map_location))
-        logger.debug(f"UNetPath model loaded successfully to {map_location}")
+        logger.debug("UNetPath model loaded successfully to %s", map_location)
 
     return model

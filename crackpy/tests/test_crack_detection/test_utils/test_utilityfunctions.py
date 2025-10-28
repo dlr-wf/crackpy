@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import unittest
 
 import torch
@@ -10,15 +10,15 @@ from crackpy.crack_detection.utils.utilityfunctions import \
 class TestGetNodemapsAndStages(unittest.TestCase):
 
     def setUp(self):
-        self.origin = os.path.join(  # '..', '..', '..', '..',
-                                   'test_data', 'crack_detection', 'raw')
+        self.root = Path(__file__).resolve().parents[4]
+        self.origin = self.root / 'test_data' / 'crack_detection' / 'raw'
         self.nodemaps = ['7', '407', '807']
 
     def test_get_nodemaps_and_stages(self):
         stages_to_nodemaps, nodemaps_to_stages = \
-            get_nodemaps_and_stage_nums(os.path.join(self.origin, 'Nodemaps'), self.nodemaps)
+            get_nodemaps_and_stage_nums(str(self.origin / 'Nodemaps'), self.nodemaps)
         stages_to_nodemaps_all, nodemaps_to_stages_all = \
-            get_nodemaps_and_stage_nums(os.path.join(self.origin, 'Nodemaps'), 'All')
+            get_nodemaps_and_stage_nums(str(self.origin / 'Nodemaps'), 'All')
         self.assertIsInstance(stages_to_nodemaps, dict)
         self.assertIsInstance(nodemaps_to_stages, dict)
         self.assertIsInstance(stages_to_nodemaps_all, dict)

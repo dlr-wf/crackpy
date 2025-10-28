@@ -26,15 +26,10 @@ from crackpy.results.read import OutputReader
 from crackpy.structure_elements.material import Material
 
 # Logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Determine project root
-PROJECT_ROOT = Path(__file__).resolve()
-for _ in range(5):
-    if (PROJECT_ROOT / 'pyproject.toml').exists():
-        break
-    PROJECT_ROOT = PROJECT_ROOT.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # Paths
 DATA_PATH = PROJECT_ROOT / 'test_data' / 'simulations'

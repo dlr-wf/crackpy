@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import shutil
 import tempfile
 import unittest
@@ -12,17 +12,17 @@ from crackpy.crack_detection.data import datapreparation as dp
 class TestPlotting(unittest.TestCase):
 
     def setUp(self):
-        origin = os.path.join(  # '..', '..', '..', '..',
-                              'test_data', 'crack_detection', 'raw')
+        root = Path(__file__).resolve().parents[4]
+        origin = root / 'test_data' / 'crack_detection' / 'raw'
         self.side = 'left'
         self.size = 70
 
-        self.stages_to_nodemaps, _ = get_nodemaps_and_stage_nums(os.path.join(origin, 'Nodemaps'),
+        self.stages_to_nodemaps, _ = get_nodemaps_and_stage_nums(str(origin / 'Nodemaps'),
                                                                  ['7'])
 
         # import
         inputs, ground_truths = dp.import_data(nodemaps=self.stages_to_nodemaps,
-                                               data_path=origin,
+                                               data_path=str(origin),
                                                side=self.side,
                                                exists_target=True)
         # interpolate

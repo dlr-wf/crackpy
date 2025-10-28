@@ -39,12 +39,12 @@ class OutputWriter:
         self.filename = self._set_filename()
         self.json_path = None
 
-        logger.debug(f"OutputWriter initialized: {self.filename} in {self.path}")
+        logger.debug("OutputWriter initialized: %s in %s", self.filename, self.path)
 
     def write_header(self) -> None:
         """Writing a header for the output file."""
         out_file = Path(self.path) / self.filename
-        logger.debug(f"Writing header to output file: {out_file}")
+        logger.debug("Writing header to output file: %s", out_file)
 
         with open(out_file, mode='w') as file:
             file.write('############################################################################################\n')
@@ -89,7 +89,7 @@ class OutputWriter:
         with open(out_file, 'a') as file:
 
             if self.analysis.optimization_properties is not None:
-                logger.debug(f"Writing CJP and Williams fitting results")
+                logger.debug("Writing CJP and Williams fitting results")
                 file.write('\n')
                 file.write("#######################################\n")
                 file.write("#     CJP model (Mode I / Mode II)    #\n")
@@ -139,7 +139,7 @@ class OutputWriter:
                 file.write('\n')
 
             if self.analysis.integral_properties is not None:
-                logger.debug(f"Writing integral evaluation results")
+                logger.debug("Writing integral evaluation results")
                 file.write("###################################\n")
                 file.write("#    SIFs integral evaluation     #\n")
                 file.write("###################################\n")
@@ -380,7 +380,7 @@ class OutputWriter:
             path: Optional path to json file. If None, the path from the OutputWriter class is used.
 
         """
-        logger.debug(f"Writing JSON results to path: {path if path else self.path}")
+        logger.debug("Writing JSON results to path: %s", (path if path else self.path))
 
         if path is None:
             self.json_path = self.path

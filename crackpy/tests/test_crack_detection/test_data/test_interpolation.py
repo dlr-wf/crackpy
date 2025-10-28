@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import unittest
 import numpy as np
 
@@ -10,16 +10,16 @@ from crackpy.crack_detection.utils.utilityfunctions import get_nodemaps_and_stag
 class TestInterpolation(unittest.TestCase):
 
     def test_interpolation(self):
-        origin = os.path.join(  # '..', '..', '..', '..',
-                              'test_data', 'crack_detection', 'raw')
+        root = Path(__file__).resolve().parents[4]
+        origin = root / 'test_data' / 'crack_detection' / 'raw'
         side = 'left'
         size = 70
 
-        stages_to_nodemaps, _ = get_nodemaps_and_stage_nums(os.path.join(origin, 'Nodemaps'), ['7'])
+        stages_to_nodemaps, _ = get_nodemaps_and_stage_nums(str(origin / 'Nodemaps'), ['7'])
 
         # import
         inputs, _ = dp.import_data(nodemaps=stages_to_nodemaps,
-                                   data_path=origin,
+                                   data_path=str(origin),
                                    side=side,
                                    exists_target=False)
         # interpolate

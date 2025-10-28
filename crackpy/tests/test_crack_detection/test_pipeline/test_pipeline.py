@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import shutil
 import tempfile
 import unittest
@@ -12,10 +12,9 @@ from crackpy.crack_detection.pipeline.pipeline import CrackDetectionSetup, Crack
 class TestCrackDetPipeline(unittest.TestCase):
 
     def setUp(self):
-        self.data_path = os.path.join(  # '..', '..', '..', '..',
-                                      'test_data', 'crack_detection', 'Nodemaps')
-        self.crack_info_by_nodemap_file = os.path.join(  # '..', '..', '..', '..',
-                                                       'test_data', 'crack_detection', 'crack_info_by_nodemap.txt')
+        root = Path(__file__).resolve().parents[4]
+        self.data_path = root / 'test_data' / 'crack_detection' / 'Nodemaps'
+        self.crack_info_by_nodemap_file = root / 'test_data' / 'crack_detection' / 'crack_info_by_nodemap.txt'
 
         self.det_setup = CrackDetectionSetup(
             specimen_size=160,
@@ -33,7 +32,7 @@ class TestCrackDetPipeline(unittest.TestCase):
         temp_dir = tempfile.mkdtemp()
         try:
             pipeline = CrackDetectionPipeline(
-                data_path=self.data_path,
+                data_path=str(self.data_path),
                 output_path=temp_dir,
                 tip_detector_model=self.tip_detector,
                 path_detector_model=self.path_detector,
@@ -53,8 +52,8 @@ class TestCrackDetPipeline(unittest.TestCase):
             pipeline.write_results()
 
             # check crack detection results
-            exp_results = pd.read_csv(self.crack_info_by_nodemap_file)
-            act_results = pd.read_csv(os.path.join(temp_dir, 'crack_info_by_nodemap.txt'))
+            exp_results = pd.read_csv(str(self.crack_info_by_nodemap_file))
+            act_results = pd.read_csv(str(Path(temp_dir) / 'crack_info_by_nodemap.txt'))
             pd.testing.assert_frame_equal(exp_results, act_results)
 
         finally:

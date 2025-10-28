@@ -13,7 +13,7 @@ authors = [
 ]
 description = "Crack Analysis Tool in Python (CrackPy) - automatic detection and fracture mechanical analysis of (fatigue) cracks using digital image correlation"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.13"
 keywords = ["Fracture Analysis", "Crack Tip Detection", "Fatigue", "Digital Image Correlation"]
 license = "MIT"
 license-files = ["LICENSE"]
@@ -25,13 +25,14 @@ dependencies = [
     "numpy>=1.23.2",
     "opencv_python>=4.5.4.60",
     "pandas>=1.4.3",
-    "pyvista>=0.37.0",
+    "pyvista>=0.46.0",
     "scikit_image>=0.19.3",
     "scikit_learn>=1.1.2",
     "scipy>=1.9.0",
     "torch>=1.13.1",
     "torchvision>=0.13.1",
-    "rich>=12.5.1"
+    "rich>=12.5.1",
+    "pyyaml>=6.0",
 ]
 dynamic = ["version"]
 
@@ -39,6 +40,9 @@ dynamic = ["version"]
 where = ["."]
 include = ["crackpy*"]
 exclude = ["test_scripts*", "crackpy.tests*", "example_images*", "scripts*"]
+
+[tool.setuptools.package-data]
+crackpy = ["logging.yaml"]
 
 [tool.setuptools.dynamic]
 version = { attr = "crackpy.__version__" }

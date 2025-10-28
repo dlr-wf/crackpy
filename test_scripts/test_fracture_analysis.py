@@ -23,11 +23,7 @@ from crackpy.structure_elements.material import Material
 class TestFractureAnalysis(unittest.TestCase):
     def setUp(self):
         # Find project root iteratively by searching for pyproject.toml (up to 5 levels)
-        project_root = Path(__file__).resolve()
-        for _ in range(5):
-            if (project_root / 'pyproject.toml').exists():
-                break
-            project_root = project_root.parent
+        project_root = Path(__file__).resolve().parents[1]
 
         self.material = Material(E=72000, nu_xy=0.33, sig_yield=350)
 

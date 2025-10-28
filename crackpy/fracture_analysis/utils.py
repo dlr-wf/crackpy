@@ -30,8 +30,9 @@ class ReusableLinearInterpolator:
             eval_points: (M, 2) array of target points where interpolation is desired
 
         """
-        logger.debug(f"Initializing ReusableLinearInterpolator with {len(coor_x)} source points "
-                    f"and {len(eval_points)} evaluation points")
+        # use lazy logging to avoid eager string formatting
+        logger.debug("Initializing ReusableLinearInterpolator with %d source points and %d evaluation points",
+                     len(coor_x), len(eval_points))
 
         pts = np.c_[coor_x, coor_y]  # (N, 2)
         tri = Delaunay(pts)
@@ -47,7 +48,7 @@ class ReusableLinearInterpolator:
         self.n_eval: int = eval_points.shape[0]
 
         n_valid = np.sum(self.valid)
-        logger.debug(f"Interpolator initialized: {n_valid}/{self.n_eval} points inside convex hull")
+        logger.debug("Interpolator initialized: %d/%d points inside convex hull", n_valid, self.n_eval)
 
     def interpolate(self, values: np.ndarray) -> np.ndarray:
         """Interpolate a new field onto the evaluation points.

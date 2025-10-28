@@ -1,5 +1,5 @@
 import math
-import os
+from pathlib import Path
 import shutil
 import tempfile
 import unittest
@@ -18,17 +18,17 @@ from crackpy.crack_detection.data import datapreparation as dp
 class TestTransformsWithRealSample(unittest.TestCase):
 
     def setUp(self):
-        self.origin = os.path.join(  # '..', '..', '..', '..',
-                                   'test_data', 'crack_detection', 'raw')
+        root = Path(__file__).resolve().parents[4]
+        self.origin = root / 'test_data' / 'crack_detection' / 'raw'
         self.side = 'left'
         self.size = 70
 
         # import test data
         # Do NOT change the nodemap! Otherwise tests will fail!
-        stages_to_nodemaps, _ = get_nodemaps_and_stage_nums(os.path.join(self.origin, 'Nodemaps'),
+        stages_to_nodemaps, _ = get_nodemaps_and_stage_nums(str(self.origin / 'Nodemaps'),
                                                             ['7'])
         inputs, ground_truths = dp.import_data(nodemaps=stages_to_nodemaps,
-                                               data_path=self.origin,
+                                               data_path=str(self.origin),
                                                side=self.side,
                                                exists_target=True)
         # interpolate
@@ -44,12 +44,12 @@ class TestTransformsWithRealSample(unittest.TestCase):
         # save test data in temporary folder
         temp_dir = tempfile.mkdtemp()
         try:
-            torch.save(inputs, os.path.join(temp_dir, 'input.pt'))
-            torch.save(targets, os.path.join(temp_dir, 'target.pt'))
+            torch.save(inputs, str(Path(temp_dir) / 'input.pt'))
+            torch.save(targets, str(Path(temp_dir) / 'target.pt'))
 
             # load data from tmp into dataset
-            self.dataset = CrackTipDataset(inputs=os.path.join(temp_dir, 'input.pt'),
-                                           labels=os.path.join(temp_dir, 'target.pt'))
+            self.dataset = CrackTipDataset(inputs=str(Path(temp_dir) / 'input.pt'),
+                                           labels=str(Path(temp_dir) / 'target.pt'))
             self.sample = self.dataset[0]
         finally:  # clean up tmp
             shutil.rmtree(temp_dir)

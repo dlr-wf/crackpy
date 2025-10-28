@@ -1,5 +1,5 @@
-from copy import deepcopy
 import logging
+from copy import deepcopy
 
 import numpy as np
 from scipy.interpolate import griddata
@@ -71,8 +71,6 @@ class IntegralProperties:
             mask_tolerance: tolerance of the quadratic interpolation mask around the integration path
                             (fails if too small)
 
-            buckner_williams_terms: list of terms to be used in the Buckner-Chen integral evaluation
-
         """
         self.number_of_paths = number_of_paths
         self.integral_tick_size = integral_tick_size
@@ -93,7 +91,7 @@ class IntegralProperties:
 
         self.mask_tolerance = mask_tolerance
 
-        self.buckner_williams_terms = buckner_williams_terms  # TODO: Should be moved to LineIntegral, as it is not used in IntegralProperties
+        self.buckner_williams_terms = buckner_williams_terms
 
     def set_automatically(self, data: InputData, auto_detect_threshold: float):
         """Automatically set up the integration path properties.
@@ -186,7 +184,7 @@ class IntegralProperties:
 
         logger.debug(f"Automatic integral path detection completed:")
         logger.debug(f"  Integral sizes: left={self.integral_size_left:.2f}, right={self.integral_size_right:.2f}, "
-                    f"top={self.integral_size_top:.2f}, bottom={self.integral_size_bottom:.2f}")
+                     f"top={self.integral_size_top:.2f}, bottom={self.integral_size_bottom:.2f}")
         logger.debug(f"  Offsets: top={self.top_offset:.2f}, bottom={self.bottom_offset:.2f}")
         logger.debug(f"  Tick size: {self.integral_tick_size:.4f} mm")
 
@@ -423,7 +421,7 @@ class LineIntegral:
 
         self.integrate_j_decompose()
         logger.debug(f"J-decomposition completed: K_I={self.decomp_j_integral_K_I:.6f}, "
-                    f"K_II={self.decomp_j_integral_K_II:.6f}, K_III={self.decomp_j_integral_K_III:.6f} MPa√m")
+                     f"K_II={self.decomp_j_integral_K_II:.6f}, K_III={self.decomp_j_integral_K_III:.6f} MPa√m")
 
         self.integrate_i_k1_k2()
         logger.debug(f"Interaction integral SIFs: K_I={self.sif_k_i:.6f}, K_II={self.sif_k_ii:.6f} MPa√m")
@@ -917,7 +915,6 @@ class LineIntegral:
         uvw = interp_disp.interpolate(np.c_[self.data.disp_x, self.data.disp_y, self.data.disp_z])
         uvw = uvw.reshape(self.x_mesh.shape + (3,))
         self.disp_u_mesh, self.disp_v_mesh, self.disp_w_mesh = uvw[:, :, 0], uvw[:, :, 1], uvw[:, :, 2]
-        pass
 
     ###########################################
     # HELPER FUNCTIONS FOR DATA INTERPOLATION #
@@ -973,8 +970,6 @@ class LineIntegral:
         self.interpolated_disp_y_dx = (self.interpolated_disp_y_dx_positive -
                                        self.interpolated_disp_y_dx_negative) / (2.0 * self.x_shift)
 
-        pass
-
     def _interpolate_on_integration_points_z(self, mask_tol: float = None):
         """Interpolates full field data onto the integration path coordinates.
         Further, calculates the interpolated results for shifted points for derivatives.
@@ -1008,7 +1003,6 @@ class LineIntegral:
          self.interpolated_sigma_xz, self.interpolated_sigma_yz) = (intp_data[:, 0], intp_data[:, 1],
                                                                     intp_data[:, 2], intp_data[:, 3])
 
-        pass
     ########
     # MISC #
     ########
@@ -1040,4 +1034,3 @@ class LineIntegral:
             options.buckner_williams_terms.remove(0)
             logger.warning('Buckner-Williams terms should not include 0. Term removed.')
         options.buckner_williams_terms.sort()
-        pass

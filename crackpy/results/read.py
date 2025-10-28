@@ -56,7 +56,7 @@ class OutputReader:
             df: dataframe with columns and values
 
         """
-        logger.debug(f"Reading tag '{tag}' from file: {Path(path) / filename}")
+        logger.debug("Reading tag '%s' from file: %s", tag, Path(path) / filename)
 
         if tag not in self._search_for_tags(filename=filename, path=path):
             raise ValueError(f"The tag {tag} does not exist! \n"
@@ -107,7 +107,7 @@ class OutputReader:
             # save to results
             self.data[filename].update({tag: df})
 
-            logger.debug(f"Read {len(data_rows)} rows for tag '{tag}'")
+            logger.debug("Read %d rows for tag '%s'", len(data_rows), tag)
 
             # always read meta data
             if "Experiment_data" not in self.data[filename].keys():
@@ -209,7 +209,7 @@ class OutputReader:
             out_csv = Path(output_path) / output_filename
             all_results_df.to_csv(out_csv, index_label="filename")
         except UnboundLocalError:
-            logger.warning(f"Filter condition not satisfied by any file. Files considered: {files}.")
+            logger.warning("Filter condition not satisfied by any file. Files considered: %s.", files)
 
     @staticmethod
     def _filtered_by_condition(filter_condition: dict, experiment_data: pd.DataFrame) -> bool:

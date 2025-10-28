@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import unittest
 
 from crackpy.crack_detection.deep_learning.setup import Setup
@@ -7,8 +7,8 @@ from crackpy.crack_detection.deep_learning.setup import Setup
 class TestSetup(unittest.TestCase):
 
     def setUp(self):
-        self.setup = Setup(data_path=os.path.join(  # '..', '..', '..', '..',
-                                                  'test_data', 'crack_detection', 'raw'),
+        root = Path(__file__).resolve().parents[4]
+        self.setup = Setup(data_path=str(root / 'test_data' / 'crack_detection' / 'raw'),
                            experiment='EBr10', side='left')
         self.setup.set_stages(['7', '407', '807'])
 
@@ -24,8 +24,8 @@ class TestSetup(unittest.TestCase):
         self.assertEqual(list(next(iter(targets.values())).shape), [1, 256, 256])
 
     def test_set_model(self):
-        model_path = os.path.join(  # '..', '..', '..', '..',
-                                  'crackpy', 'crack_detection', 'models')
+        root = Path(__file__).resolve().parents[4]
+        model_path = str(root / 'crackpy' / 'crack_detection' / 'models')
         model_name = 'ParallelNets.pt'
 
         self.setup.set_model(model_path=model_path, model_name=model_name)
