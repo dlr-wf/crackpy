@@ -5,16 +5,16 @@ from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 from multiprocessing.managers import DictProxy
 
-from rich import progress as progress_rich
 import numpy as np
 import pandas as pd
 import logging
+from rich import progress as progress_rich
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.input.input_data import InputData
-from crackpy.input.crack_tip_info import CrackTipInfo
-from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.fracture_analysis.line_integration import IntegralProperties
+from crackpy.fracture_analysis.optimization import OptimizationProperties
+from crackpy.input.crack_tip_info import CrackTipInfo
+from crackpy.input.input_data import InputData
 from crackpy.results.plot import PlotSettings, Plotter
 from crackpy.results.write import OutputWriter
 from crackpy.structure_elements.data_files import NodemapStructure, Nodemap
@@ -345,7 +345,7 @@ class FractureAnalysisPipeline:
                             total = update_data["total"]
                             # update the progress bar for this task
                             progress.update(task_id, completed=latest, total=total, visible=latest < total)
-                        progress.update(overall_progress_task, completed=n_finished+1, total=len(futures))
+                        progress.update(overall_progress_task, completed=n_finished + 1, total=len(futures))
 
                     # raise any errors
                     for future in futures:

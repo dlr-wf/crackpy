@@ -45,9 +45,6 @@ class OutputWriter:
         """Writing a header for the output file."""
         out_file = Path(self.path) / self.filename
         logger.debug(f"Writing header to output file: {out_file}")
-        logger.debug(f"Crack tip position: x={self.analysis.crack_tip.crack_tip_x:.4f}, "
-                    f"y={self.analysis.crack_tip.crack_tip_y:.4f}, "
-                    f"angle={self.analysis.crack_tip.crack_tip_angle:.2f}°")
 
         with open(out_file, mode='w') as file:
             file.write('############################################################################################\n')
@@ -93,7 +90,6 @@ class OutputWriter:
 
             if self.analysis.optimization_properties is not None:
                 logger.debug(f"Writing CJP and Williams fitting results")
-
                 file.write('\n')
                 file.write("#######################################\n")
                 file.write("#     CJP model (Mode I / Mode II)    #\n")
@@ -447,9 +443,9 @@ class OutputWriter:
             json_dict['CJP_modeI_results']['K_S'] = {"unit": "MPa*m^{1/2}",
                                                      "result": self.analysis.cjp_res_m1["K_S"]}
             json_dict['CJP_modeI_results']['T_x'] = {"unit": "MPa",
-                                                   "result": self.analysis.cjp_res_m1["T_x"]}
+                                                     "result": self.analysis.cjp_res_m1["T_x"]}
             json_dict['CJP_modeI_results']['T_y'] = {"unit": "MPa",
-                                                   "result": self.analysis.cjp_res_m1["T_y"]}
+                                                     "result": self.analysis.cjp_res_m1["T_y"]}
 
             json_dict['Williams_fit_results'] = {}
             json_dict['Williams_fit_results']['error'] = {"unit": "1",

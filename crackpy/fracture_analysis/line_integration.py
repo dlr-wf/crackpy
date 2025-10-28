@@ -6,13 +6,14 @@ from scipy.interpolate import griddata
 from scipy.ndimage import label
 
 from crackpy.fracture_analysis.crack_tip import get_crack_nearfield, eigenfunction, get_zhao_solutions
+from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
 from crackpy.input.input_data import InputData, apply_mask
 from crackpy.structure_elements.material import Material
-from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_BUCKNER_CHEN_TERMS = [1, 2, 3, 4, 5]
+
 
 class IntegralProperties:
     """Integral properties which are used for more than one line integration within Fracture Analysis.
@@ -92,7 +93,7 @@ class IntegralProperties:
 
         self.mask_tolerance = mask_tolerance
 
-        self.buckner_williams_terms = buckner_williams_terms  # TODO: Should be move to LineIntegral, as it is not used in IntegralProperties
+        self.buckner_williams_terms = buckner_williams_terms  # TODO: Should be moved to LineIntegral, as it is not used in IntegralProperties
 
     def set_automatically(self, data: InputData, auto_detect_threshold: float):
         """Automatically set up the integration path properties.
@@ -370,7 +371,7 @@ class LineIntegral:
         """
         # input
         self.data = data
-        self.data_orig = None # for mode decomposition
+        self.data_orig = None  # for mode decomposition
         self.integration_path = integration_path
         self.x_shift = integration_path.path_properties.tick_size
         self.origin_x = integration_path.origin_x
@@ -456,7 +457,7 @@ class LineIntegral:
         # see: Molteno, M. R., & Becker, T. H. (2015). Mode I-III decomposition of the j-integral from DIC
         # displacement data. Strain, 51(6), 492–503. https://doi.org/10.1111/str.12166
         #############################################
-        self.data_orig = deepcopy(self.data)
+        data_orig = deepcopy(self.data)
         self._map_displacement_data_on_regular_grid(grid_points=200)
 
         # Mode I
@@ -480,7 +481,7 @@ class LineIntegral:
                                                (1 + self.material.nu_xy))  # MPa*sqrt(m)
 
         # Restore original data
-        self.data = self.data_orig
+        self.data = data_orig
         self._interpolate_on_integration_points()
 
     def integrate_i_k1_k2(self):
@@ -505,7 +506,7 @@ class LineIntegral:
         self.sif_k_ii = self.material.E / kii_aux * interaction_integral_value / 2  # mistake in Kuna formula (6.86)
         self.sif_k_ii = self._unit_mm_to_m(self.sif_k_ii)  # MPa*sqrt(mm) -> MPa*sqrt(m)
 
-    def integrate_i_t(self  ):
+    def integrate_i_t(self):
         # T-stress with interaction integral method
         int_path_max_x = np.max(self.np_integration_points[:, 0])
         t_stress_integral = self._solve_t_stress_interaction_integral()
@@ -806,11 +807,11 @@ class LineIntegral:
 
         eps_xy = np.zeros_like(self.x_mesh)
         eps_xy[0:int(steps / 2) - gap, 0:int(steps / 2)] = 0.5 * (
-                    np.gradient(u_x[0:int(steps / 2) - gap, 0:int(steps / 2)], dist, axis=0) +
-                    np.gradient(u_y[0:int(steps / 2) - gap, 0:int(steps / 2)], dist, axis=1))
+                np.gradient(u_x[0:int(steps / 2) - gap, 0:int(steps / 2)], dist, axis=0) +
+                np.gradient(u_y[0:int(steps / 2) - gap, 0:int(steps / 2)], dist, axis=1))
         eps_xy[int(steps / 2) + gap:, 0:int(steps / 2)] = 0.5 * (
-                    np.gradient(u_x[int(steps / 2) + gap:, 0:int(steps / 2)], dist, axis=0) +
-                    np.gradient(u_y[int(steps / 2) + gap:, 0:int(steps / 2)], dist, axis=1))
+                np.gradient(u_x[int(steps / 2) + gap:, 0:int(steps / 2)], dist, axis=0) +
+                np.gradient(u_y[int(steps / 2) + gap:, 0:int(steps / 2)], dist, axis=1))
         eps_xy[:, int(steps / 2):] = 0.5 * (np.gradient(u_x[:, int(steps / 2):], dist, axis=0) +
                                             np.gradient(u_y[:, int(steps / 2):], dist, axis=1))
         return eps_xx, eps_yy, eps_xy
@@ -841,7 +842,7 @@ class LineIntegral:
     # FUNCTIONS FOR PREPARING DATA FOR J-MODE DECOMPOSITION #
     #########################################################
 
-    def _prepare_mode_data(self, mode:str):
+    def _prepare_mode_data(self, mode: str):
         """Prepare `InputData` for mode 1, 2 or 3 decomposition (j-integral).
 
         Args:
@@ -915,9 +916,8 @@ class LineIntegral:
         interp_disp = ReusableLinearInterpolator(self.data.coor_x, self.data.coor_y, grid_points)
         uvw = interp_disp.interpolate(np.c_[self.data.disp_x, self.data.disp_y, self.data.disp_z])
         uvw = uvw.reshape(self.x_mesh.shape + (3,))
-        self.disp_u_mesh, self.disp_v_mesh, self.disp_w_mesh = uvw[:,:,0], uvw[:,:,1], uvw[:,:,2]
+        self.disp_u_mesh, self.disp_v_mesh, self.disp_w_mesh = uvw[:, :, 0], uvw[:, :, 1], uvw[:, :, 2]
         pass
-
 
     ###########################################
     # HELPER FUNCTIONS FOR DATA INTERPOLATION #
@@ -949,15 +949,17 @@ class LineIntegral:
 
         # we reuses triangles and weights, since interpolation points are the same for all fields
         # for the fields
-        interpolator = ReusableLinearInterpolator(data.coor_x, data.coor_y, np.c_[self.np_integration_points[:, 0], self.np_integration_points[:, 1]])
-        intp_data = interpolator.interpolate(np.c_[data.eps_x, data.eps_y, data.eps_xy,
-                                                    data.sig_x, data.sig_y, data.sig_xy,
-                                                    data.disp_x, data.disp_y])
+        interpolator = ReusableLinearInterpolator(data.coor_x, data.coor_y, np.c_[
+            self.np_integration_points[:, 0], self.np_integration_points[:, 1]])
+        intp_data = interpolator.interpolate(
+            np.c_[data.eps_x, data.eps_y, data.eps_xy,
+            data.sig_x, data.sig_y, data.sig_xy,
+            data.disp_x, data.disp_y])
         (self.interpolated_eps_x, self.interpolated_eps_y, self.interpolated_eps_xy,
          self.interpolated_sig_x, self.interpolated_sig_y, self.interpolated_sig_xy,
          self.interpolated_disp_x, self.interpolated_disp_y) = (intp_data[:, 0], intp_data[:, 1], intp_data[:, 2],
-                                                                   intp_data[:, 3], intp_data[:, 4], intp_data[:, 5],
-                                                                   intp_data[:, 6], intp_data[:, 7])
+                                                                intp_data[:, 3], intp_data[:, 4], intp_data[:, 5],
+                                                                intp_data[:, 6], intp_data[:, 7])
 
         # for the derivative of disp_y w.r.t. x, we reuse the standard griddata approach (since points are different)
         self.interpolated_disp_y_dx_positive = griddata((data.coor_x, data.coor_y), data.disp_y,
@@ -999,14 +1001,14 @@ class LineIntegral:
         else:
             data = self.data
 
-        interpolator = ReusableLinearInterpolator(data.coor_x, data.coor_y, np.c_[self.np_integration_points[:, 0], self.np_integration_points[:, 1]])
+        interpolator = ReusableLinearInterpolator(data.coor_x, data.coor_y, np.c_[
+            self.np_integration_points[:, 0], self.np_integration_points[:, 1]])
         intp_data = interpolator.interpolate(np.c_[data.eps_xz, data.eps_yz, data.sigma_xz, data.sigma_yz])
         (self.interpolated_eps_xz, self.interpolated_eps_yz,
          self.interpolated_sigma_xz, self.interpolated_sigma_yz) = (intp_data[:, 0], intp_data[:, 1],
                                                                     intp_data[:, 2], intp_data[:, 3])
 
         pass
-
     ########
     # MISC #
     ########

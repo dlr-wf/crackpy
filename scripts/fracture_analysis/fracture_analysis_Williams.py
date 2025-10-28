@@ -24,15 +24,15 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.input.input_data import InputData
-from crackpy.input.crack_tip_info import CrackTipInfo
+from crackpy.fracture_analysis.crack_tip import williams_displ_field
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
+from crackpy.input.crack_tip_info import CrackTipInfo
+from crackpy.input.input_data import InputData
 from crackpy.results.plot import PlotSettings, Plotter
 from crackpy.results.write import OutputWriter
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
-from crackpy.fracture_analysis.crack_tip import williams_displ_field
 
 # Logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')

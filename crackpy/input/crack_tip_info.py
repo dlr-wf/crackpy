@@ -4,6 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+
 class CrackTipInfo:
     """Wrapper for crack tip information.
 

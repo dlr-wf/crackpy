@@ -4,12 +4,14 @@ from scipy import optimize
 import logging
 logger = logging.getLogger(__name__)
 
-from crackpy.fracture_analysis.crack_tip import williams_displ_field, cjp_displ_field_mixedmode, williams_displ_field_3d, cjp_displ_field_modeI
+from crackpy.fracture_analysis.crack_tip import williams_displ_field, cjp_displ_field_mixedmode, \
+    williams_displ_field_3d, cjp_displ_field_modeI
+from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
 from crackpy.input.input_data import InputData
 from crackpy.structure_elements.material import Material
-from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
 
 DEFAULT_WILLIAMS_OPT_TERMS = [-1, 1, 2, 3, 4, 5]
+
 
 class OptimizationProperties:
     """Class for setting the Optimization properties."""
@@ -21,7 +23,7 @@ class OptimizationProperties:
             max_radius: Optional[float] = None,
             tick_size: Optional[float] = 0.01,
             terms=None,
-            dimensions: int = 2
+            dimensions: int = 2 # TODO: Remove option, optimization KIII seperately
     ):
         """Initialize Optimization properties.
 
@@ -87,7 +89,8 @@ class Optimization:
         self.terms = np.asarray(options.terms)
         self.angle_gap_rad = angle_gap / 180 * np.pi
         self.r_grid, self.phi_grid = \
-            np.mgrid[self.min_radius:max_radius:tick_size, -np.pi+self.angle_gap_rad:np.pi-self.angle_gap_rad:tick_size]
+            np.mgrid[
+                self.min_radius:max_radius:tick_size, -np.pi + self.angle_gap_rad:np.pi - self.angle_gap_rad:tick_size]
         self.x_grid, self.y_grid = self.make_cartesian(self.r_grid, self.phi_grid)
 
         # map transformed data to cartesian grid
@@ -101,7 +104,8 @@ class Optimization:
         disp_x_0_0, disp_y_0_0, disp_z_0_0 = intp_data[:,0].item(), intp_data[:,1].item(), intp_data[:,2].item()
         logger.debug(f"Displacement at crack tip (0,0): u_x={disp_x_0_0:.4f}, u_y={disp_y_0_0:.4f}, u_z={disp_z_0_0:.4f} mm")
 
-        interpolator = ReusableLinearInterpolator(self.data.coor_x, self.data.coor_y, np.c_[self.x_grid.ravel(), self.y_grid.ravel()])
+        interpolator = ReusableLinearInterpolator(self.data.coor_x, self.data.coor_y,
+                                                  np.c_[self.x_grid.ravel(), self.y_grid.ravel()])
         intp_data = interpolator.interpolate(np.c_[self.data.disp_x - disp_x_0_0,
                                                   self.data.disp_y - disp_y_0_0,
                                                     self.data.disp_z - disp_z_0_0])
@@ -125,9 +129,12 @@ class Optimization:
             init_coeffs += np.random.rand(5)
         # optimize least squares
         logger.debug(f"Starting CJP mode I optimization using method '{method}'")
-        return optimize.least_squares(fun=self.residuals_cjp_displacements_modeI,
+        result =  optimize.least_squares(fun=self.residuals_cjp_displacements_modeI,
                                       x0=init_coeffs,
                                       method=method)
+        logger.debug(
+            f"CJP mode I optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
+        return result
 
     def optimize_cjp_displacements_mixedmode(self, method='lm', init_coeffs=None):
         """Optimizes CJP displacements.
@@ -161,7 +168,7 @@ class Optimization:
 
         """
         if init_coeffs is None:
-            init_coeffs = np.random.rand(2*len(self.terms))
+            init_coeffs = np.random.rand(2 * len(self.terms))
 
         logger.debug(f"Starting Williams 2D optimization with {len(self.terms)} terms using method '{method}'")
 
@@ -182,7 +189,7 @@ class Optimization:
 
         """
         if init_coeffs is None:
-            init_coeffs = np.random.rand(3*len(self.terms))
+            init_coeffs = np.random.rand(3 * len(self.terms))
 
         # optimize least squares
         logger.debug(f"Starting Williams 3D optimization with {len(self.terms)} terms using method '{method}'")
@@ -247,7 +254,8 @@ class Optimization:
         a = inp[0:len(self.terms)]
         b = inp[len(self.terms):]
 
-        williams_disp_x, williams_disp_y = williams_displ_field(a, b, self.terms, self.phi_grid, self.r_grid, self.material)
+        williams_disp_x, williams_disp_y = williams_displ_field(a, b, self.terms, self.phi_grid, self.r_grid,
+                                                                self.material)
 
         residual = np.asarray([williams_disp_x - self.interp_disp_x, williams_disp_y - self.interp_disp_y])
         residual = residual.reshape(-1)
@@ -269,9 +277,11 @@ class Optimization:
         b = inp[len(self.terms):2 * len(self.terms)]
         c = inp[2 * len(self.terms):]
 
-        williams_disp_x, williams_disp_y, williams_disp_z= williams_displ_field_3d(a, b, c, self.terms, self.phi_grid, self.r_grid, self.material)
+        williams_disp_x, williams_disp_y, williams_disp_z = williams_displ_field_3d(a, b, c, self.terms, self.phi_grid,
+                                                                                    self.r_grid, self.material)
 
-        residual = np.asarray([williams_disp_x - self.interp_disp_x, williams_disp_y - self.interp_disp_y, williams_disp_z - self.interp_disp_z])
+        residual = np.asarray([williams_disp_x - self.interp_disp_x, williams_disp_y - self.interp_disp_y,
+                               williams_disp_z - self.interp_disp_z])
         residual = residual.reshape(-1)
         # filter out nan values
         residual = residual[~np.isnan(residual)]
@@ -280,8 +290,8 @@ class Optimization:
     @staticmethod
     def make_cartesian(r: float, phi: float):
         """Takes polar coordinates and maps onto cartesian coordinates."""
-        x = r*np.cos(phi)
-        y = r*np.sin(phi)
+        x = r * np.cos(phi)
+        y = r * np.sin(phi)
         return x, y
 
     @staticmethod

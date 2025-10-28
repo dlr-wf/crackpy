@@ -45,7 +45,7 @@ class Material:
 
         self.stiffness_matrix = self._stiffness_matrix() if not plane_strain else self._stiffness_matrix_plane_strain()
         self.inverse_stiffness_matrix = self._inverse_stiffness_matrix()
-        self.kappa = (3 - self.nu_xy) / (1 + self.nu_xy) if not plane_strain else 3 - 4*self.nu_xy
+        self.kappa = (3 - self.nu_xy) / (1 + self.nu_xy) if not plane_strain else 3 - 4 * self.nu_xy
 
         logger.debug(f"Material initialized: {name}, E={E} MPa, nu={nu_xy}, "
                     f"plane_strain={plane_strain}, G={self.G:.2f} MPa, kappa={self.kappa:.4f}")
@@ -71,8 +71,8 @@ class Material:
 
         """
         return self.E / (1 + self.nu_xy) * np.array(
-            [[1 + self.nu_xy / (1 - 2*self.nu_xy), self.nu_xy / (1 - 2*self.nu_xy), 0],
-             [self.nu_xy / (1 - 2*self.nu_xy), 1 + self.nu_xy / (1 - 2*self.nu_xy), 0],
+            [[1 + self.nu_xy / (1 - 2 * self.nu_xy), self.nu_xy / (1 - 2 * self.nu_xy), 0],
+             [self.nu_xy / (1 - 2 * self.nu_xy), 1 + self.nu_xy / (1 - 2 * self.nu_xy), 0],
              [0, 0, 1 - self.nu_xy]]
         )
 

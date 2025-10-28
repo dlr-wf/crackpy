@@ -18,13 +18,13 @@ from pathlib import Path
 import logging
 from matplotlib import pyplot as plt
 
-from crackpy.fracture_analysis.line_integration import IntegralProperties
-from crackpy.fracture_analysis.optimization import OptimizationProperties
-from crackpy.results.read import OutputReader
 from crackpy.crack_detection.model import get_model
 from crackpy.crack_detection.pipeline.pipeline import CrackDetectionSetup, CrackDetectionPipeline
+from crackpy.fracture_analysis.line_integration import IntegralProperties
+from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.fracture_analysis.pipeline import FractureAnalysisPipeline
 from crackpy.results.plot import PlotSettings
+from crackpy.results.read import OutputReader
 from crackpy.structure_elements.material import Material
 
 # Logging
@@ -97,7 +97,7 @@ opt_props = OptimizationProperties(
     min_radius=5,
     max_radius=10,
     tick_size=0.01,
-    terms=[-3,-2,-1, 0, 1, 2, 3, 4, 5],
+    terms=[-3, -2, -1, 0, 1, 2, 3, 4, 5],
     dimensions=3
 )
 

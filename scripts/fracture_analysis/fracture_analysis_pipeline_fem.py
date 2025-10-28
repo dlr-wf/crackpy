@@ -71,7 +71,7 @@ opt_props = OptimizationProperties(
     min_radius=5,
     max_radius=10,
     tick_size=0.01,
-    terms=[-3,-2,-1, 0, 1, 2, 3, 4, 5],
+    terms=[-3, -2, -1, 0, 1, 2, 3, 4, 5],
     dimensions=3,
 )
 

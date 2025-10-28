@@ -345,5 +345,3 @@ class OutputReader:
         else:
             pass
         return self.possible_tags
-
-

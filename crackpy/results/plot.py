@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import matplotlib
 import numpy as np
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -8,9 +9,6 @@ import logging
 from crackpy.fracture_analysis.analysis import FractureAnalysis
 from crackpy.fracture_analysis.crack_tip import cjp_displ_field_mixedmode, williams_displ_field
 
-# Fix error issued by multiprocessing + matplotlib
-# https://stackoverflow.com/questions/28903969/python-multiprocessingsavefig-leads-to-error-or-system-lockup
-import matplotlib
 matplotlib.use('Agg')
 
 logger = logging.getLogger(__name__)
@@ -335,7 +333,7 @@ class Plotter:
         cjp_disp_x, cjp_disp_y = cjp_displ_field_mixedmode(self.analysis.cjp_coeffs_mm, opt.phi_grid, opt.r_grid,
                                                            opt.material)
         residuals = np.asarray([cjp_disp_x - opt.interp_disp_x, cjp_disp_y - opt.interp_disp_y])
-        error = np.sqrt(np.sum(residuals**2, axis=0))
+        error = np.sqrt(np.sum(residuals ** 2, axis=0))
 
         # Set general font size
         plt.rcParams['font.size'] = '16'
@@ -382,7 +380,8 @@ class Plotter:
         divider = make_axes_locatable(self.ax_williams_opt)
         cax = divider.append_axes("bottom", size="5%", pad=0.3)
         labels = np.linspace(error.flatten().min(), error.flatten().max(), 2, endpoint=True)
-        plt.colorbar(plot, ticks=labels, cax=cax, orientation='horizontal', label='Williams fitting error', format='%.0e')
+        plt.colorbar(plot, ticks=labels, cax=cax, orientation='horizontal', label='Williams fitting error',
+                     format='%.0e')
 
     @staticmethod
     def _make_path(path):

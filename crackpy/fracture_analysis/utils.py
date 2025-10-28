@@ -5,6 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+
 class ReusableLinearInterpolator:
     """Precompute Delaunay triangulation and barycentric weights for a fixed set of
     evaluation points (grid or arbitrary points). Reuse for many fields efficiently.
@@ -32,17 +33,17 @@ class ReusableLinearInterpolator:
         logger.debug(f"Initializing ReusableLinearInterpolator with {len(coor_x)} source points "
                     f"and {len(eval_points)} evaluation points")
 
-        pts = np.c_[coor_x, coor_y]   # (N, 2)
+        pts = np.c_[coor_x, coor_y]  # (N, 2)
         tri = Delaunay(pts)
 
-        simp = tri.find_simplex(eval_points)        # simplex index per eval point
-        T = tri.transform[simp, :2]                 # affine transforms
-        R = eval_points - tri.transform[simp, 2]    # shifted eval points
-        bary12 = np.einsum('mij,mj->mi', T, R)      # first 2 barycentric coords
+        simp = tri.find_simplex(eval_points)  # simplex index per eval point
+        T = tri.transform[simp, :2]  # affine transforms
+        R = eval_points - tri.transform[simp, 2]  # shifted eval points
+        bary12 = np.einsum('mij,mj->mi', T, R)  # first 2 barycentric coords
 
         self.bary: np.ndarray = np.c_[bary12, 1 - bary12.sum(axis=1)]  # full barycentric weights
-        self.vidx: np.ndarray = tri.simplices[simp]             # vertex indices
-        self.valid: np.ndarray = simp >= 0                      # inside convex hull mask
+        self.vidx: np.ndarray = tri.simplices[simp]  # vertex indices
+        self.valid: np.ndarray = simp >= 0  # inside convex hull mask
         self.n_eval: int = eval_points.shape[0]
 
         n_valid = np.sum(self.valid)
@@ -68,3 +69,6 @@ class ReusableLinearInterpolator:
             out[self.valid] = (self.bary[self.valid, :, None] * values[self.vidx[self.valid]]).sum(axis=1)
 
         return out
+
+if __name__ == "__main__":
+    pass

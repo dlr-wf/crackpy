@@ -1,18 +1,18 @@
 import warnings
+from multiprocessing.managers import DictProxy
 from typing import Union, Optional, Mapping
 
 import numpy as np
-from multiprocessing.managers import DictProxy
 import rich.progress as progress_rich
 import logging
 logger = logging.getLogger(__name__)
 
 from crackpy.fracture_analysis import line_integration
-from crackpy.input.input_data import InputData
-from crackpy.input.crack_tip_info import CrackTipInfo
 from crackpy.fracture_analysis.line_integration import (IntegralProperties,
                                                         LineIntegral)
 from crackpy.fracture_analysis.optimization import Optimization, OptimizationProperties
+from crackpy.input.crack_tip_info import CrackTipInfo
+from crackpy.input.input_data import InputData
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
 
@@ -72,12 +72,12 @@ class FractureAnalysis:
             self.optimization = Optimization(data=self.data,
                                              options=self.optimization_properties,
                                              material=self.material)
-            self._init_optimizaton_results()
+            self._init_optimizaton_results() #TODO: initialize regardless of optimization_properties being None
 
         self.integral_properties = integral_properties
         if self.integral_properties is not None:
             LineIntegral.ensure_defaults_buckner_chen(self.integral_properties)
-            self._init_integral_results()
+            self._init_integral_results() #TODO: initialize regardless of integral_results being none
 
     def _init_optimizaton_results(self):
         """Initialize attributes used for storing optimization results."""
@@ -140,7 +140,7 @@ class FractureAnalysis:
 
         logger.debug(f"Fracture analysis completed for {self.nodemap_file}")
 
-    pass
+        pass
 
     def _run_cjp_optimization_modeI(self) -> None:
         """Run CJP optimization if optimization properties are provided."""
@@ -167,7 +167,8 @@ class FractureAnalysis:
                          f"T_x={T_x:.2f}, T_y={T_y:.2f}")
         except Exception:
             logger.exception('CJP optimization (Mode I) failed.')
-            self.cjp_res_m1 = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'T_x': np.nan, 'T_y': np.nan}
+            self.cjp_res_m1 = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'T_x': np.nan,
+                               'T_y': np.nan}
 
         pass
 
@@ -199,7 +200,7 @@ class FractureAnalysis:
         except Exception:
             logger.exception('CJP optimization failed.')
             self.cjp_res_mm = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'K_II': np.nan,
-                            'T': np.nan}
+                               'T': np.nan}
 
         pass
 
@@ -280,8 +281,8 @@ class FractureAnalysis:
 
             # Define line integration methods
             line_integral = line_integration.LineIntegral(integration_path, self.data, self.material,
-                                                                    self.integral_properties.mask_tolerance,
-                                                                    self.integral_properties.buckner_williams_terms)
+                                                          self.integral_properties.mask_tolerance,
+                                                          self.integral_properties.buckner_williams_terms)
 
             # Calculate integral results
             line_integral.integrate_all()

@@ -1,12 +1,14 @@
+import logging
 from pathlib import Path
 import re
+from copy import deepcopy
+
 import numpy as np
 import pyvista
 from pyvista import CellType
-from copy import deepcopy
+
 from crackpy.structure_elements import data_files
 from crackpy.structure_elements.material import Material
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +75,7 @@ class InputData:
         self.sig_2 = None
         self.connections = None
 
-        #Mode III
+        # Mode III
         self.eps_xz = None
         self.eps_yz = None
         self.sigma_xz = None
@@ -98,7 +100,6 @@ class InputData:
 
         # methods called when initialized
         self.__post_init__(nodemap, read_header_only)
-
 
     def __post_init__(self, nodemap, read_header_only: bool = False):
         if nodemap is not None:
@@ -125,7 +126,6 @@ class InputData:
         """
         self.nodemap_file = str(nodemap_file)
         logger.debug(f"Nodemap file set to: {self.nodemap_file}")
-
 
     def set_connection_file(self, connection_file: str, folder: str | Path) -> None:
         """Set connection file path.
@@ -231,6 +231,7 @@ class InputData:
                             meta_value = meta_stripped
                         # set class instance attribute
                         setattr(self, meta_attr, meta_value)
+                        logger.debug(f"Read {meta_attr}")
                         break
 
     def require_fields(self, *field_names: str) -> None:
@@ -321,7 +322,6 @@ class InputData:
             path = out_dir / (Path(self.nodemap_name).stem + '.vtk')
             mesh.save(str(path), binary=False)
         return mesh
-
 
     #############################
     # DATA MANIPULATION METHODS #
@@ -415,8 +415,10 @@ class InputData:
             self.sig_xy = np.asarray(sig_xy)
 
         # recalculate Von Mises stress and eq. strain
+        logger.debug(f"Recalculating Von Mises strains")
         self.eps_vm = self.calc_eps_vm()
         if stress_exists:
+            logger.debug(f"Recalculating Von Mises stresses")
             self.sig_vm = self._calc_sig_vm()
 
     #################################

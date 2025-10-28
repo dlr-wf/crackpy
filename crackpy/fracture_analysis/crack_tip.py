@@ -161,7 +161,7 @@ def williams_displ_field_3d(a: Union[list, np.ndarray], b: Union[list, np.ndarra
 
         disp_x += 1 / (2 * material.G) * r ** (n / 2) * (a[index] * F_1 + b[index] * G_1)
         disp_y += 1 / (2 * material.G) * r ** (n / 2) * (a[index] * F_2 + b[index] * G_2)
-        disp_z += 1 / (2 * material.G) * r ** (n / 2) * (c[index] * H_3)
+        disp_z += 1 / (2 * material.G) * r ** (n / 2) * (c[index] * H_3) #TODO: Extract to seperate function
 
     return disp_x, disp_y, disp_z
 
@@ -181,22 +181,22 @@ def cjp_stress_field_mixedmode(coeffs: Union[list, np.ndarray], phi: float, r: f
     """
     A_r, B_r, B_i, C, E = coeffs
     sigma_x = (1 / r ** 0.5) * (
-            -0.5 * (A_r + 4 * B_r + 8 * E) * np.cos(phi / 2) - 0.5 * B_r * np.cos(5 * phi / 2) + \
-            0.5 * B_i * (np.sin(5 * phi / 2) + 7 * np.sin(phi / 2)) - \
+            -0.5 * (A_r + 4 * B_r + 8 * E) * np.cos(phi / 2) - 0.5 * B_r * np.cos(5 * phi / 2) +
+            0.5 * B_i * (np.sin(5 * phi / 2) + 7 * np.sin(phi / 2)) -
             0.5 * E * (np.log(r) * (np.cos(5 * phi / 2) + 3 * np.cos(phi / 2)) + phi * (
             np.sin(5 * phi / 2) + 3 * np.sin(phi / 2)))
     ) - C
 
     sigma_y = (1 / r ** 0.5) * (
-            0.5 * (A_r - 4 * B_r - 8 * E) * np.cos(phi / 2) + 0.5 * B_r * np.cos(5 * phi / 2) - \
-            0.5 * B_i * (np.sin(5 * phi / 2) - np.sin(phi / 2)) + \
+            0.5 * (A_r - 4 * B_r - 8 * E) * np.cos(phi / 2) + 0.5 * B_r * np.cos(5 * phi / 2) -
+            0.5 * B_i * (np.sin(5 * phi / 2) - np.sin(phi / 2)) +
             0.5 * E * (np.log(r) * (np.cos(5 * phi / 2) - 5 * np.cos(phi / 2)) + phi * (
             np.sin(5 * phi / 2) - 5 * np.sin(phi / 2)))
     )
 
     sigma_xy = (1 / r ** 0.5) * (
-            -0.5 * (A_r * np.sin(phi / 2) + B_r * np.sin(5 * phi / 2)) + \
-            0.5 * B_i * (np.cos(5 * phi / 2) + 3 * np.cos(phi / 2)) - \
+            -0.5 * (A_r * np.sin(phi / 2) + B_r * np.sin(5 * phi / 2)) +
+            0.5 * B_i * (np.cos(5 * phi / 2) + 3 * np.cos(phi / 2)) -
             - E * np.sin(phi) * (np.log(r) * np.cos(3 * phi / 2) + phi * np.sin(3 * phi / 2))
     )
 
@@ -220,13 +220,13 @@ def cjp_displ_field_mixedmode(coeffs: Union[list, np.ndarray], phi: float, r: fl
     A_r, B_r, B_i, C, E = coeffs
     kappa = material.kappa
     disp_x = r ** 0.5 * (-A_r - 2 * B_r * kappa - 2 * E) * np.cos(phi / 2) + r ** 0.5 * (
-                2 * B_i * kappa - 3 * B_i) * np.sin(phi / 2) + \
+            2 * B_i * kappa - 3 * B_i) * np.sin(phi / 2) + \
              r ** 0.5 * (B_r + 2 * E) * np.cos(3 * phi / 2) - r ** 0.5 * B_i * np.sin(3 * phi / 2) + \
              r ** 0.5 * E * (np.log(r) * (np.cos(3 * phi / 2) + (1 - 2 * kappa) * np.cos(phi / 2)) +
                              phi * (np.sin(3 * phi / 2) + (1 + 2 * kappa) * np.sin(phi / 2))) - \
              C / 4 * r * (1 + kappa) * np.cos(phi)
     disp_y = r ** 0.5 * (-2 * B_i * kappa - 3 * B_i) * np.cos(phi / 2) + r ** 0.5 * (
-                A_r - 2 * B_r * kappa + 2 * E) * np.sin(phi / 2) + \
+            A_r - 2 * B_r * kappa + 2 * E) * np.sin(phi / 2) + \
              r ** 0.5 * (B_r + 2 * E) * np.sin(3 * phi / 2) + r ** 0.5 * B_i * np.cos(3 * phi / 2) + \
              r ** 0.5 * E * (np.log(r) * (np.sin(3 * phi / 2) - (1 + 2 * kappa) * np.sin(phi / 2)) -
                              phi * (np.cos(3 * phi / 2) + (1 + 2 * kappa) * np.cos(phi / 2))) + \
@@ -254,14 +254,14 @@ def cjp_stress_field_modeI(coeffs: Union[list, np.ndarray], phi: float, r: float
     A, B, C, E, F = coeffs
     sigma_x = -(1 / r ** 0.5) * (
             -0.5 * (A + 4 * B + 8 * E) * np.cos(phi / 2)
-            - 0.5 * B * np.cos(5 * phi / 2) - \
+            - 0.5 * B * np.cos(5 * phi / 2) -
             0.5 * E * (np.log(r) * (np.cos(5 * phi / 2) + 3 * np.cos(phi / 2))
                        + phi * (np.sin(5 * phi / 2) + 3 * np.sin(phi / 2)))
     ) - C
 
     sigma_y = (1 / r ** 0.5) * (
             0.5 * (A - 4 * B - 8 * E) * np.cos(phi / 2)
-            + 0.5 * B * np.cos(5 * phi / 2) + \
+            + 0.5 * B * np.cos(5 * phi / 2) +
             0.5 * E * (np.log(r) * (np.cos(5 * phi / 2) - 5 * np.cos(phi / 2))
                        + phi * (np.sin(5 * phi / 2) - 5 * np.sin(phi / 2)))
     )
@@ -293,17 +293,17 @@ def cjp_displ_field_modeI(coeffs: Union[list, np.ndarray], phi: float, r: float,
     kappa = material.kappa
     disp_x = r ** 0.5 * (-A - 2 * B * kappa - 2 * E) * np.cos(phi / 2) + r ** 0.5 * (B + 2 * E) * np.cos(3 * phi / 2) - \
              r ** 0.5 * E * (np.log(r) * (np.cos(3 * phi / 2) + (1 - 2 * kappa) * np.cos(phi / 2)) + phi * (
-                np.sin(3 * phi / 2) + \
-                (2 * kappa - 1) * np.sin(phi / 2))) - \
+            np.sin(3 * phi / 2) +
+            (2 * kappa - 1) * np.sin(phi / 2))) - \
              r * C * (1 + kappa) * np.cos(phi) / 4 + \
              r * F * (kappa - 3) * np.cos(phi) / 4
 
     disp_y = r ** 0.5 * (A - 2 * B * kappa + 2 * E) * np.sin(phi / 2) + r ** 0.5 * (B + 2 * E) * np.sin(3 * phi / 2) + \
              r ** 0.5 * E * (np.log(r) * (np.sin(3 * phi / 2) - (1 + 2 * kappa) * np.sin(phi / 2)) - phi * (
-                np.cos(3 * phi / 2) + \
-                (2 * kappa + 1) * np.cos(phi / 2))) + \
+            np.cos(3 * phi / 2) +
+            (2 * kappa + 1) * np.cos(phi / 2))) + \
              r * C * (3 - kappa) * np.sin(phi) / 4 + \
-                r * F * (kappa + 1) * np.sin(phi) /4
+             r * F * (kappa + 1) * np.sin(phi) / 4
 
     disp_x = disp_x / (2 * material.G)
     disp_y = disp_y / (2 * material.G)

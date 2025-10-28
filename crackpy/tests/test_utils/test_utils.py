@@ -1,5 +1,6 @@
 import unittest
 import numpy as np
+import time
 from scipy.interpolate import griddata
 from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
 

@@ -22,16 +22,17 @@ import numpy as np
 import logging
 
 from matplotlib import pyplot as plt
+
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.input.input_data import InputData
-from crackpy.input.crack_tip_info import CrackTipInfo
+from crackpy.fracture_analysis.crack_tip import williams_displ_field_3d
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
+from crackpy.input.crack_tip_info import CrackTipInfo
+from crackpy.input.input_data import InputData
 from crackpy.results.plot import PlotSettings, Plotter
-from crackpy.results.write import OutputWriter
 from crackpy.results.read import OutputReader
+from crackpy.results.write import OutputWriter
 from crackpy.structure_elements.material import Material
-from crackpy.fracture_analysis.crack_tip import williams_displ_field_3d
 
 # Logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -39,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 OUT_FOLDER = Path('Fracture_Analysis_Williams_results_3D')
 OUT_FOLDER.mkdir(parents=True, exist_ok=True)
+
 
 def main():
     ################################
@@ -72,15 +74,17 @@ def main():
     gap = 2
     dist = x_coordinates[1] - x_coordinates[0]
     eps_xx = np.zeros_like(x_mesh)
-    eps_xx[0:int(steps / 2) - gap, 0:int(steps / 2)] = np.gradient(disp_u_mesh[0:int(steps / 2) - gap, 0:int(steps / 2)],
-                                                                   dist, axis=1)
+    eps_xx[0:int(steps / 2) - gap, 0:int(steps / 2)] = np.gradient(
+        disp_u_mesh[0:int(steps / 2) - gap, 0:int(steps / 2)],
+        dist, axis=1)
     eps_xx[int(steps / 2) + gap:, 0:int(steps / 2)] = np.gradient(disp_u_mesh[int(steps / 2) + gap:, 0:int(steps / 2)],
                                                                   dist, axis=1)
     eps_xx[:, int(steps / 2):] = np.gradient(disp_u_mesh[:, int(steps / 2):], dist, axis=1)
 
     eps_yy = np.zeros_like(x_mesh)
-    eps_yy[0:int(steps / 2) - gap, 0:int(steps / 2)] = np.gradient(disp_v_mesh[0:int(steps / 2) - gap, 0:int(steps / 2)],
-                                                                   dist, axis=0)
+    eps_yy[0:int(steps / 2) - gap, 0:int(steps / 2)] = np.gradient(
+        disp_v_mesh[0:int(steps / 2) - gap, 0:int(steps / 2)],
+        dist, axis=0)
     eps_yy[int(steps / 2) + gap:, 0:int(steps / 2)] = np.gradient(disp_v_mesh[int(steps / 2) + gap:, 0:int(steps / 2)],
                                                                   dist, axis=0)
     eps_yy[:, int(steps / 2):] = np.gradient(disp_v_mesh[:, int(steps / 2):], dist, axis=0)
@@ -140,7 +144,7 @@ def main():
         min_radius=5,
         max_radius=10,
         tick_size=0.01,
-        terms=[-3,-2,-1, 0, 1, 2, 3, 4, 5],
+        terms=[-3, -2, -1, 0, 1, 2, 3, 4, 5],
         dimensions=3
     )
 
@@ -205,6 +209,7 @@ def main():
 
     # Make CSV file
     reader.make_csv_from_results(files="all", output_path=OUT_FOLDER, output_filename='results.csv')
+
 
 if __name__ == '__main__':
     # Profiling (optional)
