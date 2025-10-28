@@ -13,7 +13,7 @@ authors = [
 ]
 description = "Crack Analysis Tool in Python (CrackPy) - automatic detection and fracture mechanical analysis of (fatigue) cracks using digital image correlation"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 keywords = ["Fracture Analysis", "Crack Tip Detection", "Fatigue", "Digital Image Correlation"]
 license = "MIT"
 license-files = ["LICENSE"]
