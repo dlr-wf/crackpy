@@ -7,7 +7,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import logging
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.fracture_analysis.crack_tip import cjp_displ_field_mixedmode, williams_displ_field
+from crackpy.fracture_analysis.crack_tip import cjp_displ_field_mixedmode, williams_displ_field_xy
 
 matplotlib.use('Agg')
 
@@ -359,8 +359,7 @@ class Plotter:
         opt = self.analysis.optimization
         a = self.analysis.williams_coeffs[:len(opt.terms)]
         b = self.analysis.williams_coeffs[len(opt.terms):]
-        will_disp_x, will_disp_y = williams_displ_field(a, b, opt.terms,
-                                                        opt.phi_grid, opt.r_grid, opt.material)
+        will_disp_x, will_disp_y = williams_displ_field_xy(a, b, opt.terms, opt.phi_grid, opt.r_grid, opt.material)
         residuals = np.asarray([will_disp_x - opt.interp_disp_x, will_disp_y - opt.interp_disp_y])
         error = np.sqrt(np.sum(residuals ** 2, axis=0))
 

@@ -41,9 +41,9 @@ def williams_stress_field(a: Union[list, np.ndarray], b: Union[list, np.ndarray]
     return [sigma_x, sigma_y, sigma_xy]
 
 
-def williams_displ_field(a: Union[list, np.ndarray], b: Union[list, np.ndarray], terms: Union[list, np.ndarray],
+def williams_displ_field_xy(a: Union[list, np.ndarray], b: Union[list, np.ndarray], terms: Union[list, np.ndarray],
                          phi: float, r: float, material: Material) -> tuple:
-    """Formula for the displacement fields around the crack tip in polar coordinates by Williams.
+    """Formula for the displacement fields in x- and y-direction around the crack tip in polar coordinates by Williams.
     [Meinhard Kuna - Numerische Beanspruchungsanalyse formulas (3.43)-(3.44)]
 
     Args:
@@ -124,15 +124,13 @@ def williams_stress_field_3d(a: Union[list, np.ndarray], b: Union[list, np.ndarr
     return [sigma_x, sigma_y, sigma_xy, sigma_xz, sigma_yz]
 
 
-def williams_displ_field_3d(a: Union[list, np.ndarray], b: Union[list, np.ndarray], c: Union[list, np.ndarray],
+def williams_displ_field_z(c: Union[list, np.ndarray],
                             terms: Union[list, np.ndarray],
-                            phi: float, r: float, material: Material) -> tuple:
-    """Formula for the displacement fields around the crack tip in polar coordinates by Williams.
+                            phi: float, r: float, material: Material) -> float:
+    """Formula for the displacement fields in z-direction around the crack tip in polar coordinates by Williams.
     [Meinhard Kuna - Numerische Beanspruchungsanalyse formulas (3.52)-(3.55)]
 
     Args:
-        a: Williams coefficient
-        b: Williams coefficient
         c: Williams coefficient
         terms: defines the used Williams coefficients
         phi: angle from polar coordinates [rad]
@@ -143,15 +141,9 @@ def williams_displ_field_3d(a: Union[list, np.ndarray], b: Union[list, np.ndarra
         displacements disp_x, disp_y, disp_z
 
     """
-    kappa = material.kappa
-    disp_x = 0.0
-    disp_y = 0.0
+
     disp_z = 0.0
     for index, n in enumerate(terms):
-        F_1 = (kappa + (-1.0) ** n + n / 2) * np.cos(n / 2 * phi) - n / 2 * np.cos((n / 2 - 2) * phi)
-        G_1 = (-kappa + (-1.0) ** n - n / 2) * np.sin(n / 2 * phi) + n / 2 * np.sin((n / 2 - 2) * phi)
-        F_2 = (kappa - (-1.0) ** n - n / 2) * np.sin(n / 2 * phi) + n / 2 * np.sin((n / 2 - 2) * phi)
-        G_2 = (kappa + (-1.0) ** n - n / 2) * np.cos(n / 2 * phi) + n / 2 * np.cos((n / 2 - 2) * phi)
 
         if n % 2 == 0:
             H_3 = 2 * np.cos(n / 2 * phi)
@@ -159,11 +151,9 @@ def williams_displ_field_3d(a: Union[list, np.ndarray], b: Union[list, np.ndarra
         else:
             H_3 = 2 * np.sin(n / 2 * phi)
 
-        disp_x += 1 / (2 * material.G) * r ** (n / 2) * (a[index] * F_1 + b[index] * G_1)
-        disp_y += 1 / (2 * material.G) * r ** (n / 2) * (a[index] * F_2 + b[index] * G_2)
-        disp_z += 1 / (2 * material.G) * r ** (n / 2) * (c[index] * H_3) #TODO: Extract to seperate function
+        disp_z += 1 / (2 * material.G) * r ** (n / 2) * (c[index] * H_3)
 
-    return disp_x, disp_y, disp_z
+    return disp_z
 
 
 def cjp_stress_field_mixedmode(coeffs: Union[list, np.ndarray], phi: float, r: float) -> list:

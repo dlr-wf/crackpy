@@ -1,11 +1,13 @@
-import numpy as np
-from typing import Union, Optional
-from scipy import optimize
 import logging
+from typing import Union, Optional
+
+import numpy as np
+from scipy import optimize
+
 logger = logging.getLogger(__name__)
 
-from crackpy.fracture_analysis.crack_tip import williams_displ_field, cjp_displ_field_mixedmode, \
-    williams_displ_field_3d, cjp_displ_field_modeI
+from crackpy.fracture_analysis.crack_tip import williams_displ_field_xy, cjp_displ_field_mixedmode, \
+    williams_displ_field_z, cjp_displ_field_modeI
 from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
 from crackpy.input.input_data import InputData
 from crackpy.structure_elements.material import Material
@@ -23,7 +25,6 @@ class OptimizationProperties:
             max_radius: Optional[float] = None,
             tick_size: Optional[float] = 0.01,
             terms=None,
-            dimensions: int = 2 # TODO: Remove option, optimization KIII seperately
     ):
         """Initialize Optimization properties.
 
@@ -37,16 +38,13 @@ class OptimizationProperties:
             tick_size: tick size of fitting domain.
                 If None, tick_size is set to 0.01.
             terms: (list or None) list of Williams terms to be used in optimization, e.g. [-1, 1, 2].
-            dimensions: Whether 2D or 3D full field is used (with or without z-displacement) (2 or 3)
 
         """
-        assert dimensions in [2, 3], "Dimensions in OptimizationProperties must be 2 or 3."
         self.angle_gap = angle_gap
         self.min_radius = min_radius
         self.max_radius = max_radius
         self.tick_size = tick_size
         self.terms = terms
-        self.dimensions = dimensions
 
 
 class Optimization:
@@ -101,17 +99,18 @@ class Optimization:
         # New way using ReusableLinearInterpolator
         interpolator = ReusableLinearInterpolator(self.data.coor_x, self.data.coor_y, np.c_[0, 0])
         intp_data = interpolator.interpolate(np.c_[self.data.disp_x, self.data.disp_y, self.data.disp_z])
-        disp_x_0_0, disp_y_0_0, disp_z_0_0 = intp_data[:,0].item(), intp_data[:,1].item(), intp_data[:,2].item()
-        logger.debug(f"Displacement at crack tip (0,0): u_x={disp_x_0_0:.4f}, u_y={disp_y_0_0:.4f}, u_z={disp_z_0_0:.4f} mm")
+        disp_x_0_0, disp_y_0_0, disp_z_0_0 = intp_data[:, 0].item(), intp_data[:, 1].item(), intp_data[:, 2].item()
+        logger.debug(
+            f"Displacement at crack tip (0,0): u_x={disp_x_0_0:.4f}, u_y={disp_y_0_0:.4f}, u_z={disp_z_0_0:.4f} mm")
 
         interpolator = ReusableLinearInterpolator(self.data.coor_x, self.data.coor_y,
                                                   np.c_[self.x_grid.ravel(), self.y_grid.ravel()])
         intp_data = interpolator.interpolate(np.c_[self.data.disp_x - disp_x_0_0,
-                                                  self.data.disp_y - disp_y_0_0,
-                                                    self.data.disp_z - disp_z_0_0])
-        self.interp_disp_x = intp_data[:,0].reshape(self.x_grid.shape)
-        self.interp_disp_y = intp_data[:,1].reshape(self.x_grid.shape)
-        self.interp_disp_z = intp_data[:,2].reshape(self.x_grid.shape)
+                                                   self.data.disp_y - disp_y_0_0,
+                                                   self.data.disp_z - disp_z_0_0])
+        self.interp_disp_x = intp_data[:, 0].reshape(self.x_grid.shape)
+        self.interp_disp_y = intp_data[:, 1].reshape(self.x_grid.shape)
+        self.interp_disp_z = intp_data[:, 2].reshape(self.x_grid.shape)
         logger.debug(f"Interpolated data on grid with shape {self.x_grid.shape}")
         pass
 
@@ -129,9 +128,12 @@ class Optimization:
             init_coeffs += np.random.rand(5)
         # optimize least squares
         logger.debug(f"Starting CJP mode I optimization using method '{method}'")
-        result =  optimize.least_squares(fun=self.residuals_cjp_displacements_modeI,
-                                      x0=init_coeffs,
-                                      method=method)
+        logging.warning("EXPERIMENTAL FEATURE: CJP mode I optimization is experimental and may not produce reliable results. "
+                        "Restrict deployment to Mode I-dominated load cases. Interpret results with caution.")
+
+        result = optimize.least_squares(fun=self.residuals_cjp_displacements_modeI,
+                                        x0=init_coeffs,
+                                        method=method)
         logger.debug(
             f"CJP mode I optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
         return result
@@ -150,17 +152,21 @@ class Optimization:
             init_coeffs += np.random.rand(5)
 
         logger.debug(f"Starting CJP mixedmode optimization using method '{method}'")
+        logging.warning(
+            "EXPERIMENTAL FEATURE: CJP mixedmode optimization is experimental and may not produce reliable results. "
+            "Restrict deployment to mode I dominated load cases. Use K_II results with great care.")
 
         # optimize least squares
         result = optimize.least_squares(fun=self.residuals_cjp_displacements_mixedmode,
-                                      x0=init_coeffs,
-                                      method=method)
+                                        x0=init_coeffs,
+                                        method=method)
 
-        logger.debug(f"CJP mixedmode optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
+        logger.debug(
+            f"CJP mixedmode optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
         return result
 
-    def optimize_williams_displacements(self, method='lm', init_coeffs=None):
-        """Optimizes Williams displacements.
+    def optimize_williams_displacements_xy(self, method='lm', init_coeffs=None):
+        """Optimizes Williams displacements in x-y plane.
 
         Args:
             method: method from scipy.optimize.least_squares, defaults to 'lm' - Levenberg-Marquardt iterative algorithm
@@ -174,14 +180,15 @@ class Optimization:
 
         # optimize least squares
         result = optimize.least_squares(fun=self.residuals_williams_displacements,
-                                      x0=init_coeffs,
-                                      method=method)
+                                        x0=init_coeffs,
+                                        method=method)
 
-        logger.debug(f"Williams optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
+        logger.debug(
+            f"Williams optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
         return result
 
-    def optimize_williams_displacements_3d(self, method='lm', init_coeffs=None):
-        """Optimizes Williams displacements in 3D.
+    def optimize_williams_displacements_z(self, method='lm', init_coeffs=None):
+        """Optimizes Williams displacements in z direction.
 
         Args:
             method: method from scipy.optimize.least_squares, defaults to 'lm' - Levenberg-Marquardt iterative algorithm
@@ -189,14 +196,15 @@ class Optimization:
 
         """
         if init_coeffs is None:
-            init_coeffs = np.random.rand(3 * len(self.terms))
+            init_coeffs = np.random.rand(1 * len(self.terms))
 
         # optimize least squares
         logger.debug(f"Starting Williams 3D optimization with {len(self.terms)} terms using method '{method}'")
-        result = optimize.least_squares(fun=self.residuals_williams_displacements_3d,
-                                      x0=init_coeffs,
-                                      method=method)
-        logger.debug(f"Williams 3D optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
+        result = optimize.least_squares(fun=self.residuals_williams_displacements_z,
+                                        x0=init_coeffs,
+                                        method=method)
+        logger.debug(
+            f"Williams 3D optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
         return result
 
     def residuals_cjp_displacements_modeI(self, inp: list or np.array) -> np.ndarray:
@@ -210,8 +218,6 @@ class Optimization:
                                                   cjp_displacement_y - measured_displacement_y]
 
         """
-        logging.warning(f"EXPERIMENTAL: CJP mode I optimization is experimental and may not produce reliable results. "
-                        f"Restrict deployment to Mode I-dominated load cases. Interpret results with caution.")
         z = inp
 
         cjp_disp_x, cjp_disp_y = cjp_displ_field_modeI(z, self.phi_grid, self.r_grid, self.material)
@@ -233,8 +239,6 @@ class Optimization:
                                                   cjp_displacement_y - measured_displacement_y]
 
         """
-        logging.warning(f"EXPERIMENTAL: CJP mixedmode optimization is experimental and may not produce reliable results. "
-                        f"Restrict deployment to mode I dominated load cases. Use K_II results with great care.")
         z = inp
 
         cjp_disp_x, cjp_disp_y = cjp_displ_field_mixedmode(z, self.phi_grid, self.r_grid, self.material)
@@ -258,8 +262,8 @@ class Optimization:
         a = inp[0:len(self.terms)]
         b = inp[len(self.terms):]
 
-        williams_disp_x, williams_disp_y = williams_displ_field(a, b, self.terms, self.phi_grid, self.r_grid,
-                                                                self.material)
+        williams_disp_x, williams_disp_y = williams_displ_field_xy(a, b, self.terms, self.phi_grid, self.r_grid,
+                                                                   self.material)
 
         residual = np.asarray([williams_disp_x - self.interp_disp_x, williams_disp_y - self.interp_disp_y])
         residual = residual.reshape(-1)
@@ -267,8 +271,8 @@ class Optimization:
         residual = residual[~np.isnan(residual)]
         return residual
 
-    def residuals_williams_displacements_3d(self, inp: Union[list, np.ndarray]) -> np.ndarray:
-        """Returns the residuals of Williams displacements.
+    def residuals_williams_displacements_z(self, inp: Union[list, np.ndarray]) -> np.ndarray:
+        """Returns the residuals of Williams displacements in z direction
 
         Args:
             inp: Williams coefficients for williams_displ_field
@@ -277,15 +281,11 @@ class Optimization:
             residual: of displacements calculated from the approximated Williams field and the actual results
 
         """
-        a = inp[0:len(self.terms)]
-        b = inp[len(self.terms):2 * len(self.terms)]
-        c = inp[2 * len(self.terms):]
+        c = inp
 
-        williams_disp_x, williams_disp_y, williams_disp_z = williams_displ_field_3d(a, b, c, self.terms, self.phi_grid,
-                                                                                    self.r_grid, self.material)
+        williams_disp_z = williams_displ_field_z(c, self.terms, self.phi_grid, self.r_grid, self.material)
 
-        residual = np.asarray([williams_disp_x - self.interp_disp_x, williams_disp_y - self.interp_disp_y,
-                               williams_disp_z - self.interp_disp_z])
+        residual = np.asarray([williams_disp_z - self.interp_disp_z])
         residual = residual.reshape(-1)
         # filter out nan values
         residual = residual[~np.isnan(residual)]
@@ -321,8 +321,5 @@ class Optimization:
             if i not in options.terms:
                 options.terms.append(i)
                 logger.info(f"Williams optimization terms should include {i}. Term added.")
-        if options.dimensions not in [2, 3]:
-            options.dimensions = 2
-            logger.warning("Displacement field dimensions in OptimizationProperties must be 2 (u,v) or 3 (u,v,w). Defaulting to 2.")
         options.terms.sort()
         pass

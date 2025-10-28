@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.fracture_analysis.crack_tip import williams_displ_field_3d
+from crackpy.fracture_analysis.crack_tip import williams_displ_field_z, williams_displ_field_xy
 from crackpy.input.input_data import InputData
 from crackpy.input.crack_tip_info import CrackTipInfo
 from crackpy.fracture_analysis.line_integration import IntegralProperties
@@ -181,14 +181,13 @@ class TestFractureAnalysis(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_fitting_methods_2D_with_DIC_data(self):
+    def test_fitting_methods_with_DIC_data(self):
         opt_props = OptimizationProperties(
             angle_gap=20,
             min_radius=5,
             max_radius=15,
             tick_size=0.01,
             terms=[-3, -2, -1, 0, 1, 2, 3],
-            dimensions=2,
         )
         analysis = FractureAnalysis(
             material=Material(),
@@ -207,9 +206,16 @@ class TestFractureAnalysis(unittest.TestCase):
         self.assertAlmostEqual(analysis.cjp_res_mm['K_II'], -0.0275, delta=1e-4)
         self.assertAlmostEqual(analysis.cjp_res_mm['T'], -32.1685, delta=1e-4)
 
+        self.assertAlmostEqual(analysis.cjp_res_m1['K_F'], 9.6752, delta=1e-4)
+        self.assertAlmostEqual(analysis.cjp_res_m1['K_R'], -2.6313, delta=1e-4)
+        self.assertAlmostEqual(analysis.cjp_res_m1['K_S'], 1.8096, delta=1e-4)
+        self.assertAlmostEqual(analysis.cjp_res_m1['T_x'], -16.9536, delta=1e-4)
+        self.assertAlmostEqual(analysis.cjp_res_m1['T_y'], -34.9358, delta=1e-4)
+
         # test Williams results
         self.assertAlmostEqual(analysis.williams_fit_res['K_I'], 11.3232, delta=1e-4)
         self.assertAlmostEqual(analysis.williams_fit_res['K_II'], -1.1102, delta=1e-4)
+        self.assertAlmostEqual(analysis.williams_fit_res['K_III'], 2.0274, delta=1e-4)
         self.assertAlmostEqual(analysis.williams_fit_res['T'], -44.3513, delta=1e-4)
 
         self.assertAlmostEqual(analysis.williams_fit_a_n[-3], -195.3576, delta=1e-4)
@@ -227,6 +233,14 @@ class TestFractureAnalysis(unittest.TestCase):
         self.assertAlmostEqual(analysis.williams_fit_b_n[1], 14.0059, delta=1e-4)
         self.assertAlmostEqual(analysis.williams_fit_b_n[2], -3.1521, delta=1e-4)
         self.assertAlmostEqual(analysis.williams_fit_b_n[3], 0.3745, delta=1e-4)
+
+        self.assertAlmostEqual(analysis.williams_fit_c_n[-3], 1092.8856, delta=1e-3)
+        self.assertAlmostEqual(analysis.williams_fit_c_n[-2], -150.6980, delta=1e-4)
+        self.assertAlmostEqual(analysis.williams_fit_c_n[-1], 265.8402, delta=1e-4)
+        self.assertAlmostEqual(analysis.williams_fit_c_n[0], -47.3960, delta=1e-4)
+        self.assertAlmostEqual(analysis.williams_fit_c_n[1], 51.1547, delta=1e-4)
+        self.assertAlmostEqual(analysis.williams_fit_c_n[2], 7.5005, delta=1e-4)
+        self.assertAlmostEqual(analysis.williams_fit_c_n[3], 0.7213, delta=1e-4)
 
         temp_dir = tempfile.mkdtemp()
         try:
@@ -268,7 +282,8 @@ class TestFractureAnalysis(unittest.TestCase):
         r_grid = np.sqrt(x_mesh ** 2 + y_mesh ** 2)
         phi_grid = np.arctan2(y_mesh, x_mesh)
         terms = [1, 2]
-        disp_u_mesh, disp_v_mesh, disp_w_mesh = williams_displ_field_3d(A, B, C, terms, phi_grid, r_grid, material)
+        disp_u_mesh, disp_v_mesh = williams_displ_field_xy(A, B, terms, phi_grid, r_grid, material)
+        disp_w_mesh = williams_displ_field_z(C, terms, phi_grid, r_grid, material)
 
         gap = 2
         dist = x_coordinates[1] - x_coordinates[0]
@@ -323,7 +338,6 @@ class TestFractureAnalysis(unittest.TestCase):
             max_radius=10,
             tick_size=0.01,
             terms=[-3, -2, -1, 0, 1, 2, 3, 4, 5],
-            dimensions=3
         )
 
         ct = CrackTipInfo(0, 0, 0, 'right')
@@ -427,7 +441,6 @@ class TestFractureAnalysisPipeline(unittest.TestCase):
                 max_radius=10,
                 tick_size=0.01,
                 terms=[-3, -2, -1, 0, 1, 2, 3, 4, 5],
-                dimensions=3
             )
 
             pipeline = FractureAnalysisPipeline(
@@ -504,7 +517,6 @@ class TestFractureAnalysisPipeline(unittest.TestCase):
                 max_radius=10,
                 tick_size=0.01,
                 terms=[-3, -2, -1, 0, 1, 2, 3, 4, 5],
-                dimensions=3
             )
 
             pipeline = FractureAnalysisPipeline(

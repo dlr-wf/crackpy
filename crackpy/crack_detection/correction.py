@@ -29,7 +29,7 @@ def run_williams_optimization(data, material, opt_props):
     optimization = Optimization(data=data, options=opt_props, material=material)
 
     # calculate Williams coefficients with fitting method
-    res = optimization.optimize_williams_displacements()
+    res = optimization.optimize_williams_displacements_xy()
     williams_coeffs = res.x
     a_n = williams_coeffs[:len(optimization.terms)]
     b_n = williams_coeffs[len(optimization.terms):]

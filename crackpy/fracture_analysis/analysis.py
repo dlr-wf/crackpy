@@ -199,45 +199,44 @@ class FractureAnalysis:
         """Run Williams optimization if optimization properties are provided."""
 
         try:
-            # calculate Williams coefficients with fitting method
-            if self.optimization_properties.dimensions == 2:
-                williams_results = self.optimization.optimize_williams_displacements()
-                self.williams_coeffs = williams_results.x
-                a_n = self.williams_coeffs[:len(self.optimization.terms)]
-                b_n = self.williams_coeffs[len(self.optimization.terms):]
-                self.williams_fit_a_n = {n: a_n[index] for index, n in enumerate(self.optimization.terms)}
-                self.williams_fit_b_n = {n: b_n[index] for index, n in enumerate(self.optimization.terms)}
-                self.williams_fit_c_n = {n: np.nan for n in self.optimization.terms}
+            # calculate Williams coefficients with fitting method in 2D
+            williams_results_xy = self.optimization.optimize_williams_displacements_xy()
+            williams_coeffs_xy = williams_results_xy.x
+            self.williams_coeffs = williams_coeffs_xy
+            a_n = williams_coeffs_xy[:len(self.optimization.terms)]
+            b_n = williams_coeffs_xy[len(self.optimization.terms):]
+            self.williams_fit_a_n = {n: a_n[index] for index, n in enumerate(self.optimization.terms)}
+            self.williams_fit_b_n = {n: b_n[index] for index, n in enumerate(self.optimization.terms)}
 
-                # derive stress intensity factors and T-stress [Kuna formula 3.45]
-                K_I = np.sqrt(2 * np.pi) * self.williams_fit_a_n[1] / np.sqrt(1000)
-                K_II = -np.sqrt(2 * np.pi) * self.williams_fit_b_n[1] / np.sqrt(1000)
-                K_III = np.nan
-                T = 4 * self.williams_fit_a_n[2]
-            else:
-                williams_results = self.optimization.optimize_williams_displacements_3d()
-                self.williams_coeffs = williams_results.x
-                a_n = self.williams_coeffs[:len(self.optimization.terms)]
-                b_n = self.williams_coeffs[len(self.optimization.terms):2 * len(self.optimization.terms)]
-                c_n = self.williams_coeffs[2 * len(self.optimization.terms):]
-                self.williams_fit_a_n = {n: a_n[index] for index, n in enumerate(self.optimization.terms)}
-                self.williams_fit_b_n = {n: b_n[index] for index, n in enumerate(self.optimization.terms)}
-                self.williams_fit_c_n = {n: c_n[index] for index, n in enumerate(self.optimization.terms)}
-
-                # derive stress intensity factors and T-stress [Kuna formula 3.45]
-                K_I = np.sqrt(2 * np.pi) * self.williams_fit_a_n[1] / np.sqrt(1000)
-                K_II = -np.sqrt(2 * np.pi) * self.williams_fit_b_n[1] / np.sqrt(1000)
-                K_III = np.sqrt(0.5 * np.pi) * self.williams_fit_c_n[1] / np.sqrt(1000)
-                T = 4 * self.williams_fit_a_n[2]
-
-            self.williams_fit_res = {'Error': williams_results.cost, 'K_I': K_I, 'K_II': K_II, 'K_III': K_III, 'T': T}
-            logger.debug(f"Williams optimization results: K_I={K_I:.2f}, K_II={K_II:.2f}, K_III={K_III:.2f}, T={T:.2f}")
+            # derive stress intensity factors and T-stress [Kuna formula 3.45]
+            K_I = np.sqrt(2 * np.pi) * self.williams_fit_a_n[1] / np.sqrt(1000)
+            K_II = -np.sqrt(2 * np.pi) * self.williams_fit_b_n[1] / np.sqrt(1000)
+            T = 4 * self.williams_fit_a_n[2]
+            self.williams_fit_res = {'Error_xy': williams_results_xy.cost, 'K_I': K_I, 'K_II': K_II, 'T': T}
+            logger.debug(f"Williams optimization results in xy-plane: K_I={K_I:.2f}, K_II={K_II:.2f}, T={T:.2f}")
         except Exception:
-            logger.exception('Williams optimization failed.')
+            logger.exception('Williams optimization for xy failed.')
+            self.williams_coeffs = np.array([np.nan] * (2 * len(self.optimization.terms)))
             self.williams_fit_a_n = {n: np.nan for index, n in enumerate(self.optimization.terms)}
             self.williams_fit_b_n = {n: np.nan for index, n in enumerate(self.optimization.terms)}
+            self.williams_fit_res = {'Error_xy': np.nan, 'K_I': np.nan, 'K_II': np.nan, 'T': np.nan}
+
+        try:
+            # calculate Williams coefficients with fitting method in z-direction
+            williams_results_z = self.optimization.optimize_williams_displacements_z()
+            williams_coeffs_z = williams_results_z.x
+            self.williams_coeffs = np.r_[self.williams_coeffs, williams_coeffs_z]
+            c_n = williams_coeffs_z
+
+            # derive stress intensity factors for Mode III
+            self.williams_fit_c_n = {n: c_n[index] for index, n in enumerate(self.optimization.terms)}
+            K_III = np.sqrt(0.5 * np.pi) * self.williams_fit_c_n[1] / np.sqrt(1000)
+            self.williams_fit_res.update({'Error_z': williams_results_z.cost, 'K_III': K_III})
+        except Exception:
+            logger.exception('Williams optimization for z-displacements failed.')
+            self.williams_coeffs = np.r_[self.williams_coeffs, np.array([np.nan] * len(self.optimization.terms))]
             self.williams_fit_c_n = {n: np.nan for index, n in enumerate(self.optimization.terms)}
-            self.williams_fit_res = {'Error': np.nan, 'K_I': np.nan, 'K_II': np.nan, 'T': np.nan}
+
 
     def _run_line_integrals(self, progress_bar: Optional[DictProxy] = None, task_id=None) -> None:
         """Run line integrals if integral properties are provided."""

@@ -124,7 +124,8 @@ class OutputWriter:
                 file.write('\n')
                 file.write('<Williams_fit_results>\n')
                 file.write(f'{"Param":>10}, {"Unit":>20}, {"Result":>20} \n')
-                file.write(f'{"Error":>10}, {"1":>20}, {self.analysis.williams_fit_res["Error"]:20.10f} \n')
+                file.write(f'{"Error_xy":>10}, {"1":>20}, {self.analysis.williams_fit_res["Error_xy"]:20.10f} \n')
+                file.write(f'{"Error_z":>10}, {"1":>20}, {self.analysis.williams_fit_res["Error_z"]:20.10f} \n')
                 file.write(f'{"K_I":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.williams_fit_res["K_I"]:20.10f} \n')
                 file.write(f'{"K_II":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.williams_fit_res["K_II"]:20.10f} \n')
                 file.write(f'{"K_III":>10}, {"MPa*m^{1/2}":>20}, {self.analysis.williams_fit_res["K_III"]:20.10f} \n')
@@ -448,8 +449,10 @@ class OutputWriter:
                                                      "result": self.analysis.cjp_res_m1["T_y"]}
 
             json_dict['Williams_fit_results'] = {}
-            json_dict['Williams_fit_results']['error'] = {"unit": "1",
-                                                          "result": self.analysis.williams_fit_res["Error"]}
+            json_dict['Williams_fit_results']['error_xy'] = {"unit": "1",
+                                                          "result": self.analysis.williams_fit_res["Error_xy"]}
+            json_dict['Williams_fit_results']['error_z'] = {"unit": "1",
+                                                         "result": self.analysis.williams_fit_res["Error_z"]}
             json_dict['Williams_fit_results']['K_I'] = {"unit": "MPa*m^{1/2}",
                                                         "result": self.analysis.williams_fit_res["K_I"]}
             json_dict['Williams_fit_results']['K_II'] = {"unit": "MPa*m^{1/2}",

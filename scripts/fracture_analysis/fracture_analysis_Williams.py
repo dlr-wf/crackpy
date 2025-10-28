@@ -24,7 +24,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.fracture_analysis.crack_tip import williams_displ_field
+from crackpy.fracture_analysis.crack_tip import williams_displ_field_xy
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.input.crack_tip_info import CrackTipInfo
@@ -67,7 +67,7 @@ B = [B_1, 0]
 r_grid = np.sqrt(x_mesh ** 2 + y_mesh ** 2)
 phi_grid = np.arctan2(y_mesh, x_mesh)
 terms = [1, 2]
-disp_u_mesh, disp_v_mesh = williams_displ_field(A, B, terms, phi_grid, r_grid, material)
+disp_u_mesh, disp_v_mesh = williams_displ_field_xy(A, B, terms, phi_grid, r_grid, material)
 disp_w_mesh = 2 * K_III / material.G * np.sqrt(r_grid / (2 * np.pi)) * np.sin(phi_grid / 2)
 
 gap = 2

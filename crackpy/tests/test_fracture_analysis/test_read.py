@@ -12,7 +12,7 @@ class TestOutputReader(unittest.TestCase):
     def setUp(self):
 
         self.reader = OutputReader()
-        root = Path(__file__).resolve().parents[4]
+        root = Path(__file__).resolve().parents[3]
         self.path = root / 'test_data' / 'fracture_analysis' / 'txt-files'
 
         self.files = [p.name for p in self.path.iterdir() if p.is_file()]

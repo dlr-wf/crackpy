@@ -24,7 +24,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.fracture_analysis.crack_tip import williams_displ_field_3d
+from crackpy.fracture_analysis.crack_tip import williams_displ_field_z, williams_displ_field_xy
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.input.crack_tip_info import CrackTipInfo
@@ -37,7 +37,8 @@ from crackpy.structure_elements.material import Material
 # Logging
 logger = logging.getLogger(__name__)
 
-OUT_FOLDER = Path('Fracture_Analysis_Williams_results_3D')
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+OUT_FOLDER = PROJECT_ROOT / 'Fracture_Analysis_Williams_results_3D'
 OUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 
@@ -68,7 +69,8 @@ def main():
     r_grid = np.sqrt(x_mesh ** 2 + y_mesh ** 2)
     phi_grid = np.arctan2(y_mesh, x_mesh)
     terms = [1, 2]
-    disp_u_mesh, disp_v_mesh, disp_w_mesh = williams_displ_field_3d(A, B, C, terms, phi_grid, r_grid, material)
+    disp_u_mesh, disp_v_mesh = williams_displ_field_xy(A, B, terms, phi_grid, r_grid, material)
+    disp_w_mesh = williams_displ_field_z(C, terms, phi_grid, r_grid, material)
 
     gap = 2
     dist = x_coordinates[1] - x_coordinates[0]
@@ -144,7 +146,6 @@ def main():
         max_radius=10,
         tick_size=0.01,
         terms=[-3, -2, -1, 0, 1, 2, 3, 4, 5],
-        dimensions=3
     )
 
     ct = CrackTipInfo(0, 0, 0, 'right')
@@ -215,7 +216,7 @@ if __name__ == '__main__':
     import cProfile, pstats, subprocess, sys
     from datetime import datetime
 
-    script_dir = Path(__file__).parent
+    script_dir = OUT_FOLDER
     fname = script_dir / f"{datetime.now():%Y%m%d%H%M%S}_profile.prof"
 
     pr = cProfile.Profile()

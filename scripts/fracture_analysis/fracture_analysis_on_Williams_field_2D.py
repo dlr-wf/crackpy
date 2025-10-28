@@ -24,7 +24,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.fracture_analysis.crack_tip import williams_displ_field, williams_stress_field
+from crackpy.fracture_analysis.crack_tip import williams_displ_field_xy, williams_stress_field
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.input.crack_tip_info import CrackTipInfo
@@ -109,10 +109,8 @@ ct = CrackTipInfo(0, 0, 0, 'right')
 r_grid = np.sqrt(x_mesh ** 2 + y_mesh ** 2)
 phi_grid = np.arctan2(y_mesh, x_mesh)
 
-disp_u_mesh, disp_v_mesh = williams_displ_field(coefficients_a,
-                                                coefficients_b,
-                                                coefficients_n,
-                                                phi_grid, r_grid, material)
+disp_u_mesh, disp_v_mesh = williams_displ_field_xy(coefficients_a, coefficients_b, coefficients_n, phi_grid, r_grid,
+                                                   material)
 
 # Compute strains with Hook's law or with the gradients of the displacements
 method = 'Hook'  # 'Hook' or 'Gradient'
