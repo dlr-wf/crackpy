@@ -81,6 +81,10 @@ class InputData:
         self.sigma_xz = None
         self.sigma_yz = None
 
+        # crack growth experiment defaults
+        self.force = None
+        self.cycles = None
+
         # meta data attributes
         self.meta_attributes = [
             'force',
@@ -462,36 +466,17 @@ class InputData:
         """Returns the Von Mises stress."""
         return np.sqrt(self.sig_x ** 2 + self.sig_y ** 2 - self.sig_x * self.sig_y + 3 * self.sig_xy ** 2)
 
-    def _calculate_principal_tensor_components(self, tensor_components: np.array):
-        """Calculate principal tensor components
-
-        Args:
-            tensor_components: array of tensor components (e.g. stress or strain) with shape (3)
-
-        """
-        xx, yy, xy = tensor_components
-
-        tensor = np.array([[xx, xy],
-                           [xy, yy]])
-
-        # Compute the eigenvalues of the stress tensor
-        eigenvalues, _ = np.linalg.eig(tensor)
-
-        # Sort the eigenvalues to obtain the principal stresses
-        eigenvalues_sorted = np.sort(eigenvalues)[::-1]
-        return eigenvalues_sorted
-
     def _calculate_principal_strains(self):
         """Calculate principal strains"""
         strains = np.stack([self.eps_x, self.eps_y, self.eps_xy], axis=1)
-        principal_strains = np.apply_along_axis(self._calculate_principal_tensor_components, 1, strains)
+        principal_strains = np.apply_along_axis(calculate_principal_tensor_components, 1, strains)
         self.eps_1 = principal_strains[:, 0]
         self.eps_2 = principal_strains[:, 1]
 
     def _calculate_principal_stresses(self):
         """Calculate principal stresses"""
         stresses = np.stack([self.sig_x, self.sig_y, self.sig_xy], axis=1)
-        principal_stresses = np.apply_along_axis(self._calculate_principal_tensor_components, 1, stresses)
+        principal_stresses = np.apply_along_axis(calculate_principal_tensor_components, 1, stresses)
         self.sig_1 = principal_stresses[:, 0]
         self.sig_2 = principal_stresses[:, 1]
 
@@ -608,3 +593,22 @@ def apply_mask(data: InputData, mask: np.array) -> InputData:
     masked_data.sigma_yz = data.sigma_yz[mask] if data.sigma_yz is not None else None
     masked_data.sig_vm = data.sig_vm[mask]
     return masked_data
+
+def calculate_principal_tensor_components(tensor_components: np.array):
+    """Calculate principal tensor components in 2D from tensor components.
+
+    Args:
+        tensor_components: array of tensor components (e.g. stress or strain) with shape (3)
+
+    """
+    xx, yy, xy = tensor_components
+
+    tensor = np.array([[xx, xy],
+                       [xy, yy]])
+
+    # Compute the eigenvalues of the stress tensor
+    eigenvalues, _ = np.linalg.eig(tensor)
+
+    # Sort the eigenvalues to obtain the principal stresses
+    eigenvalues_sorted = np.sort(eigenvalues)[::-1]
+    return eigenvalues_sorted

@@ -1,8 +1,8 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import tri, cm
-from matplotlib.colors import ListedColormap
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import tri
 
 
 def plot_prediction(

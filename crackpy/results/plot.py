@@ -140,11 +140,14 @@ class Plotter:
     def plot(self) -> None:
         """Main function to plot and save Fracture Analysis results."""
         # Plot results as text boxes
+        logger.debug("Plotting results for: %s", self.filename)
         self._plot_results()
 
         if self.analysis.optimization_properties is not None \
                 and self.analysis.cjp_res_mm is not None \
                 and self.analysis.williams_fit_res is not None:
+
+            logger.debug("Plotting fitting results for: %s", self.filename)
 
             # Plot Williams fitting error
             self._plot_williams_residuals()
@@ -153,6 +156,8 @@ class Plotter:
             self._plot_cjp_residuals()
 
         if self.analysis.integral_properties is not None:
+
+            logger.debug("Plotting integration results for: %s", self.filename)
             # Plot integration
             self._plot_integration()
 
@@ -161,6 +166,8 @@ class Plotter:
         plt.savefig(str(save_path) + '.png', bbox_inches='tight')
         plt.clf()
         plt.close()
+
+        logger.debug("Plot saved to: %s", save_path)
 
     @staticmethod
     def _plot_base_figure():

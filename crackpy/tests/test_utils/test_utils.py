@@ -1,8 +1,10 @@
 import unittest
+
 import numpy as np
-import time
 from scipy.interpolate import griddata
+
 from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
+
 
 class TestPrecomputedInterpolatorVsGriddata(unittest.TestCase):
 
@@ -28,8 +30,8 @@ class TestPrecomputedInterpolatorVsGriddata(unittest.TestCase):
         cls.val_scalar = f_scalar(cls.x, cls.y)
 
         k1 = f_scalar(cls.x, cls.y)
-        k2 = cls.x**2 - cls.y**2
-        k3 = np.exp(-((cls.x*1.5)**2 + (cls.y*1.5)**2))
+        k2 = cls.x ** 2 - cls.y ** 2
+        k3 = np.exp(-((cls.x * 1.5) ** 2 + (cls.y * 1.5) ** 2))
         cls.val_vector = np.c_[k1, k2, k3]
 
         # build interpolator once
@@ -144,6 +146,7 @@ class TestPrecomputedInterpolatorVsGriddata(unittest.TestCase):
         # depending on implementation this may raise a QhullError or another Exception
         with self.assertRaises(Exception):
             ReusableLinearInterpolator(x, y, eval_pts)
+
 
 if __name__ == "__main__":
     unittest.main()

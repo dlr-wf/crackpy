@@ -4,6 +4,7 @@ from scipy.ndimage import label
 from skimage.morphology import skeletonize
 from sklearn.linear_model import LinearRegression
 import logging
+from typing import Optional
 
 from crackpy.crack_detection.data import preprocess
 from crackpy.crack_detection.deep_learning.nets import ParallelNets, UNet
@@ -36,7 +37,7 @@ class CrackDetection:
 
     def __init__(self, side: str = 'right', detection_window_size: float = 70,
                  offset: tuple = (0, 0), angle_det_radius: float = 10,
-                 device: torch.device = None) -> None:
+                 device: torch.device | str | None = None) -> None:
         """Initialize class arguments.
 
         Args:

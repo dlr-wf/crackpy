@@ -1,5 +1,6 @@
 import unittest
-
+from urllib.error import HTTPError
+import time
 import torch
 
 from crackpy.crack_detection.model import get_model
@@ -9,7 +10,19 @@ class TestParallelNets(unittest.TestCase):
 
     def test_parallel_nets(self):
         device = torch.device('cpu')
-        model = get_model('ParallelNets', map_location=device)
+
+        # catching some rare HTTP 503 errors during model download
+        for i in range(5):
+            try:
+                model = get_model('ParallelNets', map_location=device)
+                break
+            except HTTPError as e:
+                if e.code == 503:
+                    time.sleep(2)  # wait 2 seconds, then retry
+                else:
+                    raise
+        else:
+            raise RuntimeError("Failed to load model after 5 retries")
 
         in_tensor = torch.ones((1, 2, 256, 256)).to(device)
         out = model(in_tensor)
@@ -23,7 +36,19 @@ class TestUNet(unittest.TestCase):
 
     def test_unet(self):
         device = torch.device('cpu')
-        model = get_model('UNetPath', map_location=device)
+
+        # catching some rare HTTP 503 errors during model download
+        for i in range(5):
+            try:
+                model = get_model('UNetPath', map_location=device)
+                break
+            except HTTPError as e:
+                if e.code == 503:
+                    time.sleep(2)  # wait 2 seconds, then retry
+                else:
+                    raise
+        else:
+            raise RuntimeError("Failed to load model after 5 retries")
 
         in_tensor = torch.ones((1, 2, 256, 256)).to(device)
         out = model(in_tensor)

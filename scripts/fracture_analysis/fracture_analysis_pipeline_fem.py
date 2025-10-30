@@ -67,7 +67,6 @@ opt_props = OptimizationProperties(
     max_radius=10,
     tick_size=0.01,
     terms=[-3, -2, -1, 0, 1, 2, 3, 4, 5],
-    dimensions=3,
 )
 
 material = Material(E=72000, nu_xy=0.33, sig_yield=350)

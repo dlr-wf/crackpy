@@ -76,7 +76,7 @@ Here is an example of the output plot for one single time step of a laboratory e
 ... and an example of how these methods can enable _hybrid approaches of mechanical and data-driven analysis_.
 
 | ![](./example_images/explanation.gif) |
-|:--:|
+|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
 | **_Various possible calculated stress intensity factors for a complete crack growth experiment. Each data point refers to one DIC measurement, i.e. one set of experimental displacements and strains_** |
 
 For us, it was important that all these methods are implemented independent of the source of 
