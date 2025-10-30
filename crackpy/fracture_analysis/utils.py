@@ -1,9 +1,9 @@
-import numpy as np
-from scipy.spatial import Delaunay
 import logging
 
-logger = logging.getLogger(__name__)
+import numpy as np
+from scipy.spatial import Delaunay
 
+logger = logging.getLogger(__name__)
 
 
 class ReusableLinearInterpolator:
@@ -70,6 +70,7 @@ class ReusableLinearInterpolator:
             out[self.valid] = (self.bary[self.valid, :, None] * values[self.vidx[self.valid]]).sum(axis=1)
 
         return out
+
 
 if __name__ == "__main__":
     pass

@@ -4,13 +4,13 @@ from typing import Union, Optional
 import numpy as np
 from scipy import optimize
 
-logger = logging.getLogger(__name__)
-
 from crackpy.fracture_analysis.crack_tip import williams_displ_field_xy, cjp_displ_field_mixedmode, \
     williams_displ_field_z, cjp_displ_field_modeI
 from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
 from crackpy.input.input_data import InputData
 from crackpy.structure_elements.material import Material
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_WILLIAMS_OPT_TERMS = [-1, 1, 2, 3, 4, 5]
 
@@ -100,8 +100,8 @@ class Optimization:
         interpolator = ReusableLinearInterpolator(self.data.coor_x, self.data.coor_y, np.c_[0, 0])
         intp_data = interpolator.interpolate(np.c_[self.data.disp_x, self.data.disp_y, self.data.disp_z])
         disp_x_0_0, disp_y_0_0, disp_z_0_0 = intp_data[:, 0].item(), intp_data[:, 1].item(), intp_data[:, 2].item()
-        logger.debug(
-            f"Displacement at crack tip (0,0): u_x={disp_x_0_0:.4f}, u_y={disp_y_0_0:.4f}, u_z={disp_z_0_0:.4f} mm")
+        logger.debug("Displacement at crack tip (0,0): u_x=%.4f, u_y=%.4f, u_z=%.4f mm", disp_x_0_0, disp_y_0_0,
+                     disp_z_0_0)
 
         interpolator = ReusableLinearInterpolator(self.data.coor_x, self.data.coor_y,
                                                   np.c_[self.x_grid.ravel(), self.y_grid.ravel()])
@@ -111,7 +111,7 @@ class Optimization:
         self.interp_disp_x = intp_data[:, 0].reshape(self.x_grid.shape)
         self.interp_disp_y = intp_data[:, 1].reshape(self.x_grid.shape)
         self.interp_disp_z = intp_data[:, 2].reshape(self.x_grid.shape)
-        logger.debug(f"Interpolated data on grid with shape {self.x_grid.shape}")
+        logger.debug("Interpolated data on grid with shape %s", self.x_grid.shape)
         pass
 
     def optimize_cjp_displacements_modeI(self, method='lm', init_coeffs=None):
@@ -127,15 +127,16 @@ class Optimization:
         else:
             init_coeffs += np.random.rand(5)
         # optimize least squares
-        logger.debug(f"Starting CJP mode I optimization using method '{method}'")
-        logging.warning("EXPERIMENTAL FEATURE: CJP mode I optimization is experimental and may not produce reliable results. "
-                        "Restrict deployment to Mode I-dominated load cases. Interpret results with caution.")
+        logger.debug("Starting CJP mode I optimization using method '%s'", method)
+        logging.warning("CJP Mode I optimization is experimental and may produce unreliable results. "
+                        "Use only for Mode I–dominated load cases. Interpret all outputs with caution.")
 
         result = optimize.least_squares(fun=self.residuals_cjp_displacements_modeI,
                                         x0=init_coeffs,
                                         method=method)
         logger.debug(
-            f"CJP mode I optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
+            "CJP mode I optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success,
+            result.nfev)
         return result
 
     def optimize_cjp_displacements_mixedmode(self, method='lm', init_coeffs=None):
@@ -151,10 +152,10 @@ class Optimization:
         else:
             init_coeffs += np.random.rand(5)
 
-        logger.debug(f"Starting CJP mixedmode optimization using method '{method}'")
+        logger.debug("Starting CJP mixedmode optimization using method '%s'", method)
         logging.warning(
-            "EXPERIMENTAL FEATURE: CJP mixedmode optimization is experimental and may not produce reliable results. "
-            "Restrict deployment to mode I dominated load cases. Use K_II results with great care.")
+            "CJP Mode I/II optimization is experimental and may produce unreliable results. "
+            "Use only for Mode I–dominated load cases. Interpret all outputs with caution.")
 
         # optimize least squares
         result = optimize.least_squares(fun=self.residuals_cjp_displacements_mixedmode,
@@ -162,7 +163,8 @@ class Optimization:
                                         method=method)
 
         logger.debug(
-            f"CJP mixedmode optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
+            "CJP mixedmode optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success,
+            result.nfev)
         return result
 
     def optimize_williams_displacements_xy(self, method='lm', init_coeffs=None):
@@ -176,7 +178,7 @@ class Optimization:
         if init_coeffs is None:
             init_coeffs = np.random.rand(2 * len(self.terms))
 
-        logger.debug(f"Starting Williams 2D optimization with {len(self.terms)} terms using method '{method}'")
+        logger.debug("Starting Williams 2D optimization with %d terms using method '%s'", len(self.terms), method)
 
         # optimize least squares
         result = optimize.least_squares(fun=self.residuals_williams_displacements,
@@ -184,7 +186,7 @@ class Optimization:
                                         method=method)
 
         logger.debug(
-            f"Williams optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
+            "Williams optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success, result.nfev)
         return result
 
     def optimize_williams_displacements_z(self, method='lm', init_coeffs=None):
@@ -199,12 +201,13 @@ class Optimization:
             init_coeffs = np.random.rand(1 * len(self.terms))
 
         # optimize least squares
-        logger.debug(f"Starting Williams 3D optimization with {len(self.terms)} terms using method '{method}'")
+        logger.debug("Starting Williams 3D optimization with %d terms using method '%s'", len(self.terms), method)
         result = optimize.least_squares(fun=self.residuals_williams_displacements_z,
                                         x0=init_coeffs,
                                         method=method)
         logger.debug(
-            f"Williams 3D optimization completed: cost={result.cost:.6e}, success={result.success}, nfev={result.nfev}")
+            "Williams 3D optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success,
+            result.nfev)
         return result
 
     def residuals_cjp_displacements_modeI(self, inp: list or np.array) -> np.ndarray:
@@ -320,6 +323,6 @@ class Optimization:
         for i in [1, 2]:  # ensure SIFs and T can be calculated
             if i not in options.terms:
                 options.terms.append(i)
-                logger.info(f"Williams optimization terms should include {i}. Term added.")
+                logger.info("Williams optimization terms should include %d. Term added.", i)
         options.terms.sort()
         pass

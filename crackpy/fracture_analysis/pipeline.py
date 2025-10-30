@@ -1,13 +1,14 @@
-from pathlib import Path
+import logging
 import multiprocessing
+import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
-from multiprocessing.managers import DictProxy
+from pathlib import Path
+from typing import MutableMapping, Any
 
 import numpy as np
 import pandas as pd
-import logging
 from rich import progress as progress_rich
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
@@ -33,7 +34,7 @@ def single_run(
         opt_props: OptimizationProperties,
         output_path: str,
         plot_sets: PlotSettings | None,
-        prog: DictProxy,
+        prog: MutableMapping[str, Any],
         task_id
 ):
     """Run fracture analysis of a single nodemap.
@@ -159,11 +160,14 @@ class FractureAnalysisPipeline:
 
         # user warnings
         if self.plot_sets is None:
-            warnings.warn("Plotting of outputs is turned off. If you want to plot the pipeline's outputs, use the 'plot_sets' argument.")
+            warnings.warn(
+                "Plotting of outputs is turned off. If you want to plot the pipeline's outputs, use the 'plot_sets' argument.")
         if self.opt_props is None:
-            warnings.warn("Fitting methods are turned off. If you want to use fitting methods, use the 'optimization_properties' argument.")
+            warnings.warn(
+                "Fitting methods are turned off. If you want to use fitting methods, use the 'optimization_properties' argument.")
         if integral_properties is None:
-            warnings.warn("Integral evaluation is turned off. If you want to evaluate integrals, use the 'integral_properties' argument or the method 'find_integral_props'.")
+            warnings.warn(
+                "Integral evaluation is turned off. If you want to evaluate integrals, use the 'integral_properties' argument or the method 'find_integral_props'.")
 
         # initialize stages to max force stages for storage in dictionary
         self.stages_to_max_force_stages = None
@@ -223,9 +227,9 @@ class FractureAnalysisPipeline:
             closest_max_force_cycle = np.argmin(np.abs(max_force_cycles_array - cycle))
             closest_max_force_stage = max_force_cycles_to_stages[max_force_cycles_array[closest_max_force_cycle]]
             stages_to_max_force_stages[stage] = closest_max_force_stage
-            logger.debug(f"Stage {stage} (cycle {cycle}) assigned to max force stage {closest_max_force_stage}")
+            logger.debug("Stage %d (cycle %d) assigned to max force stage %.1f", stage, cycle, closest_max_force_stage)
         self.stages_to_max_force_stages = stages_to_max_force_stages
-        logger.debug(f"Found {len(filtered_stages)} filtered stages out of {len(self.input_df)} total stages")
+        logger.debug("Found %d filtered stages out of %d total stages", len(filtered_stages), len(self.input_df))
 
         return self.stages_to_max_force_stages
 
@@ -240,7 +244,8 @@ class FractureAnalysisPipeline:
         logger.info("Finding integral properties at maximal load and propagating to other stages …")
 
         # warn the user that this function is a BETA version
-        warnings.warn("The method 'find_integral_props' is a BETA version. Please check that detected integral paths are correct.")
+        warnings.warn(
+            "The method 'find_integral_props' is a BETA version. Please check that detected integral paths are correct.")
 
         if stages_to_max_force_stages is None:
             stages_to_max_force_stages = self.stages_to_max_force_stages
@@ -251,7 +256,7 @@ class FractureAnalysisPipeline:
         index_to_stage = {}
         side_to_stage_to_index = {'left': {}, 'right': {}}
         for index, data in self.input_df.iterrows():
-            logger.info(f"Progress: {index + 1}/{len(self.input_df)}")
+            logger.info("Progress: %d/%d", index + 1, len(self.input_df))
 
             stage = int(data["Filename"].split("_")[-1].split(".")[0])
             side = data["Side"]
@@ -284,13 +289,16 @@ class FractureAnalysisPipeline:
                 integral_properties = IntegralProperties()
             try:
                 integral_properties.set_automatically(input_data, auto_detect_threshold=self.material.sig_yield)
-                logger.debug(f"Integral properties set automatically for stage {stage}: "
-                           f"left={integral_properties.integral_size_left:.2f}, "
-                           f"right={integral_properties.integral_size_right:.2f}, "
-                           f"top={integral_properties.integral_size_top:.2f}, "
-                           f"bottom={integral_properties.integral_size_bottom:.2f}")
+                logger.debug(
+                    "Integral properties set automatically for stage %d: left=%.2f, right=%.2f, top=%.2f, bottom=%.2f",
+                    stage,
+                    integral_properties.integral_size_left,
+                    integral_properties.integral_size_right,
+                    integral_properties.integral_size_top,
+                    integral_properties.integral_size_bottom,
+                )
             except ValueError:
-                logger.warning(f"Could not find integral properties automatically for stage {stage}.")
+                logger.warning("Could not find integral properties automatically for stage %d.", stage)
 
         # assign integral properties to missing stages
         for index, data in self.input_df.iterrows():
@@ -299,7 +307,7 @@ class FractureAnalysisPipeline:
             max_force_stage = stages_to_max_force_stages[stage]
             corr_index = side_to_stage_to_index[side][max_force_stage]
             self.integral_props[index] = deepcopy(self.integral_props[corr_index])
-            logger.debug(f"Integral properties for stage {stage} ({side}) copied from max force stage {max_force_stage}")
+            logger.debug("Integral properties for stage %d (%s) copied from max force stage %d", stage, side, max_force_stage)
 
     def run(self, num_of_kernels: int = 1):
         """Run fracture analysis pipeline. This method is the main method of the pipeline.
@@ -311,9 +319,9 @@ class FractureAnalysisPipeline:
         """
         # max number of processes is half of the number of CPUs
         num_of_kernels = min(multiprocessing.cpu_count() // 2, num_of_kernels)
-        logger.debug(f"Running pipeline with {num_of_kernels} kernel(s) on {len(self.input_df)} nodemap(s)")
-        logger.debug(f"Optimization enabled: {self.opt_props is not None}, "
-                    f"Integral evaluation enabled: {len(self.integral_props) > 0}")
+        logger.debug("Running pipeline with %d kernel(s) on %d nodemap(s)", num_of_kernels, len(self.input_df))
+        logger.debug("Optimization enabled: %s, Integral evaluation enabled: %s",
+                     self.opt_props is not None, len(self.integral_props) > 0)
 
         with progress_rich.Progress(
                 "[progress.description]{task.description}",
@@ -340,12 +348,22 @@ class FractureAnalysisPipeline:
                     while sum([future.done() for future in futures]) < len(futures):
                         n_finished = sum([future.done() for future in futures])
                         progress.update(overall_progress_task, completed=n_finished, total=len(futures))
-                        for task_id, update_data in _progress.items():
+
+                        # hotfix for manager.dict() issue
+                        try:
+                            snapshot = _progress.copy()  # one remote call; returns a local dict
+                        except Exception:
+                            snapshot = {}
+
+                        for task_id, update_data in snapshot.items():
                             latest = update_data["progress"]
                             total = update_data["total"]
                             # update the progress bar for this task
                             progress.update(task_id, completed=latest, total=total, visible=latest < total)
+
                         progress.update(overall_progress_task, completed=n_finished + 1, total=len(futures))
+
+                        time.sleep(0.05)
 
                     # raise any errors
                     for future in futures:

@@ -1,12 +1,9 @@
 import logging
 import warnings
-from multiprocessing.managers import DictProxy
-from typing import Union, Optional, Mapping
+from typing import Union, Optional, Mapping, Any, MutableMapping
 
 import numpy as np
 import rich.progress as progress_rich
-
-logger = logging.getLogger(__name__)
 
 from crackpy.fracture_analysis import line_integration
 from crackpy.fracture_analysis.line_integration import (IntegralProperties,
@@ -16,6 +13,8 @@ from crackpy.input.crack_tip_info import CrackTipInfo
 from crackpy.input.input_data import InputData
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
+
+logger = logging.getLogger(__name__)
 
 
 class FractureAnalysis:
@@ -109,9 +108,9 @@ class FractureAnalysis:
             task_id: task id for progress bar (handed-over automatically during pipeline, not needed for single run)
 
         """
-        logger.debug("Starting fracture analysis for %s", self.nodemap_file)
+        logger.info("Starting fracture analysis for %s", self.nodemap_file)
         logger.debug(
-            "Crack tip: x=%.2f, y=%.2f, angle=%.2f°, side=%s",
+            "Crack tip: x=%.2f, y=%.2f, angle=%.2f deg, side=%s",
             self.crack_tip.crack_tip_x,
             self.crack_tip.crack_tip_y,
             self.crack_tip.crack_tip_angle,
@@ -122,7 +121,7 @@ class FractureAnalysis:
         if self.optimization_properties is not None:
             logger.info("Running optimization (fitting) methods …")
             logger.debug(
-                "Optimization settings: min_r=%.2f, max_r=%.2f, angle_gap=%s°, terms=%s",
+                "Optimization settings: min_r=%.2f, max_r=%.2f, angle_gap=%s deg, terms=%s",
                 self.optimization_properties.min_radius,
                 self.optimization_properties.max_radius,
                 self.optimization_properties.angle_gap,
@@ -145,7 +144,7 @@ class FractureAnalysis:
         else:
             logger.info('No integral properties provided; skipping line integrals.')
 
-        logger.debug("Fracture analysis completed for %s", self.nodemap_file)
+        logger.info("Fracture analysis completed for %s", self.nodemap_file)
 
     def _run_cjp_optimization_modeI(self) -> None:
         """Run CJP optimization if optimization properties are provided."""
@@ -168,13 +167,15 @@ class FractureAnalysis:
             K_S /= np.sqrt(1000)
 
             self.cjp_res_m1 = {'Error': cjp_results_m1.cost, 'K_F': K_F, 'K_R': K_R, 'K_S': K_S, 'T_x': T_x, 'T_y': T_y}
+
             logger.debug(
                 "CJP Mode I optimization results: K_F=%.2f, K_R=%.2f, K_S=%.2f, T_x=%.2f, T_y=%.2f",
                 K_F, K_R, K_S, T_x, T_y,
             )
 
         except Exception:
-            logger.exception('CJP optimization (Mode I) failed.')
+            logger.exception('CJP optimization (Mode I) failed. CJP Mode I optimization results set to NaN.')
+
             self.cjp_res_m1 = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'T_x': np.nan,
                                'T_y': np.nan}
 
@@ -194,6 +195,7 @@ class FractureAnalysis:
             K_S = -np.sqrt(np.pi / 2) * (A_r + B_r)
             K_II = 2 * np.sqrt(2 * np.pi) * B_i
             T = -C
+
             # MPa*sqrt(mm) to MPa*sqrt(m)
             K_F /= np.sqrt(1000)
             K_R /= np.sqrt(1000)
@@ -202,65 +204,91 @@ class FractureAnalysis:
 
             self.cjp_res_mm = {'Error': cjp_results.cost, 'K_F': K_F, 'K_R': K_R, 'K_S': K_S, 'K_II': K_II, 'T': T}
             logger.debug(
-                "CJP Mixed Mode optimization results: K_F=%.2f, K_R=%.2f, K_S=%.2f, K_II=%.2f, T=%.2f",
+                "CJP Mixed Mode optimization (Mixed Mode) results: K_F=%.2f, K_R=%.2f, K_S=%.2f, K_II=%.2f, T=%.2f",
                 K_F, K_R, K_S, K_II, T,
             )
         except Exception:
-            logger.exception('CJP optimization failed.')
+            logger.exception('CJP optimization failed. CJP Mixed Mode optimization results set to NaN.')
+
             self.cjp_res_mm = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'K_II': np.nan,
                                'T': np.nan}
 
     def _run_williams_optimization(self) -> None:
         """Run Williams optimization if optimization properties are provided."""
 
+        n_terms = len(self.optimization.terms)
+        skip_disp_z_optimization = self.data.disp_z is None or not np.any(
+            self.data.disp_z)  # -> both None or all zeros mean no sensible z-displacements are provided
+
         try:
-            # calculate Williams coefficients with fitting method in 2D
+            # calculate Williams coefficients with fitting method in 2D (xy-plane)
             williams_results_xy = self.optimization.optimize_williams_displacements_xy()
             williams_coeffs_xy = williams_results_xy.x
-            self.williams_coeffs = williams_coeffs_xy
-            a_n = williams_coeffs_xy[:len(self.optimization.terms)]
-            b_n = williams_coeffs_xy[len(self.optimization.terms):]
-            self.williams_fit_a_n = {n: a_n[index] for index, n in enumerate(self.optimization.terms)}
-            self.williams_fit_b_n = {n: b_n[index] for index, n in enumerate(self.optimization.terms)}
+
+            a_n = williams_coeffs_xy[:n_terms]
+            b_n = williams_coeffs_xy[n_terms:]
+            self.williams_fit_a_n = self._coeff_map(a_n)
+            self.williams_fit_b_n = self._coeff_map(b_n)
 
             # derive stress intensity factors and T-stress [Kuna formula 3.45]
             K_I = np.sqrt(2 * np.pi) * self.williams_fit_a_n[1] / np.sqrt(1000)
             K_II = -np.sqrt(2 * np.pi) * self.williams_fit_b_n[1] / np.sqrt(1000)
             T = 4 * self.williams_fit_a_n[2]
+
+            # store intermediate results
+            self.williams_coeffs = williams_coeffs_xy
             self.williams_fit_res = {'Error_xy': williams_results_xy.cost, 'K_I': K_I, 'K_II': K_II, 'T': T}
+
             logger.debug(
                 "Williams optimization results in xy-plane: Error_xy=%s, K_I=%.2f, K_II=%.2f, T=%.2f",
                 williams_results_xy.cost, K_I, K_II, T,
             )
         except Exception:
-            logger.exception('Williams optimization for xy failed.')
-            self.williams_coeffs = np.array([np.nan] * (2 * len(self.optimization.terms)))
-            self.williams_fit_a_n = {n: np.nan for index, n in enumerate(self.optimization.terms)}
-            self.williams_fit_b_n = {n: np.nan for index, n in enumerate(self.optimization.terms)}
+            logger.exception(
+                'Williams optimization for xy failed. Corresponding Williams optimization results set to NaN.')
+
+            self.williams_coeffs = np.array([np.nan] * (2 * n_terms))
+            self.williams_fit_a_n = self._coeff_map([np.nan] * n_terms)
+            self.williams_fit_b_n = self._coeff_map([np.nan] * n_terms)
             self.williams_fit_res = {'Error_xy': np.nan, 'K_I': np.nan, 'K_II': np.nan, 'T': np.nan}
+
+        if skip_disp_z_optimization:
+            logging.info(
+                'No sensible z-displacements provided; skipping z-direction optimization. Corresponding Williams optimization results set to NaN. ')
+
+            self.williams_coeffs = np.r_[self.williams_coeffs, np.array([np.nan] * n_terms)]
+            self.williams_fit_c_n = self._coeff_map([np.nan] * n_terms)
+            self.williams_fit_res.update({'Error_z': np.nan, 'K_III': np.nan})
+            return
 
         try:
             # calculate Williams coefficients with fitting method in z-direction
             williams_results_z = self.optimization.optimize_williams_displacements_z()
             williams_coeffs_z = williams_results_z.x
-            self.williams_coeffs = np.r_[self.williams_coeffs, williams_coeffs_z]
+
             c_n = williams_coeffs_z
+            self.williams_fit_c_n = self._coeff_map(c_n)
 
             # derive stress intensity factors for Mode III
-            self.williams_fit_c_n = {n: c_n[index] for index, n in enumerate(self.optimization.terms)}
             K_III = np.sqrt(0.5 * np.pi) * self.williams_fit_c_n[1] / np.sqrt(1000)
+
+            # update with final results
+            self.williams_coeffs = np.r_[self.williams_coeffs, williams_coeffs_z]
             self.williams_fit_res.update({'Error_z': williams_results_z.cost, 'K_III': K_III})
+
             logger.debug(
                 "Williams optimization results in z-plane: Error_z=%s, K_III=%.2f",
                 williams_results_z.cost, K_III,
             )
         except Exception:
-            logger.exception('Williams optimization for z-displacements failed.')
-            self.williams_coeffs = np.r_[self.williams_coeffs, np.array([np.nan] * len(self.optimization.terms))]
-            self.williams_fit_c_n = {n: np.nan for index, n in enumerate(self.optimization.terms)}
+            logger.exception(
+                'Williams optimization for z-displacements failed. Corresponding Williams optimization results set to NaN.')
 
+            self.williams_coeffs = np.r_[self.williams_coeffs, np.array([np.nan] * n_terms)]
+            self.williams_fit_c_n = self._coeff_map([np.nan] * n_terms)
+            self.williams_fit_res.update({'Error_z': np.nan, 'K_III': np.nan})
 
-    def _run_line_integrals(self, progress_bar: Optional[DictProxy] = None, task_id=None) -> None:
+    def _run_line_integrals(self, progress_bar: Optional[MutableMapping[str, Any]] = None, task_id=None) -> None:
         """Run line integrals if integral properties are provided."""
 
         # calculate Williams coefficients with Bueckner-Chen integral method
@@ -427,6 +455,14 @@ class FractureAnalysis:
                              'decomp_K_2': rej_decomp_K_2,
                              'decomp_K_3': rej_decomp_K_3}
         }
+
+    ###########
+    # Helpers #
+    ###########
+
+    def _coeff_map(self, values):
+        """Map optimization term indices to their corresponding coefficient values."""
+        return {n: values[i] for i, n in enumerate(self.optimization.terms)}
 
     @staticmethod
     def mean_wo_outliers(data: np.ndarray, m=2) -> list:

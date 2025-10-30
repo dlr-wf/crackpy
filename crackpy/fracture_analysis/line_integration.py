@@ -101,13 +101,13 @@ class IntegralProperties:
             auto_detect_threshold: threshold stress typically taken equal to yield stress
 
         """
-        logger.debug(f"Starting automatic integral path detection with threshold={auto_detect_threshold:.2f} MPa")
+        logger.debug("Starting automatic integral path detection with threshold=%.2f MPa", auto_detect_threshold)
 
         if data.sig_vm is None:
             raise ValueError("Stresses need to be calculated before using ``data`` by calling data.calc_stresses()")
         # Calculate face size
         facet_size = data.get_facet_size()
-        logger.debug(f"Calculated facet size: {facet_size:.4f} mm")
+        logger.debug("Calculated facet size: %.4f mm", facet_size)
 
         # Map data on regular grid
         x_min = facet_size * 2.0
@@ -118,7 +118,7 @@ class IntegralProperties:
         threshold_array = ngrid > auto_detect_threshold
         threshold_array = threshold_array.astype(int)
         labeled_images, num_features = label(threshold_array)
-        logger.debug(f"Found {num_features} features above threshold")
+        logger.debug("Found %d features above threshold", num_features)
 
         object_label = -1
 
@@ -182,11 +182,12 @@ class IntegralProperties:
         if self.paths_distance_bottom is None:
             self.paths_distance_bottom = facet_size
 
-        logger.debug(f"Automatic integral path detection completed:")
-        logger.debug(f"  Integral sizes: left={self.integral_size_left:.2f}, right={self.integral_size_right:.2f}, "
-                     f"top={self.integral_size_top:.2f}, bottom={self.integral_size_bottom:.2f}")
-        logger.debug(f"  Offsets: top={self.top_offset:.2f}, bottom={self.bottom_offset:.2f}")
-        logger.debug(f"  Tick size: {self.integral_tick_size:.4f} mm")
+        logger.debug("Automatic integral path detection completed:")
+        logger.debug("  Integral sizes: left=%.2f, right=%.2f, top=%.2f, bottom=%.2f",
+                     self.integral_size_left, self.integral_size_right, self.integral_size_top,
+                     self.integral_size_bottom)
+        logger.debug("  Offsets: top=%.2f, bottom=%.2f", self.top_offset, self.bottom_offset)
+        logger.debug("  Tick size: %.4f mm", self.integral_tick_size)
 
 
 class PathProperties:
@@ -414,27 +415,27 @@ class LineIntegral:
         - Williams coefficients with Buckner-Chen method (if terms are given)
 
         """
-        logger.debug(f"Starting integration for all methods, integration points: {len(self.np_integration_points)}")
+        logger.debug("Starting integration for all methods, integration points: %d", len(self.np_integration_points))
 
         self.integrate_j()
-        logger.debug(f"J-integral: {self.j_integral:.6f} N/mm, K_J: {self.sif_k_j:.6f} MPa√m")
+        logger.debug("J-integral: %.6f N/mm, K_J: %.6f MPa√m", self.j_integral, self.sif_k_j)
 
         self.integrate_j_decompose()
-        logger.debug(f"J-decomposition completed: K_I={self.decomp_j_integral_K_I:.6f}, "
-                     f"K_II={self.decomp_j_integral_K_II:.6f}, K_III={self.decomp_j_integral_K_III:.6f} MPa√m")
+        logger.debug("J-decomposition completed: K_I=%.6f, K_II=%.6f, K_III=%.6f MPa√m",
+                     self.decomp_j_integral_K_I, self.decomp_j_integral_K_II, self.decomp_j_integral_K_III)
 
         self.integrate_i_k1_k2()
-        logger.debug(f"Interaction integral SIFs: K_I={self.sif_k_i:.6f}, K_II={self.sif_k_ii:.6f} MPa√m")
+        logger.debug("Interaction integral SIFs: K_I=%.6f, K_II=%.6f MPa√m", self.sif_k_i, self.sif_k_ii)
 
         self.integrate_i_t()
-        logger.debug(f"T-stress (interaction): {self.t_stress_int:.6f} MPa")
+        logger.debug("T-stress (interaction): %.6f MPa", self.t_stress_int)
 
         self.integrate_t_sdm()
-        logger.debug(f"T-stress (SDM): {self.t_stress_sdm:.6f} MPa")
+        logger.debug("T-stress (SDM): %.6f MPa", self.t_stress_sdm)
 
         if self.buckner_williams_terms is not None:
             self.integrate_buckner_chen()
-            logger.debug(f"Buckner-Chen integral completed for {len(self.buckner_williams_terms)} terms")
+            logger.debug("Buckner-Chen integral completed for %d terms", len(self.buckner_williams_terms))
 
     ###########################################
     # METHODS FOR CALCULATING THE DESCRIPTORS #
@@ -448,6 +449,7 @@ class LineIntegral:
 
     def integrate_j_decompose(self):
         """Call this method to solve integrals for J-integral :math:`J` and its mode I, II, III decomposition
+            Negative J values are sanitized to NaN for SIF calculation.
 
         """
         #############################################
@@ -462,21 +464,24 @@ class LineIntegral:
         self.data = self._prepare_mode_data(mode='I')
         self._interpolate_on_integration_points()
         self.decomp_j_integral_I = self._solve_j_integral()  # in N/mm
-        self.decomp_j_integral_K_I = np.sqrt(self.decomp_j_integral_I * self.material.E / 1000)  # MPa*sqrt(m)
+        j_san = np.where(self.decomp_j_integral_I >= 0, self.decomp_j_integral_I, np.nan)
+        self.decomp_j_integral_K_I = np.sqrt(j_san * self.material.E) / np.sqrt(1000)  # MPa*sqrt(m)
 
         # Mode II
         self.data = self._prepare_mode_data(mode='II')
         self._interpolate_on_integration_points()
         self.decomp_j_integral_II = self._solve_j_integral()  # in N/mm
-        self.decomp_j_integral_K_II = np.sqrt(self.decomp_j_integral_II * self.material.E / 1000)  # MPa*sqrt(m)
+        j_san = np.where(self.decomp_j_integral_II >= 0, self.decomp_j_integral_II, np.nan)
+        self.decomp_j_integral_K_II = np.sqrt(j_san * self.material.E) / np.sqrt(1000)  # MPa*sqrt(m)
 
         # Mode III
         self.data = self._prepare_mode_data(mode='III')
         self._interpolate_on_integration_points()
         self._interpolate_on_integration_points_z()
         self.decomp_j_integral_III = self._solve_j_integral_III()  # in N/mm
-        self.decomp_j_integral_K_III = np.sqrt(self.decomp_j_integral_III / 1000 * self.material.E /
-                                               (1 + self.material.nu_xy))  # MPa*sqrt(m)
+        j_san = np.where(self.decomp_j_integral_III >= 0, self.decomp_j_integral_III, np.nan)
+        self.decomp_j_integral_K_III = np.sqrt(j_san * self.material.E /
+                                               (1 + self.material.nu_xy)) / np.sqrt(1000)  # MPa*sqrt(m)
 
         # Restore original data
         self.data = data_orig
