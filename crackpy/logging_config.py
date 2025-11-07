@@ -19,7 +19,6 @@ def _prepare_file_handlers(cfg: dict, appname: str = "crackpy"):
         if not base.is_absolute():
             base = Path.home() / ".cache" / appname / "logs" / base
 
-        # Generate unique log name: e.g. crackpy_20251028_145320_12345.log
         filename = f"{base.stem}_{timestamp}_{pid}{base.suffix or '.log'}"
         base = base.with_name(filename)
 

@@ -8,6 +8,7 @@ authors = [
     {name = "Tobias Strohmann"},
     {name = "David Melching", email = "David.Melching@dlr.de"},
     {name = "Florian Paysan"},
+    {name = "Ferdinand Dömling"},
     {name = "Eric Dietrich"},
     {name = "Eric Breitbarth", email = "Eric.Breitbarth@dlr.de"},
 ]
