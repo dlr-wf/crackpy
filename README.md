@@ -19,7 +19,7 @@ fracture mechanical parameters.
 |:----------------------------------------------------:|
 |  **_Schematic overview of data flow in CrackPy._**   |
 
-To do so, we use a specific DIC data format which is stored as a `_Nodemap_.txt` text file.
+To do so, we use a specific DIC data format which is stored as a `Nodemap.txt` text file.
 This file contains the nodal full-field displacement and strain data as well as information about the 
 experiment and metadata. For each file (referring to one time step of the experiment), crack 
 tip location and crack path geometry are detected utilizing a trained artificial neural network [**4**] or the line intercept method [**15**].
@@ -58,7 +58,7 @@ the **fracture analysis** pipeline. Here we offer a wide range of methods and al
 4. Calculate stress intensity factors and Williams series coefficients using _Bueckner's conjugate work integral_ [**6**, **14**]
 5. Calculate _higher order singular terms (HOSTs)_ or _higher order regular terms (HORTs)_ of the Williams series [**7**] by fitting the 
    theoretical displacement field to the experimental (or simulated) data.
-6. Calculate CJP stress intensity factors which may take effects of plasticity into account by fitting the theoretical displacement field of the _CJP model_ [**8**] the experimental (or simulated) data [**13**]   
+6. Calculate _CJP stress intensity factors_ which may take effects of plasticity into account by fitting the theoretical displacement field of the CJP model to experimental (or simulated) data [**8**, **13**]   
 
 
 Here is an example of the output plot for one single time step of a laboratory experiment...
