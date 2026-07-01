@@ -51,7 +51,8 @@ class CrackDetectionLineIntercept:
             grid_component: str = 'uy',
             eps_vm_threshold: float = 0.01,
             window_size: float = 3,
-            angle_estimation_mm_radius: float = 50
+            angle_estimation_mm_radius: float = 50,
+            side: str = 'right',
     ) -> None:
         """Initialize class arguments.
 
@@ -67,6 +68,7 @@ class CrackDetectionLineIntercept:
             eps_vm_threshold: threshold for crack detection used along the detected crack path
             window_size: size of the sliding window used for thresholding
             angle_estimation_mm_radius: mm radius used for crack angle estimation
+            side: side of the crack tip (left or right)
 
         """
         self.tip_index = 0
@@ -85,6 +87,7 @@ class CrackDetectionLineIntercept:
         self.window_size = window_size
         self.eps_vm_threshold = eps_vm_threshold
         self.angle_estimation_mm_radius = angle_estimation_mm_radius
+        self.detection_side = side
 
         # crack detection results
         self.crack_tip = None
@@ -148,10 +151,20 @@ class CrackDetectionLineIntercept:
         self.eps_vm_crack_path = scipy.interpolate.griddata((self.data.coor_x, self.data.coor_y), self.data.eps_vm,
                                                        (self.x_path, self.y_path), method='linear')
         self.tip_index = 0
-        reversed_eps_vm_crack_path = self.eps_vm_crack_path[::-1]
-        for i in range(len(reversed_eps_vm_crack_path) - self.window_size + 1):
-            if np.all(reversed_eps_vm_crack_path[i:i + self.window_size] > self.eps_vm_threshold):
-                self.tip_index = len(reversed_eps_vm_crack_path) - i - 1
+
+        if self.detection_side not in ('left', 'right'):
+            logger.error("Invalid detection_side '%s'. Expected 'right' or 'left'. Defaulting to 'right'.",
+                         self.detection_side)
+            self.detection_side = 'right'
+
+        eps_vm_path = self.eps_vm_crack_path[::-1] if self.detection_side == 'right' else self.eps_vm_crack_path
+
+        for i in range(len(eps_vm_path) - self.window_size + 1):
+            if np.all(eps_vm_path[i:i + self.window_size] > self.eps_vm_threshold):
+                if self.detection_side == 'right':
+                    self.tip_index = len(eps_vm_path) - i - 1
+                else:
+                    self.tip_index = i + self.window_size - 1
                 break
 
         logger.debug("Crack tip search: tip_index=%d out of %d path points", self.tip_index, len(self.x_path))
