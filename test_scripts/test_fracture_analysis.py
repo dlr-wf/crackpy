@@ -1,3 +1,4 @@
+import os
 import shutil
 import tempfile
 import unittest
@@ -479,9 +480,25 @@ class TestFractureAnalysisPipeline(unittest.TestCase):
             reader.make_csv_from_results(files="all", output_path=temp_dir, output_filename='results.csv')
 
             # Assert
-            exp_results = pd.read_csv(Path(self.output_path) / 'results_auto_integral_probs.csv')
             act_results = pd.read_csv(Path(temp_dir) / 'results.csv')
-            pd.testing.assert_frame_equal(exp_results, act_results, atol=1e-4)
+            expected_path = Path(self.output_path) / 'results_auto_integral_probs.csv'
+            # Regenerate this committed fixture only when explicitly requested.
+            # Run: CRACKPY_UPDATE_PIPELINE_FIXTURES=1 python -m pytest \
+            #     test_scripts/test_fracture_analysis.py::TestFractureAnalysisPipeline::test_find_integral_props_and_run_pipeline -q
+            # Normal test runs remain read-only and compare the generated results with the existing fixture.
+            # Review every numerical change with git diff before committing an updated fixture.
+            if os.getenv('CRACKPY_UPDATE_PIPELINE_FIXTURES') == '1':
+                act_results.to_csv(expected_path, index=False)
+            exp_results = pd.read_csv(expected_path)
+            errors = []
+            for column in exp_results.columns:
+                try:
+                    pd.testing.assert_series_equal(exp_results[column], act_results[column], atol=1e-4)
+                except AssertionError as error:
+                    errors.append(f'{column}:\n{error}')
+
+            if errors:
+                raise AssertionError('\n\n'.join(errors))
 
         finally:
             shutil.rmtree(temp_dir)
@@ -548,9 +565,26 @@ class TestFractureAnalysisPipeline(unittest.TestCase):
             reader.make_csv_from_results(files="all", output_path=temp_dir, output_filename='results.csv')
 
             # Assert
-            exp_results = pd.read_csv(Path(self.output_path) / 'results_predef_integral_probs.csv')
             act_results = pd.read_csv(Path(temp_dir) / 'results.csv')
-            pd.testing.assert_frame_equal(exp_results, act_results, atol=1e-4)
+            expected_path = Path(self.output_path) / 'results_predef_integral_probs.csv'
+            # Regenerate this committed fixture only when explicitly requested.
+            # Run: CRACKPY_UPDATE_PIPELINE_FIXTURES=1 python -m pytest \
+            #     test_scripts/test_fracture_analysis.py::TestFractureAnalysisPipeline::test_predefine_integral_probs_and_run_pipeline -q
+            # Normal test runs remain read-only and compare the generated results with the existing fixture.
+            # Review every numerical change with git diff before committing an updated fixture.
+            if os.getenv('CRACKPY_UPDATE_PIPELINE_FIXTURES') == '1':
+                act_results.to_csv(expected_path, index=False)
+            exp_results = pd.read_csv(expected_path)
+            errors = []
+            for column in exp_results.columns:
+                try:
+                    pd.testing.assert_series_equal(exp_results[column], act_results[column], atol=1e-4)
+                except AssertionError as error:
+                    errors.append(f'{column}:\n{error}')
+
+            if errors:
+                raise AssertionError('\n\n'.join(errors))
+
 
         finally:
             shutil.rmtree(temp_dir)
