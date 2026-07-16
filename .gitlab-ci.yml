@@ -34,6 +34,16 @@ stages:
   - Unit Tests
   - Integration Tests
 
+.crack_detection_model_cache:
+  cache:
+    key:
+      files:
+        - crackpy/tests/test_crack_detection/_model_download.py
+      prefix: "crack-detection-models"
+    paths:
+      - crackpy/crack_detection/models/
+    policy: pull-push
+
 building:
   stage: Build
   script:
@@ -63,8 +73,10 @@ lint_crack_detection:
 
 # Run Unit Tests
 crack_detection:
+  extends: .crack_detection_model_cache
   stage: Unit Tests
   script:
+    - python -m crackpy.tests.test_crack_detection._model_download
     - pip install pytest --quiet
     - pytest crackpy/tests/test_crack_detection --junitxml=report.xml
   artifacts:
@@ -94,8 +106,10 @@ test_utils:
 
 # Run test scripts
 test_crack_detection:
+  extends: .crack_detection_model_cache
   stage: Integration Tests
   script:
+    - python -m crackpy.tests.test_crack_detection._model_download
     - pip install pytest --quiet
     - pytest test_scripts/test_crack_detection.py --junitxml=report.xml
   artifacts:
