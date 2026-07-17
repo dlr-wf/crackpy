@@ -96,7 +96,11 @@ class ReusableLinearInterpolator:
 class InterpolationTarget(Enum):
     """Identify the intended evaluation layout in interpolation cache keys."""
 
+    INTEGRATION_POINTS = "integration_points"
+    INTEGRATION_POINTS_ALL = "integration_points_all"
     OPTIMIZATION_GRID = "optimization_grid"
+    REFERENCE_POINT = "reference_point"
+    REGULAR_GRID = "regular_grid"
 
 
 def hash_array(values: np.ndarray) -> tuple[tuple[int, ...], str, str]:

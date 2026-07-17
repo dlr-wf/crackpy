@@ -1,13 +1,13 @@
 import logging
 import warnings
-from typing import Union, Optional, Mapping, Any, MutableMapping
+from typing import Any, Mapping, MutableMapping, Optional, Union
 
 import numpy as np
 import rich.progress as progress_rich
 
 from crackpy.fracture_analysis import line_integration
-from crackpy.fracture_analysis.line_integration import (IntegralProperties,
-                                                        LineIntegral)
+from crackpy.fracture_analysis._interpolation_cache import InterpolatorCache
+from crackpy.fracture_analysis.line_integration import IntegralProperties, LineIntegral
 from crackpy.fracture_analysis.optimization import Optimization, OptimizationProperties
 from crackpy.input.crack_tip_info import CrackTipInfo
 from crackpy.input.input_data import InputData
@@ -303,6 +303,7 @@ class FractureAnalysis:
         else:
             iterator = range(self.integral_properties.number_of_paths)
 
+        interpolator_cache = InterpolatorCache(max_interpolators=4)
         for n in iterator:
             # Define path properties
             path_properties = line_integration.PathProperties(current_size_left,
@@ -320,7 +321,8 @@ class FractureAnalysis:
             # Define line integration methods
             line_integral = line_integration.LineIntegral(integration_path, self.data, self.material,
                                                           self.integral_properties.mask_tolerance,
-                                                          self.integral_properties.buckner_williams_terms)
+                                                          self.integral_properties.buckner_williams_terms,
+                                                          interpolator_cache=interpolator_cache)
 
             # Calculate integral results
             line_integral.integrate_all()

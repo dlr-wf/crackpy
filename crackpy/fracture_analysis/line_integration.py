@@ -5,8 +5,12 @@ import numpy as np
 from scipy.interpolate import griddata
 from scipy.ndimage import label
 
-from crackpy.fracture_analysis.crack_tip import get_crack_nearfield, eigenfunction, get_zhao_solutions
-from crackpy.fracture_analysis.utils import ReusableLinearInterpolator
+from crackpy.fracture_analysis._interpolation_cache import (
+    InterpolationTarget,
+    InterpolatorCache,
+    ReusableLinearInterpolator,
+)
+from crackpy.fracture_analysis.crack_tip import eigenfunction, get_crack_nearfield, get_zhao_solutions
 from crackpy.input.input_data import InputData, apply_mask
 from crackpy.structure_elements.material import Material
 
@@ -357,7 +361,8 @@ class LineIntegral:
                  data: InputData,
                  material: Material,
                  mask_tol: float = None,
-                 buckner_williams_terms: list = None):
+                 buckner_williams_terms: list = None,
+                 interpolator_cache: InterpolatorCache | None = None):
         """Get integration points and interpolate data onto grid.
 
         Args:
@@ -366,6 +371,7 @@ class LineIntegral:
             material: obj of class Material
             mask_tol: (float or None) tolerance of the quadratic interpolation mask around the integration path
             buckner_williams_terms: (list or None) list of Williams coefficients to be calculated with Buckner-Chen Integral
+            interpolator_cache: cache shared by one line-integral Analysis Run, or ``None`` for a private bounded cache
 
         """
         # input
@@ -380,6 +386,11 @@ class LineIntegral:
         self.mask_tol = mask_tol
         self.np_integration_points = None
         self.tri = None
+        self._interpolator_cache = (
+            interpolator_cache
+            if interpolator_cache is not None
+            else InterpolatorCache(max_interpolators=4)
+        )
 
         # output
         self.j_integral = None
@@ -403,6 +414,7 @@ class LineIntegral:
 
     def __post_init__(self):
         self.np_integration_points = self.integration_path.get_integration_points()
+        self._build_path_geometry()
         self._interpolate_on_integration_points()
 
     def integrate_all(self):
@@ -476,7 +488,6 @@ class LineIntegral:
 
         # Mode III
         self.data = self._prepare_mode_data(mode='III')
-        self._interpolate_on_integration_points()
         self._interpolate_on_integration_points_z()
         self.decomp_j_integral_III = self._solve_j_integral_III()  # in N/mm
         j_san = np.where(self.decomp_j_integral_III >= 0, self.decomp_j_integral_III, np.nan)
@@ -511,24 +522,20 @@ class LineIntegral:
 
     def integrate_i_t(self):
         # T-stress with interaction integral method
-        int_path_max_x = np.max(self.np_integration_points[:, 0])
         t_stress_integral = self._solve_t_stress_interaction_integral()
         if self.material.plane_strain:
             # plane strain
             self.t_stress_int = self.material.E / (1 - self.material.nu_xy ** 2) * t_stress_integral
         else:
-            eps_z = griddata((self.data.coor_x, self.data.coor_y),
-                             - self.material.nu_xy * (self.data.eps_x + self.data.eps_y),
-                             (int_path_max_x, 0)).item()
+            eps_z = self._interpolate_on_reference_point(
+                -self.material.nu_xy * (self.data.eps_x + self.data.eps_y)
+            ).item()
             # plane stress
             self.t_stress_int = self.material.E * (t_stress_integral + self.material.nu_xy * eps_z)
 
     def integrate_t_sdm(self):
         # T-stress with stress difference method
-        int_path_max_x = np.max(self.np_integration_points[:, 0])
-        self.t_stress_sdm = griddata((self.data.coor_x, self.data.coor_y),
-                                     self.data.sig_x - self.data.sig_y,
-                                     (int_path_max_x, 0))
+        self.t_stress_sdm = self._interpolate_on_reference_point(self.data.sig_x - self.data.sig_y)
 
     def integrate_buckner_chen(self):
         # Williams coefficents with Chen method
@@ -557,26 +564,23 @@ class LineIntegral:
             J-integral value
 
         """
-        j_int_value = 0.0
-        for i in range(len(self.np_integration_points[:, 0])):
-            int_point_sig_tensor = np.asarray([[self.interpolated_sig_x[i], self.interpolated_sig_xy[i]],
-                                               [self.interpolated_sig_xy[i], self.interpolated_sig_y[i]]])
-            int_point_eps_tensor = np.asarray([[self.interpolated_eps_x[i], self.interpolated_eps_xy[i]],
-                                               [self.interpolated_eps_xy[i], self.interpolated_eps_y[i]]])
-
-            elem_height = self.np_integration_points[i, 3]
-            elem_size = np.sqrt(self.np_integration_points[i, 2] ** 2.0 + self.np_integration_points[i, 3] ** 2.0)
-            direction_vector = [self.np_integration_points[i, 2], self.np_integration_points[i, 3], 0.0]
-            normal_vector = np.cross(direction_vector, [0.0, 0.0, 1.0])
-            normal_vector = np.asarray(1.0 / np.linalg.norm(normal_vector) * normal_vector)[0:2]
-            t_vector = np.dot(int_point_sig_tensor, normal_vector)
-
-            energy_term = 0.5 * np.sum(int_point_sig_tensor * int_point_eps_tensor)
-            stress_term = (t_vector[0] * self.interpolated_eps_x[i] + t_vector[1] * self.interpolated_disp_y_dx[i])
-            int_point_j = energy_term * elem_height - stress_term * elem_size
-            j_int_value += int_point_j  # if not np.isnan(int_point_j) else 0.0
-
-        return j_int_value
+        stress_tensors = np.moveaxis(np.asarray([
+            [self.interpolated_sig_x, self.interpolated_sig_xy],
+            [self.interpolated_sig_xy, self.interpolated_sig_y],
+        ]), -1, 0)
+        strain_tensors = np.moveaxis(np.asarray([
+            [self.interpolated_eps_x, self.interpolated_eps_xy],
+            [self.interpolated_eps_xy, self.interpolated_eps_y],
+        ]), -1, 0)
+        traction_vectors = np.einsum("nij,nj->ni", stress_tensors, self._path_normals)
+        energy_terms = 0.5 * np.einsum("nij,nij->n", stress_tensors, strain_tensors)
+        stress_terms = (
+            traction_vectors[:, 0] * self.interpolated_eps_x
+            + traction_vectors[:, 1] * self.interpolated_disp_y_dx
+        )
+        return np.sum(
+            energy_terms * self._path_elem_heights - stress_terms * self._path_elem_sizes
+        )
 
     def _solve_j_integral_III(self) -> float:
         """Function that returns the J-integral as a line integration.
@@ -585,22 +589,57 @@ class LineIntegral:
             J-integral value
 
         """
-        j_int_value = 0.0
-        for i in range(len(self.np_integration_points[:, 0])):
-            elem_height = self.np_integration_points[i, 3]
-            elem_size = np.sqrt(self.np_integration_points[i, 2] ** 2.0 + self.np_integration_points[i, 3] ** 2.0)
-            direction_vector = [self.np_integration_points[i, 2], self.np_integration_points[i, 3], 0.0]
-            normal_vector = np.cross(direction_vector, [0.0, 0.0, 1.0])
-            normal_vector = np.asarray(1.0 / np.linalg.norm(normal_vector) * normal_vector)[0:2]
+        energy_terms = (
+            self.interpolated_eps_xz * self.interpolated_sigma_xz
+            + self.interpolated_eps_yz * self.interpolated_sigma_yz
+        )
+        stress_terms = (
+            self.interpolated_sigma_xz * self.interpolated_eps_xz * self._path_normals[:, 0]
+            + self.interpolated_sigma_yz * self.interpolated_eps_xz * self._path_normals[:, 1]
+        )
+        return np.sum(
+            energy_terms * self._path_elem_heights - stress_terms * self._path_elem_sizes
+        )
 
-            energy_term = (self.interpolated_eps_xz[i] * self.interpolated_sigma_xz[i] +
-                           self.interpolated_eps_yz[i] * self.interpolated_sigma_yz[i])
-            stress_term = (self.interpolated_sigma_xz[i] * self.interpolated_eps_xz[i] * normal_vector[0] +
-                           self.interpolated_sigma_yz[i] * self.interpolated_eps_xz[i] * normal_vector[1])
+    def _evaluate_shifted_auxiliary_fields(self, evaluator):
+        """Evaluate an analytical field on aligned base and shifted contour points."""
+        return (
+            evaluator(self._integration_eval_points_relative),
+            evaluator(self._integration_eval_points_relative_pos),
+            evaluator(self._integration_eval_points_relative_neg),
+        )
 
-            int_point_j = energy_term * elem_height - stress_term * elem_size
-            j_int_value += int_point_j
-        return j_int_value
+    def _get_auxiliary_crack_nearfield(self, ki_aux: float, kii_aux: float):
+        """Evaluate crack-nearfield tensors and the shifted displacement derivative in batches."""
+        def evaluate_displacements(relative_points: np.ndarray):
+            r, phi = self._make_polar(relative_points[:, 0], relative_points[:, 1])
+            return np.asarray(get_crack_nearfield(ki_aux, kii_aux, r, phi, self.material)[2])
+
+        stress, strain, _ = get_crack_nearfield(
+            ki_aux,
+            kii_aux,
+            self._integration_eval_r,
+            self._integration_eval_phi,
+            self.material,
+        )
+        _, positive, negative = self._evaluate_shifted_auxiliary_fields(evaluate_displacements)
+        return (
+            np.moveaxis(stress, -1, 0),
+            np.moveaxis(strain, -1, 0),
+            ((positive - negative) / (2 * self.x_shift))[1],
+        )
+
+    def _get_auxiliary_zhao_fields(self):
+        """Evaluate Zhao auxiliary stresses and shifted displacement derivatives in batches."""
+        def evaluate(relative_points: np.ndarray):
+            r, phi = self._make_polar(relative_points[:, 0], relative_points[:, 1])
+            return np.asarray(get_zhao_solutions(r, phi, self.material))
+
+        base, positive, negative = self._evaluate_shifted_auxiliary_fields(evaluate)
+        sigma_x, sigma_y, sigma_xy, _, _ = base
+        derivatives = (positive - negative) / (2 * self.x_shift)
+        stress = np.moveaxis(np.asarray([[sigma_x, sigma_xy], [sigma_xy, sigma_y]]), -1, 0)
+        return stress, derivatives[3], derivatives[4]
 
     def _solve_interaction_integral(self, ki_aux: float, kii_aux: float) -> float:
         """Function that calculates the interaction integral as a line integration.
@@ -614,54 +653,34 @@ class LineIntegral:
             interaction integral value
 
         """
-        interaction_integral_value = 0.0
+        auxiliary_stress, auxiliary_strain, auxiliary_disp_y_dx = (
+            self._get_auxiliary_crack_nearfield(ki_aux, kii_aux)
+        )
 
-        for i in range(len(self.np_integration_points[:, 0])):
-            # define stress and strain tensors
-            int_point_sig_tensor = np.asarray([[self.interpolated_sig_x[i], self.interpolated_sig_xy[i]],
-                                               [self.interpolated_sig_xy[i], self.interpolated_sig_y[i]]])
+        # Assemble measured stress and both tractions on the contour normal.
+        stress = np.moveaxis(np.asarray([
+            [self.interpolated_sig_x, self.interpolated_sig_xy],
+            [self.interpolated_sig_xy, self.interpolated_sig_y],
+        ]), -1, 0)
+        traction = np.einsum("nij,nj->ni", stress, self._path_normals)
+        auxiliary_traction = np.einsum("nij,nj->ni", auxiliary_stress, self._path_normals)
 
-            # size and height of integration elements
-            elem_height = self.np_integration_points[i, 3]
-            elem_size = np.sqrt(self.np_integration_points[i, 2] ** 2.0 + self.np_integration_points[i, 3] ** 2.0)
-            # normal vector
-            direction_vector = [self.np_integration_points[i, 2], self.np_integration_points[i, 3], 0.0]
-            normal_vector = np.cross(direction_vector, [0.0, 0.0, 1.0])
-            normal_vector = np.asarray(1.0 / np.linalg.norm(normal_vector) * normal_vector)[0:2]
+        # Mutual strain energy projected through dx = n_x ds.
+        energy = np.einsum("nij,nij->n", stress, auxiliary_strain)
+        terms = energy * self._path_elem_heights
 
-            # traction
-            t_vector = np.dot(int_point_sig_tensor, normal_vector)
+        # Work of measured traction against the auxiliary displacement gradient.
+        terms -= (
+            traction[:, 0] * auxiliary_strain[:, 0, 0]
+            + traction[:, 1] * auxiliary_disp_y_dx
+        ) * self._path_elem_sizes
 
-            # auxiliary stress, strain, and displacement fields
-            r, phi = self._make_polar(x=-self.origin_x + self.np_integration_points[i, 0],
-                                      y=-self.origin_y + self.np_integration_points[i, 1])
-            crack_nearfield_sig, crack_nearfield_eps, _ = get_crack_nearfield(ki_aux, kii_aux, r, phi, self.material)
-            # auxiliary traction
-            t_vector_analytic = np.dot(crack_nearfield_sig, normal_vector)
-
-            # calculate x-derivative of auxiliary y-displacement
-            r, phi = self._make_polar(x=-self.origin_x + self.np_integration_points[i, 0] + self.x_shift,
-                                      y=-self.origin_y + self.np_integration_points[i, 1])
-            _, _, crack_nearfield_disp_shift_right = get_crack_nearfield(ki_aux, kii_aux, r, phi, self.material)
-
-            r, phi = self._make_polar(x=-self.origin_x + self.np_integration_points[i, 0] - self.x_shift,
-                                      y=-self.origin_y + self.np_integration_points[i, 1])
-            _, _, crack_nearfield_disp_shift_left = get_crack_nearfield(ki_aux, kii_aux, r, phi, self.material)
-
-            disp_y_dx_aux = (crack_nearfield_disp_shift_right[1] - crack_nearfield_disp_shift_left[1]) / \
-                            (2 * self.x_shift)
-
-            # Interaction energy integral
-            energy_term_aux = np.sum(int_point_sig_tensor * crack_nearfield_eps)
-            eps_x_aux = crack_nearfield_eps[0, 0]
-            delta_int_1 = energy_term_aux * elem_height  # normal in x-direction is zero for elem_height = 0
-            delta_int_2 = -(t_vector[0] * eps_x_aux + t_vector[1] * disp_y_dx_aux) * elem_size
-            delta_int_3 = -(t_vector_analytic[0] * self.interpolated_eps_x[i]
-                            + t_vector_analytic[1] * self.interpolated_disp_y_dx[i]) * elem_size
-
-            interaction_integral_value += delta_int_1 + delta_int_2 + delta_int_3
-
-        return interaction_integral_value
+        # Reciprocal work of auxiliary traction against the measured displacement gradient.
+        terms -= (
+            auxiliary_traction[:, 0] * self.interpolated_eps_x
+            + auxiliary_traction[:, 1] * self.interpolated_disp_y_dx
+        ) * self._path_elem_sizes
+        return np.sum(terms)
 
     def _solve_t_stress_interaction_integral(self) -> float:
         """Interaction path integral for the determination of T-stress according to Cardew et al. '85, Kfouri '86,
@@ -671,58 +690,36 @@ class LineIntegral:
             T stress interaction integral value
 
         """
-        interaction_integral_value = 0.0
+        # Zhao's auxiliary state supplies stress and both displacement gradients.
+        auxiliary_stress, auxiliary_disp_x_dx, auxiliary_disp_y_dx = self._get_auxiliary_zhao_fields()
 
-        for i in range(len(self.np_integration_points[:, 0])):
-            # define stress and strain tensors
-            int_point_eps_tensor = np.asarray([[self.interpolated_eps_x[i], self.interpolated_eps_xy[i]],
-                                               [self.interpolated_eps_xy[i], self.interpolated_eps_y[i]]])
-            int_point_sig_tensor = np.asarray([[self.interpolated_sig_x[i], self.interpolated_sig_xy[i]],
-                                               [self.interpolated_sig_xy[i], self.interpolated_sig_y[i]]])
+        # Assemble measured strain and stress, then project both stresses onto the contour normal.
+        strain = np.moveaxis(np.asarray([
+            [self.interpolated_eps_x, self.interpolated_eps_xy],
+            [self.interpolated_eps_xy, self.interpolated_eps_y],
+        ]), -1, 0)
+        stress = np.moveaxis(np.asarray([
+            [self.interpolated_sig_x, self.interpolated_sig_xy],
+            [self.interpolated_sig_xy, self.interpolated_sig_y],
+        ]), -1, 0)
+        traction = np.einsum("nij,nj->ni", stress, self._path_normals)
+        auxiliary_traction = np.einsum("nij,nj->ni", auxiliary_stress, self._path_normals)
 
-            # size and height of integration elements
-            elem_height = self.np_integration_points[i, 3]
-            elem_size = np.sqrt(self.np_integration_points[i, 2] ** 2.0 + self.np_integration_points[i, 3] ** 2.0)
-            # normal vector
-            direction_vector = [self.np_integration_points[i, 2], self.np_integration_points[i, 3], 0.0]
-            normal_vector = np.cross(direction_vector, [0.0, 0.0, 1.0])
-            normal_vector = np.asarray(1.0 / np.linalg.norm(normal_vector) * normal_vector)[0:2]
+        # Mutual strain energy projected through dx = n_x ds.
+        energy = np.einsum("nij,nij->n", auxiliary_stress, strain)
+        terms = energy * self._path_elem_heights
 
-            # traction
-            t_vector = np.dot(int_point_sig_tensor, normal_vector)
+        # Work of measured traction against Zhao's auxiliary displacement gradient.
+        terms -= (
+            traction[:, 0] * auxiliary_disp_x_dx + traction[:, 1] * auxiliary_disp_y_dx
+        ) * self._path_elem_sizes
 
-            # auxiliary stress, strain, and displacement fields (see Zhao et al. 2001)
-            r, phi = self._make_polar(x=-self.origin_x + self.np_integration_points[i, 0],
-                                      y=-self.origin_y + self.np_integration_points[i, 1])
-            sigma_x_aux, sigma_y_aux, sigma_xy_aux, _, _ = get_zhao_solutions(r, phi, self.material)
-            sigma_tensor_aux = np.asarray([[sigma_x_aux, sigma_xy_aux],
-                                           [sigma_xy_aux, sigma_y_aux]])
-
-            # auxiliary traction
-            t_vector_aux = np.dot(sigma_tensor_aux, normal_vector)
-
-            # calculate x-derivative of auxiliary y-displacement
-            r, phi = self._make_polar(x=-self.origin_x + self.np_integration_points[i, 0] + self.x_shift,
-                                      y=-self.origin_y + self.np_integration_points[i, 1])
-            _, _, _, u_x_shift_right, u_y_shift_right = get_zhao_solutions(r, phi, self.material)
-
-            r, phi = self._make_polar(x=-self.origin_x + self.np_integration_points[i, 0] - self.x_shift,
-                                      y=-self.origin_y + self.np_integration_points[i, 1])
-            _, _, _, u_x_shift_left, u_y_shift_left = get_zhao_solutions(r, phi, self.material)
-
-            disp_x_dx_aux = (u_x_shift_right - u_x_shift_left) / (2 * self.x_shift)
-            disp_y_dx_aux = (u_y_shift_right - u_y_shift_left) / (2 * self.x_shift)
-
-            # Interaction energy integral
-            energy_term_aux = np.sum(sigma_tensor_aux * int_point_eps_tensor)
-            delta_int_1 = energy_term_aux * elem_height  # normal in x-direction is zero for elem_height = 0
-            delta_int_2 = -(t_vector[0] * disp_x_dx_aux + t_vector[1] * disp_y_dx_aux) * elem_size
-            delta_int_3 = -(t_vector_aux[0] * self.interpolated_eps_x[i]
-                            + t_vector_aux[1] * self.interpolated_disp_y_dx[i]) * elem_size
-
-            interaction_integral_value += delta_int_1 + delta_int_2 + delta_int_3
-
-        return interaction_integral_value
+        # Reciprocal work of auxiliary traction against the measured displacement gradient.
+        terms -= (
+            auxiliary_traction[:, 0] * self.interpolated_eps_x
+            + auxiliary_traction[:, 1] * self.interpolated_disp_y_dx
+        ) * self._path_elem_sizes
+        return np.sum(terms)
 
     def _williams_coeff_from_chen_integral(self, a_aux=0, b_aux=0, n=1) -> float:
         """This method implements formula (6.94) from Meinhard Kuna's book on fracture mechanics.
@@ -756,36 +753,39 @@ class LineIntegral:
             Chen integral value
 
         """
-        chen_integral = 0.0
-        for i in range(len(self.np_integration_points[:, 0])):
-            # size and height of integration elements
-            elem_size = np.sqrt(self.np_integration_points[i, 2] ** 2.0 + self.np_integration_points[i, 3] ** 2.0)
+        # Assemble the measured stress, displacement, and contour traction.
+        stress = np.moveaxis(np.asarray([
+            [self.interpolated_sig_x, self.interpolated_sig_xy],
+            [self.interpolated_sig_xy, self.interpolated_sig_y],
+        ]), -1, 0)
+        displacement = np.c_[self.interpolated_disp_x, self.interpolated_disp_y]
+        traction = np.einsum("nij,nj->ni", stress, self._path_normals)
 
-            # normal vector
-            direction_vector = [self.np_integration_points[i, 2], self.np_integration_points[i, 3], 0.0]
-            normal_vector = np.cross(direction_vector, [0.0, 0.0, 1.0])
-            normal_vector = np.asarray(1.0 / np.linalg.norm(normal_vector) * normal_vector)[0:2]
+        # Evaluate the auxiliary Williams eigenfunction on every contour point.
+        sigma_x, sigma_y, sigma_xy, disp_x, disp_y = eigenfunction(
+            n,
+            a_n,
+            b_n,
+            self._integration_eval_r,
+            self._integration_eval_phi,
+            self.material,
+        )
 
-            # stress and displacement of real data
-            int_point_sig_tensor = np.asarray([[self.interpolated_sig_x[i], self.interpolated_sig_xy[i]],
-                                               [self.interpolated_sig_xy[i], self.interpolated_sig_y[i]]])
-            int_point_disp_vector = np.asarray([self.interpolated_disp_x[i], self.interpolated_disp_y[i]])
-            # traction of real data
-            t_vector = np.dot(int_point_sig_tensor, normal_vector)
+        # Assemble the auxiliary stress, displacement, and contour traction.
+        auxiliary_stress = np.moveaxis(
+            np.asarray([[sigma_x, sigma_xy], [sigma_xy, sigma_y]]),
+            -1,
+            0,
+        )
+        auxiliary_displacement = np.c_[disp_x, disp_y]
+        auxiliary_traction = np.einsum("nij,nj->ni", auxiliary_stress, self._path_normals)
 
-            # auxiliary stress and displacement
-            r, phi = self._make_polar(x=-self.origin_x + self.np_integration_points[i, 0],
-                                      y=-self.origin_y + self.np_integration_points[i, 1])
-            sigma_x_n, sigma_y_n, sigma_xy_n, disp_x_aux, disp_y_aux = eigenfunction(n, a_n, b_n, r, phi, self.material)
-            sigma_aux = np.asarray([[sigma_x_n, sigma_xy_n], [sigma_xy_n, sigma_y_n]])
-            disp_aux = np.asarray([disp_x_aux, disp_y_aux])
-            # auxiliary traction
-            t_vector_aux = np.dot(sigma_aux, normal_vector)
-
-            # Chen energy integral
-            chen_integral += np.sum(t_vector * disp_aux - t_vector_aux * int_point_disp_vector) * elem_size
-
-        return chen_integral
+        # Integrate the Bueckner-Chen reciprocal-work density along the contour.
+        terms = np.sum(
+            traction * auxiliary_displacement - auxiliary_traction * displacement,
+            axis=1,
+        )
+        return np.sum(terms * self._path_elem_sizes)
 
     ######################################
     # FUNCTIONS FOR STRAIN RECALCULATION #
@@ -898,6 +898,70 @@ class LineIntegral:
     # HELPER FUNCTIONS FOR MESHING #
     ################################
 
+    def _build_path_geometry(self) -> None:
+        """Precompute contour and shifted evaluation geometry used by every functional."""
+        self._integration_eval_points = self.np_integration_points[:, :2].copy()
+        self._integration_eval_points_pos = self._integration_eval_points + np.asarray([self.x_shift, 0.0])
+        self._integration_eval_points_neg = self._integration_eval_points - np.asarray([self.x_shift, 0.0])
+        self._integration_eval_points_all = np.r_[
+            self._integration_eval_points,
+            self._integration_eval_points_pos,
+            self._integration_eval_points_neg,
+        ]
+        origin = np.asarray([[self.origin_x, self.origin_y]])
+        self._integration_eval_points_relative = self._integration_eval_points - origin
+        self._integration_eval_points_relative_pos = self._integration_eval_points_pos - origin
+        self._integration_eval_points_relative_neg = self._integration_eval_points_neg - origin
+        self._integration_eval_r, self._integration_eval_phi = self._make_polar(
+            self._integration_eval_points_relative[:, 0],
+            self._integration_eval_points_relative[:, 1],
+        )
+        self._path_elem_heights = self.np_integration_points[:, 3].copy()
+        self._path_elem_sizes = np.linalg.norm(self.np_integration_points[:, 2:4], axis=1)
+        direction_vectors = np.c_[self.np_integration_points[:, 2:4], np.zeros(len(self.np_integration_points))]
+        normal_vectors = np.cross(direction_vectors, [0.0, 0.0, 1.0])
+        self._path_normals = (
+            normal_vectors / np.linalg.norm(normal_vectors, axis=1)[:, np.newaxis]
+        )[:, :2]
+        self._reference_eval_point = np.asarray([[np.max(self.np_integration_points[:, 0]), 0.0]])
+
+    def _get_integration_point_interpolator(
+            self,
+            data: InputData,
+            eval_points: np.ndarray | None = None,
+            label: InterpolationTarget = InterpolationTarget.INTEGRATION_POINTS,
+    ) -> ReusableLinearInterpolator:
+        """Return cached interpolation geometry for one semantic evaluation layout."""
+        if eval_points is None:
+            eval_points = self._integration_eval_points
+        return self._interpolator_cache.get_interpolator(
+            data.coor_x,
+            data.coor_y,
+            eval_points,
+            label,
+        )
+
+    def _get_masked_data(self, mask_tol: float | None = None) -> InputData:
+        """Return the nodemap restricted to the configured contour band when requested."""
+        tolerance = self.mask_tol if mask_tol is None else mask_tol
+        if tolerance is None:
+            return self.data
+        left, right = np.min(self.np_integration_points[:, 0]), np.max(self.np_integration_points[:, 0])
+        bottom, top = np.min(self.np_integration_points[:, 1]), np.max(self.np_integration_points[:, 1])
+        outer_square = ((left - tolerance <= self.data.coor_x) * (self.data.coor_x <= right + tolerance)
+                        * (bottom - tolerance <= self.data.coor_y) * (self.data.coor_y <= top + tolerance))
+        inner_square = ((left + tolerance <= self.data.coor_x) * (self.data.coor_x <= right - tolerance)
+                        * (bottom + tolerance <= self.data.coor_y) * (self.data.coor_y <= top - tolerance))
+        return apply_mask(self.data, np.where(outer_square * (1 - inner_square)))
+
+    def _interpolate_on_reference_point(self, values: np.ndarray) -> np.ndarray:
+        """Interpolate one measured scalar field at the contour reference point."""
+        return self._get_integration_point_interpolator(
+            self.data,
+            self._reference_eval_point,
+            InterpolationTarget.REFERENCE_POINT,
+        ).interpolate(values).squeeze()
+
     def _map_displacement_data_on_regular_grid(self, grid_points: int):
         left = np.min(self.np_integration_points[:, 0])
         right = np.max(self.np_integration_points[:, 0])
@@ -916,7 +980,11 @@ class LineIntegral:
 
         grid_points = np.c_[self.x_mesh.ravel(), self.y_mesh.ravel()]
 
-        interp_disp = ReusableLinearInterpolator(self.data.coor_x, self.data.coor_y, grid_points)
+        interp_disp = self._get_integration_point_interpolator(
+            self.data,
+            grid_points,
+            InterpolationTarget.REGULAR_GRID,
+        )
         uvw = interp_disp.interpolate(np.c_[self.data.disp_x, self.data.disp_y, self.data.disp_z])
         uvw = uvw.reshape(self.x_mesh.shape + (3,))
         self.disp_u_mesh, self.disp_v_mesh, self.disp_w_mesh = uvw[:, :, 0], uvw[:, :, 1], uvw[:, :, 2]
@@ -929,49 +997,24 @@ class LineIntegral:
         """Interpolates full field data onto the integration path coordinates.
         Further, calculates the interpolated results for shifted points for derivatives."""
 
-        self.pos_shifted_np_int_points = np.asarray(self.np_integration_points[:, 0]) + self.x_shift
-        self.neg_shifted_np_int_points = np.asarray(self.np_integration_points[:, 0]) - self.x_shift
-
-        if self.mask_tol is not None:
-            # mask out areas away from the integration points
-            left = np.min(self.np_integration_points[:, 0])
-            right = np.max(self.np_integration_points[:, 0])
-            bottom = np.min(self.np_integration_points[:, 1])
-            top = np.max(self.np_integration_points[:, 1])
-
-            tol = self.mask_tol
-            outer_square = (left - tol <= self.data.coor_x) * (self.data.coor_x <= right + tol) * \
-                           (bottom - tol <= self.data.coor_y) * (self.data.coor_y <= top + tol)
-            inner_square = (left + tol <= self.data.coor_x) * (self.data.coor_x <= right - tol) * \
-                           (bottom + tol <= self.data.coor_y) * (self.data.coor_y <= top - tol)
-            mask = np.where(outer_square * (1 - inner_square))  # outer_square \ inner_square
-            data = apply_mask(self.data, mask)
-        else:
-            data = self.data
-
-        # we reuses triangles and weights, since interpolation points are the same for all fields
-        # for the fields
-        interpolator = ReusableLinearInterpolator(data.coor_x, data.coor_y, np.c_[
-            self.np_integration_points[:, 0], self.np_integration_points[:, 1]])
-        intp_data = interpolator.interpolate(
+        self.pos_shifted_np_int_points = self._integration_eval_points_pos[:, 0].copy()
+        self.neg_shifted_np_int_points = self._integration_eval_points_neg[:, 0].copy()
+        data = self._get_masked_data()
+        interpolator = self._get_integration_point_interpolator(
+            data,
+            self._integration_eval_points_all,
+            InterpolationTarget.INTEGRATION_POINTS_ALL,
+        )
+        sampled = interpolator.interpolate(
             np.c_[data.eps_x, data.eps_y, data.eps_xy,
             data.sig_x, data.sig_y, data.sig_xy,
             data.disp_x, data.disp_y])
+        base, positive, negative = sampled.reshape(3, len(self._integration_eval_points), 8)
         (self.interpolated_eps_x, self.interpolated_eps_y, self.interpolated_eps_xy,
          self.interpolated_sig_x, self.interpolated_sig_y, self.interpolated_sig_xy,
-         self.interpolated_disp_x, self.interpolated_disp_y) = (intp_data[:, 0], intp_data[:, 1], intp_data[:, 2],
-                                                                intp_data[:, 3], intp_data[:, 4], intp_data[:, 5],
-                                                                intp_data[:, 6], intp_data[:, 7])
-
-        # for the derivative of disp_y w.r.t. x, we reuse the standard griddata approach (since points are different)
-        self.interpolated_disp_y_dx_positive = griddata((data.coor_x, data.coor_y), data.disp_y,
-                                                        (self.pos_shifted_np_int_points,
-                                                         self.np_integration_points[:, 1]),
-                                                        method='linear')
-        self.interpolated_disp_y_dx_negative = griddata((data.coor_x, data.coor_y), data.disp_y,
-                                                        (self.neg_shifted_np_int_points,
-                                                         self.np_integration_points[:, 1]),
-                                                        method='linear')
+         self.interpolated_disp_x, self.interpolated_disp_y) = tuple(base[:, index] for index in range(8))
+        self.interpolated_disp_y_dx_positive = positive[:, 7]
+        self.interpolated_disp_y_dx_negative = negative[:, 7]
         self.interpolated_disp_y_dx = (self.interpolated_disp_y_dx_positive -
                                        self.interpolated_disp_y_dx_negative) / (2.0 * self.x_shift)
 
@@ -981,28 +1024,8 @@ class LineIntegral:
         This method is used for the mode III decomposition of J integral.
         """
 
-        self.pos_shifted_np_int_points = np.asarray(self.np_integration_points[:, 0]) + self.x_shift
-        self.neg_shifted_np_int_points = np.asarray(self.np_integration_points[:, 0]) - self.x_shift
-
-        if mask_tol is not None:
-            # mask out areas away from the integration points
-            left = np.min(self.np_integration_points[:, 0])
-            right = np.max(self.np_integration_points[:, 0])
-            bottom = np.min(self.np_integration_points[:, 1])
-            top = np.max(self.np_integration_points[:, 1])
-
-            tol = mask_tol
-            outer_square = (left - tol <= self.data.coor_x) * (self.data.coor_x <= right + tol) * \
-                           (bottom - tol <= self.data.coor_y) * (self.data.coor_y <= top + tol)
-            inner_square = (left + tol <= self.data.coor_x) * (self.data.coor_x <= right - tol) * \
-                           (bottom + tol <= self.data.coor_y) * (self.data.coor_y <= top - tol)
-            mask = np.where(outer_square * (1 - inner_square))  # outer_square \ inner_square
-            data = apply_mask(self.data, mask)
-        else:
-            data = self.data
-
-        interpolator = ReusableLinearInterpolator(data.coor_x, data.coor_y, np.c_[
-            self.np_integration_points[:, 0], self.np_integration_points[:, 1]])
+        data = self.data if mask_tol is None else self._get_masked_data(mask_tol)
+        interpolator = self._get_integration_point_interpolator(data)
         intp_data = interpolator.interpolate(np.c_[data.eps_xz, data.eps_yz, data.sigma_xz, data.sigma_yz])
         (self.interpolated_eps_xz, self.interpolated_eps_yz,
          self.interpolated_sigma_xz, self.interpolated_sigma_yz) = (intp_data[:, 0], intp_data[:, 1],
