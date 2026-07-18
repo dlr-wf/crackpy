@@ -1,3 +1,7 @@
+"""Analysis facade coordinating established fracture-analysis techniques and
+owning their latest authoritative and compatibility result surfaces.
+"""
+
 import logging
 import warnings
 from typing import Any, Mapping, MutableMapping, Optional, Union
@@ -8,6 +12,31 @@ import rich.progress as progress_rich
 from crackpy.fracture_analysis import line_integration
 from crackpy.fracture_analysis._interpolation_cache import InterpolatorCache
 from crackpy.fracture_analysis.line_integration import IntegralProperties, LineIntegral
+from crackpy.fracture_analysis.crack_tip_fields.cjp import (
+    CjpMixedModeCoefficients,
+    CjpMixedModeQuantities,
+    CjpModeICoefficients,
+    CjpModeIQuantities,
+)
+from crackpy.fracture_analysis.crack_tip_fields.williams import (
+    WilliamsInPlaneCoefficients,
+    WilliamsInPlaneQuantities,
+    WilliamsOutOfPlaneCoefficients,
+    WilliamsOutOfPlaneQuantities,
+)
+from crackpy.fracture_analysis.odm._compatibility import (
+    _project_cjp_mixed_mode_compatibility,
+    _project_cjp_mode_i_compatibility,
+    _project_williams_compatibility,
+)
+from crackpy.fracture_analysis.odm.results import OdmFitResult
+from crackpy.fracture_analysis.odm.runners import (
+    _build_cjp_mixed_mode_odm_result,
+    _build_cjp_mode_i_odm_result,
+    _build_williams_in_plane_odm_result,
+    _build_williams_out_of_plane_odm_result,
+)
+from crackpy.fracture_analysis.odm.solvers import coefficient_fit_from_optimize_result
 from crackpy.fracture_analysis.optimization import Optimization, OptimizationProperties
 from crackpy.input.crack_tip_info import CrackTipInfo
 from crackpy.input.input_data import InputData
@@ -75,6 +104,10 @@ class FractureAnalysis:
         self.williams_fit_b_n = None
         self.williams_fit_c_n = None
         self.williams_fit_res = None
+        self._cjp_mode_i_odm_result = None
+        self._cjp_mixed_mode_odm_result = None
+        self._williams_in_plane_odm_result = None
+        self._williams_out_of_plane_odm_result = None
 
         # Available Line Integral results
         self.path_results = []
@@ -98,6 +131,40 @@ class FractureAnalysis:
         self.integral_properties = integral_properties
         if self.integral_properties is not None:
             LineIntegral.ensure_defaults_buckner_chen(self.integral_properties)
+
+    @property
+    def cjp_mode_i_odm_result(
+        self,
+    ) -> OdmFitResult[CjpModeICoefficients, CjpModeIQuantities] | None:
+        """Return the latest authoritative CJP Mode I ODM result, if attempted."""
+        return self._cjp_mode_i_odm_result
+
+    @property
+    def cjp_mixed_mode_odm_result(
+        self,
+    ) -> OdmFitResult[CjpMixedModeCoefficients, CjpMixedModeQuantities] | None:
+        """Return the latest authoritative CJP mixed-mode ODM result, if attempted."""
+        return self._cjp_mixed_mode_odm_result
+
+    @property
+    def williams_in_plane_odm_result(
+        self,
+    ) -> OdmFitResult[
+        WilliamsInPlaneCoefficients,
+        WilliamsInPlaneQuantities,
+    ] | None:
+        """Return the latest authoritative in-plane Williams ODM result."""
+        return self._williams_in_plane_odm_result
+
+    @property
+    def williams_out_of_plane_odm_result(
+        self,
+    ) -> OdmFitResult[
+        WilliamsOutOfPlaneCoefficients,
+        WilliamsOutOfPlaneQuantities,
+    ] | None:
+        """Return the latest authoritative out-of-plane Williams ODM result."""
+        return self._williams_out_of_plane_odm_result
 
     def run(self, progress_bar: Optional[Mapping[str, object]] = None, task_id=None):
         """Run fracture analysis with the provided data, crack_tip_info, and integral_properties.
@@ -151,142 +218,127 @@ class FractureAnalysis:
 
         try:
             cjp_results_m1 = self.optimization.optimize_cjp_displacements_modeI()
-            self.cjp_coeffs_m1 = cjp_results_m1.x
-            A, B, C, E, F = self.cjp_coeffs_m1
-
-            # from Camacho-Reyes et al. (2023) "A new crack tip plastic zone model for mixed mode I and mode II" formulas 4-8
-            K_F = np.sqrt(np.pi / 2) * (A - 3 * B - 8 * E)
-            K_R = -((2 * np.pi) ** (3 / 2)) * E
-            K_S = np.sqrt(np.pi / 2) * (A + B)
-            T_x = -C
-            T_y = -F
-
-            # MPa*sqrt(mm) to MPa*sqrt(m)
-            K_F /= np.sqrt(1000)
-            K_R /= np.sqrt(1000)
-            K_S /= np.sqrt(1000)
-
-            self.cjp_res_m1 = {'Error': cjp_results_m1.cost, 'K_F': K_F, 'K_R': K_R, 'K_S': K_S, 'T_x': T_x, 'T_y': T_y}
+            coefficient_fit = coefficient_fit_from_optimize_result(cjp_results_m1)
+            result = _build_cjp_mode_i_odm_result(coefficient_fit)
+            coefficients, quantities = _project_cjp_mode_i_compatibility(result)
+            self._cjp_mode_i_odm_result = result
+            self.cjp_coeffs_m1 = coefficients
+            self.cjp_res_m1 = quantities
 
             logger.debug(
                 "CJP Mode I optimization results: K_F=%.2f, K_R=%.2f, K_S=%.2f, T_x=%.2f, T_y=%.2f",
-                K_F, K_R, K_S, T_x, T_y,
+                result.quantities.k_f,
+                result.quantities.k_r,
+                result.quantities.k_s,
+                result.quantities.t_x,
+                result.quantities.t_y,
             )
 
         except Exception:
             logger.exception('CJP optimization (Mode I) failed. CJP Mode I optimization results set to NaN.')
 
-            self.cjp_res_m1 = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'T_x': np.nan,
-                               'T_y': np.nan}
+            result = _build_cjp_mode_i_odm_result(None)
+            coefficients, quantities = _project_cjp_mode_i_compatibility(result)
+            self._cjp_mode_i_odm_result = result
+            self.cjp_coeffs_m1 = coefficients
+            self.cjp_res_m1 = quantities
 
     def _run_cjp_optimization_mixedmode(self) -> None:
         """Run CJP optimization if optimization properties are provided."""
 
         try:
-            # calculate CJP coefficients with fitting method
             cjp_results = self.optimization.optimize_cjp_displacements_mixedmode()
-
-            self.cjp_coeffs_mm = cjp_results.x
-            A_r, B_r, B_i, C, E = self.cjp_coeffs_mm
-
-            # from Christopher et al. (2013) "Extension of the CJP model to mixed mode I and mode II" formulas 4-8
-            K_F = np.sqrt(np.pi / 2) * (A_r - 3 * B_r - 8 * E)
-            K_R = -4 * np.sqrt(np.pi / 2) * (2 * B_i + E * np.pi)
-            K_S = -np.sqrt(np.pi / 2) * (A_r + B_r)
-            K_II = 2 * np.sqrt(2 * np.pi) * B_i
-            T = -C
-
-            # MPa*sqrt(mm) to MPa*sqrt(m)
-            K_F /= np.sqrt(1000)
-            K_R /= np.sqrt(1000)
-            K_S /= np.sqrt(1000)
-            K_II /= np.sqrt(1000)
-
-            self.cjp_res_mm = {'Error': cjp_results.cost, 'K_F': K_F, 'K_R': K_R, 'K_S': K_S, 'K_II': K_II, 'T': T}
+            coefficient_fit = coefficient_fit_from_optimize_result(cjp_results)
+            result = _build_cjp_mixed_mode_odm_result(coefficient_fit)
+            coefficients, quantities = _project_cjp_mixed_mode_compatibility(result)
+            self._cjp_mixed_mode_odm_result = result
+            self.cjp_coeffs_mm = coefficients
+            self.cjp_res_mm = quantities
             logger.debug(
                 "CJP Mixed Mode optimization (Mixed Mode) results: K_F=%.2f, K_R=%.2f, K_S=%.2f, K_II=%.2f, T=%.2f",
-                K_F, K_R, K_S, K_II, T,
+                result.quantities.k_f,
+                result.quantities.k_r,
+                result.quantities.k_s,
+                result.quantities.k_ii,
+                result.quantities.t_stress,
             )
         except Exception:
             logger.exception('CJP optimization failed. CJP Mixed Mode optimization results set to NaN.')
 
-            self.cjp_res_mm = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'K_II': np.nan,
-                               'T': np.nan}
+            result = _build_cjp_mixed_mode_odm_result(None)
+            coefficients, quantities = _project_cjp_mixed_mode_compatibility(result)
+            self._cjp_mixed_mode_odm_result = result
+            self.cjp_coeffs_mm = coefficients
+            self.cjp_res_mm = quantities
 
     def _run_williams_optimization(self) -> None:
         """Run Williams optimization if optimization properties are provided."""
 
-        n_terms = len(self.optimization.terms)
+        terms = tuple(self.optimization.terms)
         skip_disp_z_optimization = self.data.disp_z is None or not np.any(
             self.data.disp_z)  # -> both None or all zeros mean no sensible z-displacements are provided
 
         try:
-            # calculate Williams coefficients with fitting method in 2D (xy-plane)
             williams_results_xy = self.optimization.optimize_williams_displacements_xy()
-            williams_coeffs_xy = williams_results_xy.x
-
-            a_n = williams_coeffs_xy[:n_terms]
-            b_n = williams_coeffs_xy[n_terms:]
-            self.williams_fit_a_n = self._coeff_map(a_n)
-            self.williams_fit_b_n = self._coeff_map(b_n)
-
-            # derive stress intensity factors and T-stress [Kuna formula 3.45]
-            K_I = np.sqrt(2 * np.pi) * self.williams_fit_a_n[1] / np.sqrt(1000)
-            K_II = -np.sqrt(2 * np.pi) * self.williams_fit_b_n[1] / np.sqrt(1000)
-            T = 4 * self.williams_fit_a_n[2]
-
-            # store intermediate results
-            self.williams_coeffs = williams_coeffs_xy
-            self.williams_fit_res = {'Error_xy': williams_results_xy.cost, 'K_I': K_I, 'K_II': K_II, 'T': T}
-
-            logger.debug(
-                "Williams optimization results in xy-plane: Error_xy=%s, K_I=%.2f, K_II=%.2f, T=%.2f",
-                williams_results_xy.cost, K_I, K_II, T,
-            )
+            in_plane_fit = coefficient_fit_from_optimize_result(williams_results_xy)
         except Exception:
             logger.exception(
                 'Williams optimization for xy failed. Corresponding Williams optimization results set to NaN.')
-
-            self.williams_coeffs = np.array([np.nan] * (2 * n_terms))
-            self.williams_fit_a_n = self._coeff_map([np.nan] * n_terms)
-            self.williams_fit_b_n = self._coeff_map([np.nan] * n_terms)
-            self.williams_fit_res = {'Error_xy': np.nan, 'K_I': np.nan, 'K_II': np.nan, 'T': np.nan}
+            in_plane_fit = None
 
         if skip_disp_z_optimization:
             logging.info(
                 'No sensible z-displacements provided; skipping z-direction optimization. Corresponding Williams optimization results set to NaN. ')
+            out_of_plane_fit = None
+        else:
+            try:
+                williams_results_z = self.optimization.optimize_williams_displacements_z()
+                out_of_plane_fit = coefficient_fit_from_optimize_result(
+                    williams_results_z
+                )
+            except Exception:
+                logger.exception(
+                    'Williams optimization for z-displacements failed. Corresponding Williams optimization results set to NaN.')
+                out_of_plane_fit = None
 
-            self.williams_coeffs = np.r_[self.williams_coeffs, np.array([np.nan] * n_terms)]
-            self.williams_fit_c_n = self._coeff_map([np.nan] * n_terms)
-            self.williams_fit_res.update({'Error_z': np.nan, 'K_III': np.nan})
-            return
+        in_plane_result = _build_williams_in_plane_odm_result(
+            terms,
+            in_plane_fit,
+        )
+        out_of_plane_result = _build_williams_out_of_plane_odm_result(
+            terms,
+            out_of_plane_fit,
+            skipped=skip_disp_z_optimization,
+        )
+        (
+            coefficients,
+            a_by_term,
+            b_by_term,
+            c_by_term,
+            quantities,
+        ) = _project_williams_compatibility(in_plane_result, out_of_plane_result)
+        self._williams_in_plane_odm_result = in_plane_result
+        self._williams_out_of_plane_odm_result = out_of_plane_result
+        self.williams_coeffs = coefficients
+        self.williams_fit_a_n = a_by_term
+        self.williams_fit_b_n = b_by_term
+        self.williams_fit_c_n = c_by_term
+        self.williams_fit_res = quantities
 
-        try:
-            # calculate Williams coefficients with fitting method in z-direction
-            williams_results_z = self.optimization.optimize_williams_displacements_z()
-            williams_coeffs_z = williams_results_z.x
-
-            c_n = williams_coeffs_z
-            self.williams_fit_c_n = self._coeff_map(c_n)
-
-            # derive stress intensity factors for Mode III
-            K_III = np.sqrt(0.5 * np.pi) * self.williams_fit_c_n[1] / np.sqrt(1000)
-
-            # update with final results
-            self.williams_coeffs = np.r_[self.williams_coeffs, williams_coeffs_z]
-            self.williams_fit_res.update({'Error_z': williams_results_z.cost, 'K_III': K_III})
-
+        if in_plane_result.status == "completed":
+            logger.debug(
+                "Williams optimization results in xy-plane: Error_xy=%s, K_I=%.2f, K_II=%.2f, T=%.2f",
+                in_plane_result.cost,
+                in_plane_result.quantities.k_i,
+                in_plane_result.quantities.k_ii,
+                in_plane_result.quantities.t_stress,
+            )
+        if out_of_plane_result.status == "completed":
             logger.debug(
                 "Williams optimization results in z-plane: Error_z=%s, K_III=%.2f",
-                williams_results_z.cost, K_III,
+                out_of_plane_result.cost,
+                out_of_plane_result.quantities.k_iii,
             )
-        except Exception:
-            logger.exception(
-                'Williams optimization for z-displacements failed. Corresponding Williams optimization results set to NaN.')
-
-            self.williams_coeffs = np.r_[self.williams_coeffs, np.array([np.nan] * n_terms)]
-            self.williams_fit_c_n = self._coeff_map([np.nan] * n_terms)
-            self.williams_fit_res.update({'Error_z': np.nan, 'K_III': np.nan})
 
     def _run_line_integrals(self, progress_bar: Optional[MutableMapping[str, Any]] = None, task_id=None) -> None:
         """Run line integrals if integral properties are provided."""
@@ -374,11 +426,11 @@ class FractureAnalysis:
             self.williams_int_a_n = np.asarray(self.williams_int_a_n)
             self.williams_int_b_n = np.asarray(self.williams_int_b_n)
 
-            # replace any None values with 0 -> None means that the integral wasn't set to be calculated
-            res_array[res_array == None] = 0
-            self.williams_int[self.williams_int == None] = 0
-            self.williams_int_a_n[self.williams_int_a_n == None] = 0
-            self.williams_int_b_n[self.williams_int_b_n == None] = 0
+            # These object arrays require elementwise comparison; ``is None`` would be scalar.
+            res_array[res_array == None] = 0  # noqa: E711
+            self.williams_int[self.williams_int == None] = 0  # noqa: E711
+            self.williams_int_a_n[self.williams_int_a_n == None] = 0  # noqa: E711
+            self.williams_int_b_n[self.williams_int_b_n == None] = 0  # noqa: E711
 
             # Calculate means
             mean_j, mean_sif_j, mean_sif_k_i, mean_sif_k_ii, mean_t_stress_chen, mean_t_stress_sdm, mean_t_stress_int, \
@@ -457,14 +509,6 @@ class FractureAnalysis:
                              'decomp_K_2': rej_decomp_K_2,
                              'decomp_K_3': rej_decomp_K_3}
         }
-
-    ###########
-    # Helpers #
-    ###########
-
-    def _coeff_map(self, values):
-        """Map optimization term indices to their corresponding coefficient values."""
-        return {n: values[i] for i, n in enumerate(self.optimization.terms)}
 
     @staticmethod
     def mean_wo_outliers(data: np.ndarray, m=2) -> list:

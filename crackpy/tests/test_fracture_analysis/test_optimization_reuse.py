@@ -1,3 +1,7 @@
+"""ODM assembly and facade-reuse evidence for fixed-system ordering,
+masking, interpolation, and solver behavior.
+"""
+
 import inspect
 import unittest
 from unittest import mock
@@ -6,7 +10,6 @@ import numpy as np
 from scipy import optimize
 
 import crackpy.fracture_analysis._interpolation_cache as interpolation_cache_module
-import crackpy.fracture_analysis._odm_fit_systems as fit_systems_module
 import crackpy.fracture_analysis.optimization as optimization_module
 from crackpy.fracture_analysis._interpolation_cache import (
     BoundedCache,
@@ -14,27 +17,36 @@ from crackpy.fracture_analysis._interpolation_cache import (
     ReusableLinearInterpolator,
     hash_array,
 )
-from crackpy.fracture_analysis._odm_fit_systems import (
-    LinearizedSystem,
-    build_williams_systems,
-    solve_linear_system,
-)
-from crackpy.fracture_analysis._odm_grid_interpolation import (
-    build_optimization_grid,
-    prepare_interpolated_displacement_grid,
-)
 from crackpy.fracture_analysis.crack_tip import (
     cjp_displ_field_mixedmode,
     cjp_displ_field_modeI,
     williams_displ_field_xy,
     williams_displ_field_z,
 )
+from crackpy.fracture_analysis.crack_tip_fields.cjp import (
+    cjp_mixed_mode_displacement_basis,
+    cjp_mode_i_displacement_basis,
+)
+from crackpy.fracture_analysis.crack_tip_fields.williams import (
+    williams_in_plane_displacement_basis,
+    williams_out_of_plane_displacement_basis,
+)
+from crackpy.fracture_analysis.odm.assembly import (
+    assemble_cjp,
+    assemble_williams,
+)
+from crackpy.fracture_analysis.odm.sampling import (
+    OptimizationGrid,
+    build_optimization_grid,
+    prepare_interpolated_displacement_grid,
+)
 from crackpy.fracture_analysis.optimization import Optimization, OptimizationProperties
 from crackpy.fracture_analysis.utils import ReusableLinearInterpolator as CompatibilityInterpolator
 from crackpy.input.input_data import InputData
+from crackpy.structure_elements.material import Material
 
 
-class TestReusableOdmSystems(unittest.TestCase):
+class TestReusableOdmAssembly(unittest.TestCase):
     def setUp(self):
         axis = np.linspace(-1.5, 1.5, 9)
         coor_x, coor_y = np.meshgrid(axis, axis)
@@ -223,7 +235,7 @@ class TestReusableOdmSystems(unittest.TestCase):
         np.testing.assert_array_equal(first._williams_system_matrix_xy, second._williams_system_matrix_xy)
         np.testing.assert_array_equal(first._williams_system_matrix_z, second._williams_system_matrix_z)
 
-    def test_direct_builder_returns_independent_williams_matrices(self):
+    def test_direct_assembly_returns_independent_williams_matrices(self):
         instance = Optimization(self.data, options=self.options)
         arguments = {
             "interp_disp_x": instance.interp_disp_x,
@@ -232,19 +244,92 @@ class TestReusableOdmSystems(unittest.TestCase):
             "grid": instance._grid,
             "terms": instance.terms,
             "material": instance.material,
-            "basis": instance._basis,
         }
-        first = build_williams_systems(**arguments)
-        expected_xy = first.xy.matrix.copy()
-        expected_z = first.z.matrix.copy()
-        first.xy.matrix.fill(0.0)
-        first.z.matrix.fill(0.0)
+        first_assembly = assemble_williams(**arguments)
+        expected_xy = first_assembly.xy.matrix.copy()
+        expected_z = first_assembly.z.matrix.copy()
+        first_assembly.xy.matrix.fill(0.0)
+        first_assembly.z.matrix.fill(0.0)
 
-        second = build_williams_systems(**arguments)
-        self.assertIsNot(second.xy.matrix, first.xy.matrix)
-        self.assertIsNot(second.z.matrix, first.z.matrix)
-        np.testing.assert_array_equal(second.xy.matrix, expected_xy)
-        np.testing.assert_array_equal(second.z.matrix, expected_z)
+        second_assembly = assemble_williams(**arguments)
+        self.assertIsNot(second_assembly.xy.matrix, first_assembly.xy.matrix)
+        self.assertIsNot(second_assembly.z.matrix, first_assembly.z.matrix)
+        np.testing.assert_array_equal(second_assembly.xy.matrix, expected_xy)
+        np.testing.assert_array_equal(second_assembly.z.matrix, expected_z)
+
+    def test_cjp_objective_preserves_basis_columns_x_then_y_mask_and_target(self):
+        r = np.array([[0.4, 0.8], [1.2, 1.6]])
+        phi = np.array([[-1.0, -0.25], [0.5, 1.25]])
+        grid = OptimizationGrid(r=r, phi=phi, x=r * np.cos(phi), y=r * np.sin(phi))
+        disp_x = np.array([[10.0, np.nan], [30.0, 40.0]])
+        disp_y = np.array([[np.nan, 60.0], [70.0, 80.0]])
+        material = Material()
+
+        assembly = assemble_cjp(disp_x, disp_y, grid, material)
+
+        target_xy = np.asarray([disp_x, disp_y]).reshape(-1)
+        valid_mask = ~np.isnan(target_xy)
+        np.testing.assert_array_equal(assembly.valid_mask_xy, valid_mask)
+        np.testing.assert_array_equal(assembly.mode_i.target, target_xy[valid_mask])
+        np.testing.assert_array_equal(assembly.mixed_mode.target, target_xy[valid_mask])
+        for system, basis_function in (
+            (assembly.mode_i, cjp_mode_i_displacement_basis),
+            (assembly.mixed_mode, cjp_mixed_mode_displacement_basis),
+        ):
+            basis_x, basis_y = basis_function(r, phi, material)
+            coefficient_first = np.concatenate(
+                [basis_x.reshape(5, -1), basis_y.reshape(5, -1)],
+                axis=1,
+            )
+            np.testing.assert_allclose(system.matrix, coefficient_first[:, valid_mask].T)
+
+    def test_williams_objective_preserves_selected_columns_masks_and_targets(self):
+        r = np.array([[0.4, 0.8], [1.2, 1.6]])
+        phi = np.array([[-1.0, -0.25], [0.5, 1.25]])
+        grid = OptimizationGrid(r=r, phi=phi, x=r * np.cos(phi), y=r * np.sin(phi))
+        terms = np.array([2, -1, 3])
+        disp_x = np.array([[10.0, np.nan], [30.0, 40.0]])
+        disp_y = np.array([[50.0, 60.0], [np.nan, 80.0]])
+        disp_z = np.array([[90.0, np.nan], [110.0, 120.0]])
+        material = Material()
+
+        assembly = assemble_williams(
+            disp_x,
+            disp_y,
+            disp_z,
+            grid,
+            terms,
+            material,
+        )
+
+        target_xy = np.asarray([disp_x, disp_y]).reshape(-1)
+        valid_mask_xy = ~np.isnan(target_xy)
+        target_z = disp_z.reshape(-1)
+        valid_mask_z = ~np.isnan(target_z)
+        np.testing.assert_array_equal(assembly.valid_mask_xy, valid_mask_xy)
+        np.testing.assert_array_equal(assembly.valid_mask_z, valid_mask_z)
+        np.testing.assert_array_equal(assembly.xy.target, target_xy[valid_mask_xy])
+        np.testing.assert_array_equal(assembly.z.target, target_z[valid_mask_z])
+
+        basis_x, basis_y = williams_in_plane_displacement_basis(
+            r,
+            phi,
+            terms,
+            material,
+        )
+        coefficient_first_xy = np.concatenate(
+            [basis_x.reshape(2 * len(terms), -1), basis_y.reshape(2 * len(terms), -1)],
+            axis=1,
+        )
+        basis_z = williams_out_of_plane_displacement_basis(r, phi, terms, material)
+        np.testing.assert_allclose(
+            assembly.xy.matrix,
+            coefficient_first_xy[:, valid_mask_xy].T,
+        )
+        np.testing.assert_allclose(
+            assembly.z.matrix,
+            basis_z.reshape(len(terms), -1)[:, valid_mask_z].T,
+        )
 
     def test_mutating_public_jacobians_does_not_change_later_residuals(self):
         instance = Optimization(self.data, options=self.options)
@@ -309,37 +394,65 @@ class TestReusableOdmSystems(unittest.TestCase):
     def test_array_hash_separates_changed_inputs(self):
         self.assertNotEqual(hash_array(np.array([1.0, 2.0])), hash_array(np.array([1.0, 3.0])))
 
-    def test_public_optimizer_signatures_are_unchanged(self):
-        expected = "(self, method='lm', init_coeffs=None)"
+    def test_default_williams_terms_preserve_established_order(self):
+        options = OptimizationProperties(terms=None)
+
+        Optimization.ensure_defaults_williams(options, crack_tip_x=20.0)
+
+        self.assertEqual(options.terms, [-1, 1, 2, 3, 4, 5])
+
+    def test_public_optimizer_signatures_add_only_keyword_only_solver(self):
+        expected_parameters = (
+            (
+                "self",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.empty,
+                inspect.Parameter.empty,
+            ),
+            (
+                "method",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                "lm",
+                inspect.Parameter.empty,
+            ),
+            (
+                "init_coeffs",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                None,
+                inspect.Parameter.empty,
+            ),
+            (
+                "solver",
+                inspect.Parameter.KEYWORD_ONLY,
+                "direct",
+                optimization_module.SolverRoute,
+            ),
+        )
         optimizer_names = (
             "optimize_cjp_displacements_modeI",
             "optimize_cjp_displacements_mixedmode",
             "optimize_williams_displacements_xy",
             "optimize_williams_displacements_z",
         )
-        for name in optimizer_names:
-            with self.subTest(name=name):
-                self.assertEqual(str(inspect.signature(getattr(Optimization, name))), expected)
+        actual_parameters = {
+            name: tuple(
+                (
+                    parameter.name,
+                    parameter.kind,
+                    parameter.default,
+                    parameter.annotation,
+                )
+                for parameter in inspect.signature(
+                    getattr(Optimization, name)
+                ).parameters.values()
+            )
+            for name in optimizer_names
+        }
 
-    def test_direct_solver_uses_gelss_and_returns_the_intentional_contract(self):
-        system = LinearizedSystem(
-            matrix=np.array([[1.0, 0.0], [0.0, 2.0], [1.0, 1.0]]),
-            target=np.array([1.0, 4.0, 3.0]),
+        self.assertEqual(
+            actual_parameters,
+            {name: expected_parameters for name in optimizer_names},
         )
-        with mock.patch(
-            "crackpy.fracture_analysis._odm_fit_systems.linalg.lstsq",
-            wraps=fit_systems_module.linalg.lstsq,
-        ) as least_squares:
-            result = solve_linear_system(system)
-
-        self.assertEqual(least_squares.call_args.kwargs["lapack_driver"], "gelss")
-        self.assertTrue(result.success)
-        self.assertEqual(result.status, 1)
-        self.assertEqual(result.nfev, 1)
-        self.assertEqual(result.njev, 1)
-        self.assertEqual(result.message, "Solved by direct linear least squares.")
-        np.testing.assert_allclose(result.fun, system.matrix @ result.x - system.target)
-        np.testing.assert_array_equal(result.jac, system.matrix)
 
     def test_bounded_cache_evicts_the_least_recently_used_entry(self):
         cache = BoundedCache(max_size=2)

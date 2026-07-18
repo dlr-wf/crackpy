@@ -1,18 +1,27 @@
+"""Compatibility facade for configuring and executing established ODM coefficient
+fits through the public SciPy-shaped optimization interface.
+"""
+
 import logging
 from typing import Optional, Union
 
 import numpy as np
 
 from crackpy.fracture_analysis._interpolation_cache import InterpolatorCache
-from crackpy.fracture_analysis._odm_fit_systems import (
-    build_cjp_systems,
-    build_polar_basis_fields,
-    build_williams_systems,
-    solve_linear_system,
+from crackpy.fracture_analysis.odm.assembly import (
+    LinearSystem,
+    assemble_cjp,
+    assemble_williams,
 )
-from crackpy.fracture_analysis._odm_grid_interpolation import (
+from crackpy.fracture_analysis.odm.sampling import (
     build_optimization_grid,
     prepare_interpolated_displacement_grid,
+)
+from crackpy.fracture_analysis.odm.solvers import (
+    ResidualFunction,
+    SolverRoute,
+    solve_coefficient_fit,
+    to_optimize_result,
 )
 from crackpy.input.input_data import InputData
 from crackpy.structure_elements.material import Material
@@ -104,8 +113,6 @@ class Optimization:
         self.phi_grid = self._grid.phi
         self.x_grid = self._grid.x
         self.y_grid = self._grid.y
-        self._basis = build_polar_basis_fields(self._grid, self.material)
-
         # map transformed data to cartesian grid
         self._interpolate_data_on_grid()
         self._prepare_cjp_optimization()
@@ -129,108 +136,261 @@ class Optimization:
 
     def _prepare_cjp_optimization(self):
         """Precompute fixed CJP displacement systems on the optimization grid."""
-        self._cjp_systems = build_cjp_systems(
+        self._cjp_assembly = assemble_cjp(
             interp_disp_x=self.interp_disp_x,
             interp_disp_y=self.interp_disp_y,
             grid=self._grid,
             material=self.material,
-            basis=self._basis,
         )
-        self._cjp_target_xy = self._cjp_systems.mode_i.target
-        self._cjp_system_matrix_modeI = self._cjp_systems.mode_i.matrix
-        self._cjp_system_matrix_mixedmode = self._cjp_systems.mixed_mode.matrix
+        self._cjp_target_xy = self._cjp_assembly.mode_i.target
+        self._cjp_system_matrix_modeI = self._cjp_assembly.mode_i.matrix
+        self._cjp_system_matrix_mixedmode = self._cjp_assembly.mixed_mode.matrix
 
     def _prepare_williams_optimization(self):
         """Precompute fixed Williams displacement systems on the optimization grid."""
-        self._williams_systems = build_williams_systems(
+        self._williams_assembly = assemble_williams(
             interp_disp_x=self.interp_disp_x,
             interp_disp_y=self.interp_disp_y,
             interp_disp_z=self.interp_disp_z,
             grid=self._grid,
             terms=self.terms,
             material=self.material,
-            basis=self._basis,
         )
-        self._williams_target_xy = self._williams_systems.xy.target
-        self._williams_target_z = self._williams_systems.z.target
-        self._williams_system_matrix_xy = self._williams_systems.xy.matrix
-        self._williams_system_matrix_z = self._williams_systems.z.matrix
+        self._williams_target_xy = self._williams_assembly.xy.target
+        self._williams_target_z = self._williams_assembly.z.target
+        self._williams_system_matrix_xy = self._williams_assembly.xy.matrix
+        self._williams_system_matrix_z = self._williams_assembly.z.matrix
 
-    def optimize_cjp_displacements_modeI(self, method='lm', init_coeffs=None):
-        """Optimizes CJP displacements.
+    @staticmethod
+    def _solve_displacement_system(
+            system: LinearSystem,
+            *,
+            solver: SolverRoute,
+            method: str,
+            init_coeffs: np.ndarray | None,
+            residuals: ResidualFunction,
+            jacobian: ResidualFunction):
+        """Solve one fixed ODM system and adapt it to the public facade.
 
         Args:
-            method: Retained for API compatibility; ignored by the direct solver.
-            init_coeffs: Retained for API compatibility; ignored by the direct solver.
+            system: Fixed residual-by-coefficient system to solve.
+            solver: Numerical Solver Route to use.
+            method: SciPy method forwarded to iterative and legacy routes.
+            init_coeffs: Optional initialization forwarded to iterative and legacy routes.
+            residuals: Existing residual callback supplied only to the legacy route.
+            jacobian: Existing Jacobian callback supplied only to the legacy route.
 
         Returns:
-            Direct linear least-squares result for the CJP Mode I coefficients.
+            A mutable normalized SciPy-compatible optimization result.
+        """
+        solver_arguments = {}
+        if solver != "direct":
+            initial = None if init_coeffs is None else np.array(init_coeffs, copy=True)
+            solver_arguments.update(method=method, init_coeffs=initial)
+        if solver == "legacy":
+            solver_arguments.update(residuals=residuals, jacobian=jacobian)
+        result = solve_coefficient_fit(system, solver=solver, **solver_arguments)
+        return to_optimize_result(result)
+
+    def optimize_cjp_displacements_modeI(
+            self, method='lm', init_coeffs=None, *, solver: SolverRoute = "direct"):
+        """Fit CJP Mode I coefficients to the prepared in-plane displacements.
+
+        Args:
+            method: SciPy least-squares method used by ``iterative`` and ``legacy``.
+                The ``direct`` route ignores this compatibility control.
+            init_coeffs: Optional five-value initial vector in ``(A, B, C, E, F)``
+                order.
+                The ``iterative`` and ``legacy`` routes copy it before use, while
+                ``direct`` ignores it.
+            solver: Numerical route selected from ``direct``, ``iterative``, and
+                ``legacy``.
+
+        Returns:
+            A normalized SciPy ``OptimizeResult``.
+            ``x`` has shape ``(5,)`` in ``(A, B, C, E, F)`` order, where
+            ``A``, ``B``, and ``E`` use MPa sqrt(mm) and ``C`` and ``F`` use MPa.
+            ``fun`` has shape ``(m,)`` and contains valid x-displacement residuals
+            followed by valid y-displacement residuals in mm.
+            ``cost`` is half the squared residual norm in mm squared, and ``jac``
+            has shape ``(m, 5)`` in the same equation and coefficient order.
+            The remaining normalized fields are ``solver``, ``rank``,
+            ``singular_values``, ``success``, ``message``, ``status``, ``nfev``,
+            and ``njev``.
+            Rank and singular values are available for ``direct`` and otherwise
+            are ``None``.
+
+        Raises:
+            ValueError: If ``solver`` is unsupported or a selected SciPy route
+                rejects ``method`` or ``init_coeffs``.
 
         """
-        logger.debug("Starting CJP mode I optimization using method '%s'", method)
+        logger.debug("Starting CJP mode I optimization using solver '%s' and method '%s'", solver, method)
         logging.warning("CJP Mode I optimization is experimental and may produce unreliable results. "
                         "Use only for Mode I–dominated load cases. Interpret all outputs with caution.")
 
-        result = solve_linear_system(self._cjp_systems.mode_i)
+        result = self._solve_displacement_system(
+            self._cjp_assembly.mode_i,
+            solver=solver,
+            method=method,
+            init_coeffs=init_coeffs,
+            residuals=self.residuals_cjp_displacements_modeI,
+            jacobian=self.jacobian_cjp_displacements_modeI,
+        )
         logger.debug(
             "CJP mode I optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success,
             result.nfev)
         return result
 
-    def optimize_cjp_displacements_mixedmode(self, method='lm', init_coeffs=None):
-        """Optimizes CJP displacements.
+    def optimize_cjp_displacements_mixedmode(
+            self, method='lm', init_coeffs=None, *, solver: SolverRoute = "direct"):
+        """Fit CJP mixed-mode coefficients to prepared in-plane displacements.
 
         Args:
-            method: Retained for API compatibility; ignored by the direct solver.
-            init_coeffs: Retained for API compatibility; ignored by the direct solver.
+            method: SciPy least-squares method used by ``iterative`` and ``legacy``.
+                The ``direct`` route ignores this compatibility control.
+            init_coeffs: Optional five-value initial vector in
+                ``(A_r, B_r, B_i, C, E)`` order.
+                The ``iterative`` and ``legacy`` routes copy it before use, while
+                ``direct`` ignores it.
+            solver: Numerical route selected from ``direct``, ``iterative``, and
+                ``legacy``.
 
         Returns:
-            Direct linear least-squares result for the CJP mixed-mode coefficients.
+            A normalized SciPy ``OptimizeResult``.
+            ``x`` has shape ``(5,)`` in ``(A_r, B_r, B_i, C, E)`` order, where
+            ``A_r``, ``B_r``, ``B_i``, and ``E`` use MPa sqrt(mm) and ``C`` uses
+            MPa.
+            ``fun`` has shape ``(m,)`` and contains valid x-displacement residuals
+            followed by valid y-displacement residuals in mm.
+            ``cost`` is half the squared residual norm in mm squared, and ``jac``
+            has shape ``(m, 5)`` in the same equation and coefficient order.
+            The remaining normalized fields are ``solver``, ``rank``,
+            ``singular_values``, ``success``, ``message``, ``status``, ``nfev``,
+            and ``njev``.
+            Rank and singular values are available for ``direct`` and otherwise
+            are ``None``.
+
+        Raises:
+            ValueError: If ``solver`` is unsupported or a selected SciPy route
+                rejects ``method`` or ``init_coeffs``.
 
         """
-        logger.debug("Starting CJP mixedmode optimization using method '%s'", method)
+        logger.debug("Starting CJP mixedmode optimization using solver '%s' and method '%s'", solver, method)
         logging.warning(
             "CJP Mode I/II optimization is experimental and may produce unreliable results. "
             "Use only for Mode I–dominated load cases. Interpret all outputs with caution.")
 
-        result = solve_linear_system(self._cjp_systems.mixed_mode)
+        result = self._solve_displacement_system(
+            self._cjp_assembly.mixed_mode,
+            solver=solver,
+            method=method,
+            init_coeffs=init_coeffs,
+            residuals=self.residuals_cjp_displacements_mixedmode,
+            jacobian=self.jacobian_cjp_displacements_mixedmode,
+        )
 
         logger.debug(
             "CJP mixedmode optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success,
             result.nfev)
         return result
 
-    def optimize_williams_displacements_xy(self, method='lm', init_coeffs=None):
-        """Optimizes Williams displacements in x-y plane.
+    def optimize_williams_displacements_xy(
+            self, method='lm', init_coeffs=None, *, solver: SolverRoute = "direct"):
+        """Fit in-plane Williams coefficients to prepared x/y displacements.
 
         Args:
-            method: Retained for API compatibility; ignored by the direct solver.
-            init_coeffs: Retained for API compatibility; ignored by the direct solver.
+            method: SciPy least-squares method used by ``iterative`` and ``legacy``.
+                The ``direct`` route ignores this compatibility control.
+            init_coeffs: Optional vector of length ``2 * len(terms)``.
+                The ``iterative`` and ``legacy`` routes copy it before use, while
+                ``direct`` ignores it.
+            solver: Numerical route selected from ``direct``, ``iterative``, and
+                ``legacy``.
 
         Returns:
-            Direct linear least-squares result for the in-plane Williams coefficients.
+            A normalized SciPy ``OptimizeResult``.
+            ``x`` has shape ``(2 * len(terms),)`` with all ``a_n`` coefficients in
+            configured term order followed by all ``b_n`` coefficients in that
+            order.
+            A coefficient for term ``n`` uses MPa mm**(1 - n/2).
+            ``fun`` has shape ``(m,)`` and contains valid x-displacement residuals
+            followed by valid y-displacement residuals in mm.
+            ``cost`` is half the squared residual norm in mm squared, and ``jac``
+            has shape ``(m, 2 * len(terms))`` in the same ordering.
+            The remaining normalized fields are ``solver``, ``rank``,
+            ``singular_values``, ``success``, ``message``, ``status``, ``nfev``,
+            and ``njev``.
+            Rank and singular values are available for ``direct`` and otherwise
+            are ``None``.
+
+        Raises:
+            ValueError: If ``solver`` is unsupported or a selected SciPy route
+                rejects ``method`` or ``init_coeffs``.
 
         """
-        logger.debug("Starting Williams 2D optimization with %d terms using method '%s'", len(self.terms), method)
-        result = solve_linear_system(self._williams_systems.xy)
+        logger.debug(
+            "Starting Williams 2D optimization with %d terms using solver '%s' and method '%s'",
+            len(self.terms), solver, method,
+        )
+        result = self._solve_displacement_system(
+            self._williams_assembly.xy,
+            solver=solver,
+            method=method,
+            init_coeffs=init_coeffs,
+            residuals=self.residuals_williams_displacements,
+            jacobian=self.jacobian_williams_displacements,
+        )
 
         logger.debug(
             "Williams optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success, result.nfev)
         return result
 
-    def optimize_williams_displacements_z(self, method='lm', init_coeffs=None):
-        """Optimizes Williams displacements in z direction.
+    def optimize_williams_displacements_z(
+            self, method='lm', init_coeffs=None, *, solver: SolverRoute = "direct"):
+        """Fit out-of-plane Williams coefficients to prepared z displacements.
 
         Args:
-            method: Retained for API compatibility; ignored by the direct solver.
-            init_coeffs: Retained for API compatibility; ignored by the direct solver.
+            method: SciPy least-squares method used by ``iterative`` and ``legacy``.
+                The ``direct`` route ignores this compatibility control.
+            init_coeffs: Optional vector of length ``len(terms)``.
+                The ``iterative`` and ``legacy`` routes copy it before use, while
+                ``direct`` ignores it.
+            solver: Numerical route selected from ``direct``, ``iterative``, and
+                ``legacy``.
 
         Returns:
-            Direct linear least-squares result for the out-of-plane Williams coefficients.
+            A normalized SciPy ``OptimizeResult``.
+            ``x`` has shape ``(len(terms),)`` with ``c_n`` coefficients in
+            configured term order.
+            A coefficient for term ``n`` uses MPa mm**(1 - n/2).
+            ``fun`` has shape ``(m,)`` and contains valid z-displacement residuals
+            in mm.
+            ``cost`` is half the squared residual norm in mm squared, and ``jac``
+            has shape ``(m, len(terms))`` in the same term order.
+            The remaining normalized fields are ``solver``, ``rank``,
+            ``singular_values``, ``success``, ``message``, ``status``, ``nfev``,
+            and ``njev``.
+            Rank and singular values are available for ``direct`` and otherwise
+            are ``None``.
+
+        Raises:
+            ValueError: If ``solver`` is unsupported or a selected SciPy route
+                rejects ``method`` or ``init_coeffs``.
 
         """
-        logger.debug("Starting Williams 3D optimization with %d terms using method '%s'", len(self.terms), method)
-        result = solve_linear_system(self._williams_systems.z)
+        logger.debug(
+            "Starting Williams 3D optimization with %d terms using solver '%s' and method '%s'",
+            len(self.terms), solver, method,
+        )
+        result = self._solve_displacement_system(
+            self._williams_assembly.z,
+            solver=solver,
+            method=method,
+            init_coeffs=init_coeffs,
+            residuals=self.residuals_williams_displacements_z,
+            jacobian=self.jacobian_williams_displacements_z,
+        )
         logger.debug(
             "Williams 3D optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success,
             result.nfev)
