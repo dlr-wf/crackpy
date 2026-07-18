@@ -1,3 +1,7 @@
+"""ODM sampling defines fixed fitting geometry, measured displacement
+interpolation, and crack-tip rebasing.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

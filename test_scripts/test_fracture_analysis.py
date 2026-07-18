@@ -1,19 +1,24 @@
+"""End-to-end fracture-analysis scenarios cover scientific results, pipeline
+outputs, plots, and serialized result files.
+"""
+
 import os
 import shutil
 import tempfile
 import unittest
+from dataclasses import astuple
 from pathlib import Path
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.fracture_analysis.crack_tip import williams_displ_field_z, williams_displ_field_xy
-from crackpy.input.input_data import InputData
-from crackpy.input.crack_tip_info import CrackTipInfo
+from crackpy.fracture_analysis.crack_tip import williams_displ_field_xy, williams_displ_field_z
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.fracture_analysis.pipeline import FractureAnalysisPipeline
+from crackpy.input.crack_tip_info import CrackTipInfo
+from crackpy.input.input_data import InputData
 from crackpy.results.plot import PlotSettings, Plotter
 from crackpy.results.read import OutputReader
 from crackpy.results.write import OutputWriter
@@ -243,6 +248,64 @@ class TestFractureAnalysis(unittest.TestCase):
         self.assertAlmostEqual(analysis.williams_fit_c_n[2], 7.5005, delta=1e-4)
         self.assertAlmostEqual(analysis.williams_fit_c_n[3], 0.7213, delta=1e-4)
 
+        mode_i_result = analysis.cjp_mode_i_odm_result
+        mixed_mode_result = analysis.cjp_mixed_mode_odm_result
+        williams_in_plane_result = analysis.williams_in_plane_odm_result
+        williams_out_of_plane_result = analysis.williams_out_of_plane_odm_result
+        self.assertEqual(mode_i_result.status, "completed")
+        self.assertEqual(mixed_mode_result.status, "completed")
+        self.assertEqual(williams_in_plane_result.status, "completed")
+        self.assertEqual(williams_out_of_plane_result.status, "completed")
+        np.testing.assert_array_equal(
+            analysis.cjp_coeffs_m1,
+            astuple(mode_i_result.coefficients),
+        )
+        np.testing.assert_array_equal(
+            analysis.cjp_coeffs_mm,
+            astuple(mixed_mode_result.coefficients),
+        )
+        np.testing.assert_array_equal(
+            analysis.williams_coeffs,
+            williams_in_plane_result.coefficients.a_n
+            + williams_in_plane_result.coefficients.b_n
+            + williams_out_of_plane_result.coefficients.c_n,
+        )
+        self.assertEqual(
+            analysis.williams_fit_a_n,
+            dict(
+                zip(
+                    williams_in_plane_result.coefficients.terms,
+                    williams_in_plane_result.coefficients.a_n,
+                )
+            ),
+        )
+        self.assertEqual(
+            analysis.williams_fit_b_n,
+            dict(
+                zip(
+                    williams_in_plane_result.coefficients.terms,
+                    williams_in_plane_result.coefficients.b_n,
+                )
+            ),
+        )
+        self.assertEqual(
+            analysis.williams_fit_c_n,
+            dict(
+                zip(
+                    williams_out_of_plane_result.coefficients.terms,
+                    williams_out_of_plane_result.coefficients.c_n,
+                )
+            ),
+        )
+        self.assertEqual(analysis.cjp_res_m1["Error"], mode_i_result.cost)
+        self.assertEqual(analysis.cjp_res_mm["Error"], mixed_mode_result.cost)
+        self.assertEqual(
+            analysis.williams_fit_res["Error_xy"], williams_in_plane_result.cost
+        )
+        self.assertEqual(
+            analysis.williams_fit_res["Error_z"], williams_out_of_plane_result.cost
+        )
+
         temp_dir = tempfile.mkdtemp()
         try:
             # test writer
@@ -390,6 +453,60 @@ class TestFractureAnalysis(unittest.TestCase):
         self.assertAlmostEqual(analysis.williams_fit_c_n[3], 0., delta=1e-4)
         self.assertAlmostEqual(analysis.williams_fit_c_n[4], -0., delta=1e-4)
         self.assertAlmostEqual(analysis.williams_fit_c_n[5], -0., delta=1e-4)
+
+        williams_in_plane_result = analysis.williams_in_plane_odm_result
+        williams_out_of_plane_result = analysis.williams_out_of_plane_odm_result
+        self.assertEqual(williams_in_plane_result.status, "completed")
+        self.assertEqual(williams_out_of_plane_result.status, "completed")
+        np.testing.assert_array_equal(
+            analysis.williams_coeffs,
+            williams_in_plane_result.coefficients.a_n
+            + williams_in_plane_result.coefficients.b_n
+            + williams_out_of_plane_result.coefficients.c_n,
+        )
+        self.assertEqual(
+            analysis.williams_fit_a_n,
+            dict(
+                zip(
+                    williams_in_plane_result.coefficients.terms,
+                    williams_in_plane_result.coefficients.a_n,
+                )
+            ),
+        )
+        self.assertEqual(
+            analysis.williams_fit_b_n,
+            dict(
+                zip(
+                    williams_in_plane_result.coefficients.terms,
+                    williams_in_plane_result.coefficients.b_n,
+                )
+            ),
+        )
+        self.assertEqual(
+            analysis.williams_fit_c_n,
+            dict(
+                zip(
+                    williams_out_of_plane_result.coefficients.terms,
+                    williams_out_of_plane_result.coefficients.c_n,
+                )
+            ),
+        )
+        self.assertEqual(
+            analysis.williams_fit_res["K_I"],
+            williams_in_plane_result.quantities.k_i,
+        )
+        self.assertEqual(
+            analysis.williams_fit_res["K_II"],
+            williams_in_plane_result.quantities.k_ii,
+        )
+        self.assertEqual(
+            analysis.williams_fit_res["K_III"],
+            williams_out_of_plane_result.quantities.k_iii,
+        )
+        self.assertEqual(
+            analysis.williams_fit_res["T"],
+            williams_in_plane_result.quantities.t_stress,
+        )
 
         temp_dir = tempfile.mkdtemp()
         try:
