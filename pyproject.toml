@@ -43,7 +43,7 @@ include = ["crackpy*"]
 exclude = ["test_scripts*", "crackpy.tests*", "example_images*", "scripts*"]
 
 [tool.setuptools.package-data]
-crackpy = ["logging.yaml"]
+crackpy = ["logging.yaml", "references.bib"]
 
 [tool.setuptools.dynamic]
 version = { attr = "crackpy.__version__" }

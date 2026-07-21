@@ -68,7 +68,7 @@ int_props = IntegralProperties(
 
     mask_tolerance=2,
 
-    buckner_williams_terms=[-1, 1, 2, 3, 4, 5]
+    bueckner_williams_terms=[-1, 1, 2, 3, 4, 5]
 )
 
 opt_props = OptimizationProperties(

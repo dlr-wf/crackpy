@@ -91,7 +91,7 @@ int_props = IntegralProperties(
 
     mask_tolerance=None,
 
-    buckner_williams_terms=[-1, 1, 2, 3, 4, 5]
+    bueckner_williams_terms=[-1, 1, 2, 3, 4, 5]
 )
 
 # Define fitting properties

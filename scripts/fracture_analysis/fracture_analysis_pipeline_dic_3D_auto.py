@@ -14,12 +14,13 @@
 
 """
 
-from pathlib import Path
 import logging
+from pathlib import Path
+
 from matplotlib import pyplot as plt
 
 from crackpy.crack_detection.model import get_model
-from crackpy.crack_detection.pipeline.pipeline import CrackDetectionSetup, CrackDetectionPipeline
+from crackpy.crack_detection.pipeline.pipeline import CrackDetectionPipeline, CrackDetectionSetup
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.fracture_analysis.pipeline import FractureAnalysisPipeline
@@ -72,7 +73,7 @@ int_props = IntegralProperties(
     number_of_paths=5,
     number_of_nodes=100,
     mask_tolerance=2,
-    buckner_williams_terms=[-1, 1, 2, 3, 4, 5]
+    bueckner_williams_terms=[-1, 1, 2, 3, 4, 5]
 )
 
 opt_props = OptimizationProperties(

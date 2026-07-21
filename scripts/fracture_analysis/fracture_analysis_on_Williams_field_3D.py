@@ -24,7 +24,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.fracture_analysis.crack_tip import williams_displ_field_z, williams_displ_field_xy
+from crackpy.fracture_analysis.crack_tip import williams_displ_field_xy, williams_displ_field_z
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.input.crack_tip_info import CrackTipInfo
@@ -137,7 +137,7 @@ def main():
 
         mask_tolerance=2,
 
-        buckner_williams_terms=[-1, 1, 2, 3, 4, 5]
+        bueckner_williams_terms=[-1, 1, 2, 3, 4, 5]
     )
 
     opt_props = OptimizationProperties(
@@ -213,7 +213,10 @@ def main():
 
 if __name__ == '__main__':
     # Profiling (optional)
-    import cProfile, pstats, subprocess, sys
+    import cProfile
+    import pstats
+    import subprocess
+    import sys
     from datetime import datetime
 
     script_dir = OUT_FOLDER

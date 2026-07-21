@@ -17,10 +17,10 @@
 
 """
 
-from pathlib import Path
 import logging
-import numpy as np
+from pathlib import Path
 
+import numpy as np
 from matplotlib import pyplot as plt
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
@@ -115,7 +115,7 @@ int_props = IntegralProperties(
 
     mask_tolerance=None,
 
-    buckner_williams_terms=[-1, 1, 2, 3, 4, 5]
+    bueckner_williams_terms=[-1, 1, 2, 3, 4, 5]
 )
 
 opt_props = OptimizationProperties(

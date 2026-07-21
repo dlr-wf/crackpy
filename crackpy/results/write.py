@@ -1,13 +1,38 @@
-from pathlib import Path
-import json
-import numpy as np
+"""Fracture-analysis serialization projects technique results and analysis
+settings into CrackPy's established text and JSON schemas.
+"""
+
 import datetime
+import json
 import logging
+from pathlib import Path
+
+import numpy as np
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
 from crackpy.fracture_analysis.crack_tip import unit_of_williams_coefficients
 
 logger = logging.getLogger(__name__)
+
+
+def _serialized_settings(section: str, obj: object | None) -> dict:
+    """Project one analysis-settings object into its established JSON schema."""
+    if obj is None:
+        return {}
+
+    settings = {
+        attr: value
+        for attr, value in vars(obj).items()
+        if not callable(value) and not attr.startswith("__")
+    }
+    if (
+        section == "integral_properties"
+        and "bueckner_williams_terms" in settings
+    ):
+        settings["buckner_williams_terms"] = settings.pop(
+            "bueckner_williams_terms"
+        )
+    return settings
 
 
 class OutputWriter:
@@ -234,7 +259,7 @@ class OutputWriter:
                 file.write("\n")
                 file.write("\n")
 
-                if self.analysis.integral_properties.buckner_williams_terms is not None:
+                if self.analysis.integral_properties.bueckner_williams_terms is not None:
                     file.write("##################################\n")
                     file.write("#     Bueckner-Chen integral     #\n")
                     file.write("##################################\n")
@@ -576,7 +601,7 @@ class OutputWriter:
             json_dict['Path_SIFs']['K_III_J'] = {"unit": "MPa*m^{1/2}",
                                                  "result": list(np.asarray(self.analysis.path_results)[:, 12])}
 
-        if self.analysis.integral_properties.buckner_williams_terms is not None:
+        if self.analysis.integral_properties.bueckner_williams_terms is not None:
             json_dict['Bueckner_Chen_integral'] = {}
             terms = self.analysis.williams_int[0, :, 0]
             for i, term in enumerate(terms):
@@ -640,11 +665,10 @@ class OutputWriter:
                    self.analysis.material]
 
         for section, obj in zip(sections, objects):
-            json_dict['CrackPy_settings'][section] = {}
-            if obj is not None:
-                for attr, value in vars(obj).items():
-                    if not callable(value) and not attr.startswith('__'):
-                        json_dict['CrackPy_settings'][section][attr] = value
+            json_dict['CrackPy_settings'][section] = _serialized_settings(
+                section,
+                obj,
+            )
 
         json_file = Path(self.json_path) / (Path(self.filename).stem + '.json')
         with open(json_file, 'w') as outfile:

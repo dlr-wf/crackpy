@@ -1,5 +1,5 @@
-"""Analysis facade coordinating established fracture-analysis techniques and
-owning their latest authoritative and compatibility result surfaces.
+"""FractureAnalysis coordinates configured fracture-analysis techniques and
+stores their latest results.
 """
 
 import logging
@@ -9,9 +9,7 @@ from typing import Any, Mapping, MutableMapping, Optional, Union
 import numpy as np
 import rich.progress as progress_rich
 
-from crackpy.fracture_analysis import line_integration
 from crackpy.fracture_analysis._interpolation_cache import InterpolatorCache
-from crackpy.fracture_analysis.line_integration import IntegralProperties, LineIntegral
 from crackpy.fracture_analysis.crack_tip_fields.cjp import (
     CjpMixedModeCoefficients,
     CjpMixedModeQuantities,
@@ -24,6 +22,26 @@ from crackpy.fracture_analysis.crack_tip_fields.williams import (
     WilliamsOutOfPlaneCoefficients,
     WilliamsOutOfPlaneQuantities,
 )
+from crackpy.fracture_analysis.crack_tip_fields.williams.quantities import (
+    derive_williams_in_plane_fracture_quantities,
+)
+from crackpy.fracture_analysis.line_integrals import (
+    ContourSet,
+    ContourWiseLineIntegralResult,
+)
+from crackpy.fracture_analysis.line_integrals._compatibility import (
+    mutable_integration_points,
+    mutable_path_result,
+    mutable_path_size,
+    mutable_williams_a_n,
+    mutable_williams_b_n,
+    mutable_williams_coefficients,
+)
+from crackpy.fracture_analysis.line_integrals.contours import (
+    build_rectangular_integration_contour,
+)
+from crackpy.fracture_analysis.line_integrals.runners import _LineIntegralExecution
+from crackpy.fracture_analysis.line_integration import IntegralProperties, LineIntegral
 from crackpy.fracture_analysis.odm._compatibility import (
     _project_cjp_mixed_mode_compatibility,
     _project_cjp_mode_i_compatibility,
@@ -110,6 +128,7 @@ class FractureAnalysis:
         self._williams_out_of_plane_odm_result = None
 
         # Available Line Integral results
+        self._contour_results = []
         self.path_results = []
         self.williams_int_a_n = []
         self.williams_int_b_n = []
@@ -130,20 +149,20 @@ class FractureAnalysis:
 
         self.integral_properties = integral_properties
         if self.integral_properties is not None:
-            LineIntegral.ensure_defaults_buckner_chen(self.integral_properties)
+            LineIntegral.ensure_defaults_bueckner_chen(self.integral_properties)
 
     @property
     def cjp_mode_i_odm_result(
         self,
     ) -> OdmFitResult[CjpModeICoefficients, CjpModeIQuantities] | None:
-        """Return the latest authoritative CJP Mode I ODM result, if attempted."""
+        """Return the latest CJP Mode I ODM result, if attempted."""
         return self._cjp_mode_i_odm_result
 
     @property
     def cjp_mixed_mode_odm_result(
         self,
     ) -> OdmFitResult[CjpMixedModeCoefficients, CjpMixedModeQuantities] | None:
-        """Return the latest authoritative CJP mixed-mode ODM result, if attempted."""
+        """Return the latest CJP mixed-mode ODM result, if attempted."""
         return self._cjp_mixed_mode_odm_result
 
     @property
@@ -153,7 +172,7 @@ class FractureAnalysis:
         WilliamsInPlaneCoefficients,
         WilliamsInPlaneQuantities,
     ] | None:
-        """Return the latest authoritative in-plane Williams ODM result."""
+        """Return the latest in-plane Williams ODM result."""
         return self._williams_in_plane_odm_result
 
     @property
@@ -163,8 +182,13 @@ class FractureAnalysis:
         WilliamsOutOfPlaneCoefficients,
         WilliamsOutOfPlaneQuantities,
     ] | None:
-        """Return the latest authoritative out-of-plane Williams ODM result."""
+        """Return the latest out-of-plane Williams ODM result."""
         return self._williams_out_of_plane_odm_result
+
+    @property
+    def contour_results(self) -> tuple[ContourWiseLineIntegralResult, ...]:
+        """Return completed Contour-Wise Results in execution order."""
+        return tuple(self._contour_results)
 
     def run(self, progress_bar: Optional[Mapping[str, object]] = None, task_id=None):
         """Run fracture analysis with the provided data, crack_tip_info, and integral_properties.
@@ -343,70 +367,39 @@ class FractureAnalysis:
     def _run_line_integrals(self, progress_bar: Optional[MutableMapping[str, Any]] = None, task_id=None) -> None:
         """Run line integrals if integral properties are provided."""
 
-        # calculate Williams coefficients with Bueckner-Chen integral method
-        current_size_left = self.integral_properties.integral_size_left
-        current_size_right = self.integral_properties.integral_size_right
-        current_size_top = self.integral_properties.integral_size_top
-        current_size_bottom = self.integral_properties.integral_size_bottom
+        contour_set = self._build_contour_set()
 
         if progress_bar is None:
-            iterator = progress_rich.track(range(self.integral_properties.number_of_paths),
-                                           description='Calculating integrals')
+            iterator = progress_rich.track(
+                enumerate(contour_set.contours),
+                total=len(contour_set.contours),
+                description='Calculating integrals',
+            )
         else:
-            iterator = range(self.integral_properties.number_of_paths)
+            iterator = enumerate(contour_set.contours)
 
         interpolator_cache = InterpolatorCache(max_interpolators=4)
-        for n in iterator:
-            # Define path properties
-            path_properties = line_integration.PathProperties(current_size_left,
-                                                              current_size_right,
-                                                              current_size_bottom,
-                                                              current_size_top,
-                                                              self.integral_properties.integral_tick_size,
-                                                              self.integral_properties.number_of_nodes,
-                                                              self.integral_properties.top_offset,
-                                                              self.integral_properties.bottom_offset)
+        for n, contour in iterator:
+            execution = _LineIntegralExecution(
+                contour,
+                self.data,
+                self.material,
+                self.integral_properties.mask_tolerance,
+                self.integral_properties.bueckner_williams_terms,
+                interpolator_cache,
+            )
+            contour_result = execution.evaluate_all()
 
-            # Define integration path
-            integration_path = line_integration.IntegrationPath(0, 0, path_properties=path_properties)
-
-            # Define line integration methods
-            line_integral = line_integration.LineIntegral(integration_path, self.data, self.material,
-                                                          self.integral_properties.mask_tolerance,
-                                                          self.integral_properties.buckner_williams_terms,
-                                                          interpolator_cache=interpolator_cache)
-
-            # Calculate integral results
-            line_integral.integrate_all()
-
-            # Store path results
-            self.path_results.append([line_integral.j_integral,
-                                      line_integral.sif_k_j,
-                                      line_integral.sif_k_i,
-                                      line_integral.sif_k_ii,
-                                      line_integral.t_stress_chen,
-                                      line_integral.t_stress_sdm,
-                                      line_integral.t_stress_int,
-                                      line_integral.decomp_j_integral_I,
-                                      line_integral.decomp_j_integral_II,
-                                      line_integral.decomp_j_integral_III,
-                                      line_integral.decomp_j_integral_K_I,
-                                      line_integral.decomp_j_integral_K_II,
-                                      line_integral.decomp_j_integral_K_III])
-            self.williams_int_a_n.append(line_integral.williams_a_n)
-            self.williams_int_b_n.append(line_integral.williams_b_n)
-            self.williams_int.append(line_integral.williams_coefficients)
-            self.path_sizes.append([current_size_left, current_size_right, current_size_bottom, current_size_top])
-            self.integration_points.append([list(line_integral.np_integration_points[:, 0]),
-                                            list(line_integral.np_integration_points[:, 1])])
-            self.num_of_path_nodes.append(line_integral.integration_path.path_properties.number_of_nodes)
-            self.tick_sizes.append(line_integral.integration_path.path_properties.tick_size)
-
-            # Update path
-            current_size_left -= self.integral_properties.paths_distance_left
-            current_size_right += self.integral_properties.paths_distance_right
-            current_size_bottom -= self.integral_properties.paths_distance_bottom
-            current_size_top += self.integral_properties.paths_distance_top
+            self._contour_results.append(contour_result)
+            self.path_results.append(mutable_path_result(contour_result))
+            self.williams_int_a_n.append(mutable_williams_a_n(contour_result))
+            self.williams_int_b_n.append(mutable_williams_b_n(contour_result))
+            self.williams_int.append(mutable_williams_coefficients(contour_result))
+            geometry = contour_result.geometry
+            self.path_sizes.append(mutable_path_size(contour_result))
+            self.integration_points.append(mutable_integration_points(contour_result))
+            self.num_of_path_nodes.append(geometry.number_of_nodes)
+            self.tick_sizes.append(geometry.tick_size)
 
             # Update progress bar
             if progress_bar:
@@ -414,6 +407,32 @@ class FractureAnalysis:
 
         # Aggregate results
         self._aggregate_integral_results()
+
+    def _build_contour_set(self) -> ContourSet:
+        """Build the ordered Contour Set for the configured analysis."""
+        current_size_left = self.integral_properties.integral_size_left
+        current_size_right = self.integral_properties.integral_size_right
+        current_size_top = self.integral_properties.integral_size_top
+        current_size_bottom = self.integral_properties.integral_size_bottom
+        contours = []
+        for _ in range(self.integral_properties.number_of_paths):
+            contours.append(build_rectangular_integration_contour(
+                origin_x=0.0,
+                origin_y=0.0,
+                size_left=current_size_left,
+                size_right=current_size_right,
+                size_bottom=current_size_bottom,
+                size_top=current_size_top,
+                tick_size=self.integral_properties.integral_tick_size,
+                number_of_nodes=self.integral_properties.number_of_nodes,
+                top_offset=self.integral_properties.top_offset,
+                bottom_offset=self.integral_properties.bottom_offset,
+            ))
+            current_size_left -= self.integral_properties.paths_distance_left
+            current_size_right += self.integral_properties.paths_distance_right
+            current_size_bottom -= self.integral_properties.paths_distance_bottom
+            current_size_top += self.integral_properties.paths_distance_top
+        return ContourSet(tuple(contours))
 
     def _aggregate_integral_results(self) -> None:
         """Aggregate results from line integrals into class attributes."""
@@ -455,14 +474,30 @@ class FractureAnalysis:
             rej_out_mean_williams_int_a_n = self.mean_wo_outliers(self.williams_int_a_n, m=2)
             rej_out_mean_williams_int_b_n = self.mean_wo_outliers(self.williams_int_b_n, m=2)
 
-        # calculate SIFs with Bueckner-Chen integral method
-        term_index = self.integral_properties.buckner_williams_terms.index(1)
-        mean_k_i_chen = np.sqrt(2 * np.pi) * mean_williams_int_a_n[term_index] / np.sqrt(1000)
-        med_k_i_chen = np.sqrt(2 * np.pi) * med_williams_int_a_n[term_index] / np.sqrt(1000)
-        rej_out_mean_k_i_chen = np.sqrt(2 * np.pi) * rej_out_mean_williams_int_a_n[term_index] / np.sqrt(1000)
-        mean_k_ii_chen = -np.sqrt(2 * np.pi) * mean_williams_int_b_n[term_index] / np.sqrt(1000)
-        med_k_ii_chen = -np.sqrt(2 * np.pi) * med_williams_int_b_n[term_index] / np.sqrt(1000)
-        rej_out_mean_k_ii_chen = -np.sqrt(2 * np.pi) * rej_out_mean_williams_int_b_n[term_index] / np.sqrt(1000)
+        # Map aggregated Williams coefficients through the model-owned quantity
+        # transformation while retaining the established aggregation policy.
+        terms = self.integral_properties.bueckner_williams_terms
+        mean_k_i_chen, mean_k_ii_chen, _ = (
+            derive_williams_in_plane_fracture_quantities(
+                terms,
+                mean_williams_int_a_n,
+                mean_williams_int_b_n,
+            )
+        )
+        med_k_i_chen, med_k_ii_chen, _ = (
+            derive_williams_in_plane_fracture_quantities(
+                terms,
+                med_williams_int_a_n,
+                med_williams_int_b_n,
+            )
+        )
+        rej_out_mean_k_i_chen, rej_out_mean_k_ii_chen, _ = (
+            derive_williams_in_plane_fracture_quantities(
+                terms,
+                rej_out_mean_williams_int_a_n,
+                rej_out_mean_williams_int_b_n,
+            )
+        )
 
         # bundle means / medians / means using outlier rejection
         self.sifs_int = {
