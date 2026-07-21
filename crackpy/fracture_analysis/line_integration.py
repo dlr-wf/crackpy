@@ -1,5 +1,8 @@
+"""The line-integral facade provides CrackPy's established mutable analysis API
+and projects completed Contour-Wise Results onto its public attributes.
+"""
+
 import logging
-from copy import deepcopy
 
 import numpy as np
 from scipy.interpolate import griddata
@@ -10,16 +13,39 @@ from crackpy.fracture_analysis._interpolation_cache import (
     InterpolatorCache,
     ReusableLinearInterpolator,
 )
-from crackpy.fracture_analysis.crack_tip import eigenfunction, get_crack_nearfield, get_zhao_solutions
-from crackpy.input.input_data import InputData, apply_mask
+from crackpy.fracture_analysis.crack_tip_fields.williams import (
+    quantities as williams_quantities,
+)
+from crackpy.fracture_analysis.line_integrals import (
+    ContourWiseLineIntegralResult,
+    auxiliary_fields,
+    mode_decomposition,
+    sampling,
+)
+from crackpy.fracture_analysis.line_integrals._compatibility import (
+    _UNSET,
+    _DeprecatedBuecknerSpellingAliases,
+    mutable_williams_a_n,
+    mutable_williams_b_n,
+    mutable_williams_coefficients,
+    resolve_bueckner_williams_terms,
+)
+from crackpy.fracture_analysis.line_integrals.contours import (
+    IntegrationContour,
+    build_rectangular_integration_contour,
+)
+from crackpy.fracture_analysis.line_integrals.runners import _LineIntegralExecution
+from crackpy.input.input_data import InputData
 from crackpy.structure_elements.material import Material
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_BUCKNER_CHEN_TERMS = [1, 2, 3, 4, 5]
+DEFAULT_BUECKNER_CHEN_TERMS = [1, 2, 3, 4, 5]
+# Deprecated: use DEFAULT_BUECKNER_CHEN_TERMS.
+DEFAULT_BUCKNER_CHEN_TERMS = DEFAULT_BUECKNER_CHEN_TERMS
 
 
-class IntegralProperties:
+class IntegralProperties(_DeprecatedBuecknerSpellingAliases):
     """Integral properties which are used for more than one line integration within Fracture Analysis.
 
     Methods:
@@ -48,7 +74,9 @@ class IntegralProperties:
 
             mask_tolerance: float = None,
 
-            buckner_williams_terms: list = None
+            bueckner_williams_terms: list | None | object = _UNSET,
+            *,
+            buckner_williams_terms: list | None | object = _UNSET,
     ):
         """Initialize integral path properties.
 
@@ -74,6 +102,10 @@ class IntegralProperties:
             paths_distance_bottom: distance of integration paths (bottom side)
             mask_tolerance: tolerance of the quadratic interpolation mask around the integration path
                             (fails if too small)
+            bueckner_williams_terms: Williams coefficient orders evaluated
+                with the Bueckner-Chen Integral.
+            buckner_williams_terms: Deprecated spelling; use
+                ``bueckner_williams_terms``.
 
         """
         self.number_of_paths = number_of_paths
@@ -95,7 +127,10 @@ class IntegralProperties:
 
         self.mask_tolerance = mask_tolerance
 
-        self.buckner_williams_terms = buckner_williams_terms
+        self.bueckner_williams_terms = resolve_bueckner_williams_terms(
+            bueckner_williams_terms,
+            buckner_williams_terms,
+        )
 
     def set_automatically(self, data: InputData, auto_detect_threshold: float):
         """Automatically set up the integration path properties.
@@ -261,62 +296,26 @@ class IntegrationPath:
             int_points with all x-coors at index 0 and all y-coors at index 1, again as lists
 
         """
-        # restore integral_properties as method variable
         path = self.path_properties
-
-        nodes_x_coors = []
-        nodes_y_coors = []
-
-        # section lengths
-        length_bottom_left = path.bottom_offset - path.size_bottom
-        length_bottom = path.size_right - path.size_left
-        length_right = path.size_top - path.size_bottom
-        length_top = length_bottom
-        length_top_left = path.size_top - path.top_offset
-        # whole length of integration path
-        length_sum = length_bottom_left + length_bottom + length_right + length_top + length_top_left
-
-        # Set number of edges
-        if path.number_of_nodes is None:
-            if path.tick_size is not None:
-                self.path_properties.number_of_nodes = int(length_sum / path.tick_size) + 1
-            else:
-                raise ValueError("Either number of edges or integral tick size needs to be specified!")
-        else:
-            # calculate tick size from number of nodes!
-            self.path_properties.tick_size = length_sum / path.number_of_nodes
-        number_of_nodes = self.path_properties.number_of_nodes
-
-        # Definition of integration points
-        # bottom left
-        num_nodes = int(length_bottom_left / length_sum * number_of_nodes)
-        if num_nodes == 0:
-            raise ValueError("Number of nodes is zero. Choose a smaller integral tick size!")
-        for i in range(num_nodes + 1):
-            nodes_x_coors.append(self.origin_x + path.size_left)
-            nodes_y_coors.append(self.origin_y + path.bottom_offset - length_bottom_left / num_nodes * i)
-        # bottom
-        num_nodes = int(length_bottom / length_sum * number_of_nodes)
-        for i in range(1, num_nodes + 1):
-            nodes_x_coors.append(self.origin_x + path.size_left + length_bottom / num_nodes * i)
-            nodes_y_coors.append(self.origin_y + path.size_bottom)
-        # right
-        num_nodes = int(length_right / length_sum * number_of_nodes)
-        for i in range(1, num_nodes + 1):
-            nodes_x_coors.append(self.origin_x + path.size_right)
-            nodes_y_coors.append(self.origin_y + path.size_bottom + length_right / num_nodes * i)
-        # top
-        num_nodes = int(length_top / length_sum * number_of_nodes)
-        for i in range(1, num_nodes + 1):
-            nodes_x_coors.append(self.origin_x + path.size_right - length_top / num_nodes * i)
-            nodes_y_coors.append(self.origin_y + path.size_top)
-        # top left
-        num_nodes = int(length_top_left / length_sum * number_of_nodes)
-        for i in range(1, num_nodes + 1):
-            nodes_x_coors.append(self.origin_x + path.size_left)
-            nodes_y_coors.append(self.origin_y + path.size_top - length_top_left / num_nodes * i)
-
-        self.nodes = [nodes_x_coors, nodes_y_coors]
+        contour = build_rectangular_integration_contour(
+            origin_x=self.origin_x,
+            origin_y=self.origin_y,
+            size_left=path.size_left,
+            size_right=path.size_right,
+            size_bottom=path.size_bottom,
+            size_top=path.size_top,
+            tick_size=path.tick_size,
+            number_of_nodes=path.number_of_nodes,
+            top_offset=path.top_offset,
+            bottom_offset=path.bottom_offset,
+        )
+        path.number_of_nodes = contour.number_of_nodes
+        path.tick_size = contour.tick_size
+        self._contour = contour
+        self.nodes = [
+            contour.nodes[:, 0].copy().tolist(),
+            contour.nodes[:, 1].copy().tolist(),
+        ]
 
     def _create_integration_points(self):
         """Generates coordinates of integration points and element sizes.
@@ -325,17 +324,7 @@ class IntegrationPath:
             int_points [[x_coor, y_coor, delta_x, delta_y]]
 
         """
-        nodes_coors_x = self.nodes[0]
-        nodes_coors_y = self.nodes[1]
-        int_points = []
-        for i in range(len(nodes_coors_x) - 1):
-            x_coor = nodes_coors_x[i] + (nodes_coors_x[i + 1] - nodes_coors_x[i]) / 2.0
-            y_coor = nodes_coors_y[i] + (nodes_coors_y[i + 1] - nodes_coors_y[i]) / 2.0
-            delta_x = nodes_coors_x[i + 1] - nodes_coors_x[i]
-            delta_y = nodes_coors_y[i + 1] - nodes_coors_y[i]
-            int_points.append([x_coor, y_coor, delta_x, delta_y])
-        int_points = np.asarray(int_points)
-        self.int_points = int_points
+        self.int_points = self._contour.integration_points.copy()
 
     def get_integration_points(self) -> np.ndarray:
         """Get integration points of the integration path.
@@ -347,7 +336,7 @@ class IntegrationPath:
         return self.int_points
 
 
-class LineIntegral:
+class LineIntegral(_DeprecatedBuecknerSpellingAliases):
     """Line integral object for solving J-Integral and Interaction Integral for given material's input data
     and path of integration.
 
@@ -361,8 +350,10 @@ class LineIntegral:
                  data: InputData,
                  material: Material,
                  mask_tol: float = None,
-                 buckner_williams_terms: list = None,
-                 interpolator_cache: InterpolatorCache | None = None):
+                 bueckner_williams_terms: list | None | object = _UNSET,
+                 interpolator_cache: InterpolatorCache | None = None,
+                 *,
+                 buckner_williams_terms: list | None | object = _UNSET):
         """Get integration points and interpolate data onto grid.
 
         Args:
@@ -370,8 +361,11 @@ class LineIntegral:
             data: obj of class InputData, Input data object containing the full field DIC or FE data
             material: obj of class Material
             mask_tol: (float or None) tolerance of the quadratic interpolation mask around the integration path
-            buckner_williams_terms: (list or None) list of Williams coefficients to be calculated with Buckner-Chen Integral
+            bueckner_williams_terms: Williams coefficient orders evaluated
+                with the Bueckner-Chen Integral.
             interpolator_cache: cache shared by one line-integral Analysis Run, or ``None`` for a private bounded cache
+            buckner_williams_terms: Deprecated spelling; use
+                ``bueckner_williams_terms``.
 
         """
         # input
@@ -382,7 +376,10 @@ class LineIntegral:
         self.origin_x = integration_path.origin_x
         self.origin_y = integration_path.origin_y
         self.material = material
-        self.buckner_williams_terms = buckner_williams_terms
+        self.bueckner_williams_terms = resolve_bueckner_williams_terms(
+            bueckner_williams_terms,
+            buckner_williams_terms,
+        )
         self.mask_tol = mask_tol
         self.np_integration_points = None
         self.tri = None
@@ -413,41 +410,78 @@ class LineIntegral:
         self.__post_init__()
 
     def __post_init__(self):
-        self.np_integration_points = self.integration_path.get_integration_points()
+        self._contour = IntegrationContour(
+            origin=(self.origin_x, self.origin_y),
+            nodes=np.column_stack(self.integration_path.nodes),
+            integration_points=self.integration_path.get_integration_points(),
+            number_of_nodes=(
+                self.integration_path.path_properties.number_of_nodes
+            ),
+            tick_size=self.integration_path.path_properties.tick_size,
+        )
+        self.np_integration_points = self._contour.integration_points.copy()
+        self._execution = _LineIntegralExecution(
+            self._contour,
+            self.data,
+            self.material,
+            self.mask_tol,
+            self.bueckner_williams_terms,
+            self._interpolator_cache,
+        )
         self._build_path_geometry()
-        self._interpolate_on_integration_points()
+        self._adopt_in_plane_samples(self._execution.in_plane_samples)
 
-    def integrate_all(self):
+    def integrate_all(self) -> ContourWiseLineIntegralResult:
         """Call this method to solve all integrals
         - J-integral
         - Mode I, II, III decomposition of J-integral
         - Interaction integral for SIF K_I and K_II
         - T-stress with interaction integral method
         - T-stress with stress difference method
-        - Williams coefficients with Buckner-Chen method (if terms are given)
+        - Williams coefficients with Bueckner-Chen method (if terms are given)
 
+        Returns:
+            The Contour-Wise Result whose values also populate the facade's
+            mutable result attributes.
         """
         logger.debug("Starting integration for all methods, integration points: %d", len(self.np_integration_points))
 
-        self.integrate_j()
-        logger.debug("J-integral: %.6f N/mm, K_J: %.6f MPa√m", self.j_integral, self.sif_k_j)
+        self._synchronize_execution()
+        result = self._execution.evaluate_all()
+        self._adopt_in_plane_samples(self._execution.in_plane_samples)
+        self._project_completed_result(result)
+        return result
 
-        self.integrate_j_decompose()
-        logger.debug("J-decomposition completed: K_I=%.6f, K_II=%.6f, K_III=%.6f MPa√m",
-                     self.decomp_j_integral_K_I, self.decomp_j_integral_K_II, self.decomp_j_integral_K_III)
+    def _project_completed_result(self, result: ContourWiseLineIntegralResult) -> None:
+        """Project one completed result onto the facade's mutable attributes."""
+        quantities = result.quantities
+        self.j_integral = quantities.j_integral
+        self.sif_k_j = quantities.sif_k_j
+        self.sif_k_i = quantities.sif_k_i
+        self.sif_k_ii = quantities.sif_k_ii
+        self.t_stress_chen = quantities.t_stress_chen
+        self.t_stress_sdm = np.asarray(quantities.t_stress_sdm)
+        self.t_stress_int = quantities.t_stress_int
+        self.decomp_j_integral_I = quantities.decomp_j_integral_i
+        self.decomp_j_integral_II = quantities.decomp_j_integral_ii
+        self.decomp_j_integral_III = quantities.decomp_j_integral_iii
+        self.decomp_j_integral_K_I = quantities.decomp_j_integral_k_i
+        self.decomp_j_integral_K_II = quantities.decomp_j_integral_k_ii
+        self.decomp_j_integral_K_III = quantities.decomp_j_integral_k_iii
+        self.williams_a_n.extend(mutable_williams_a_n(result))
+        self.williams_b_n.extend(mutable_williams_b_n(result))
+        self.williams_coefficients.extend(mutable_williams_coefficients(result))
 
-        self.integrate_i_k1_k2()
-        logger.debug("Interaction integral SIFs: K_I=%.6f, K_II=%.6f MPa√m", self.sif_k_i, self.sif_k_ii)
-
-        self.integrate_i_t()
-        logger.debug("T-stress (interaction): %.6f MPa", self.t_stress_int)
-
-        self.integrate_t_sdm()
-        logger.debug("T-stress (SDM): %.6f MPa", self.t_stress_sdm)
-
-        if self.buckner_williams_terms is not None:
-            self.integrate_buckner_chen()
-            logger.debug("Buckner-Chen integral completed for %d terms", len(self.buckner_williams_terms))
+    def _synchronize_execution(self) -> None:
+        """Synchronize mutable facade inputs with the contour execution."""
+        self._execution.data = self.data
+        self._execution.material = self.material
+        self._execution.mask_tolerance = self.mask_tol
+        self._execution.requested_bueckner_williams_terms = (
+            self.bueckner_williams_terms
+        )
+        current_samples = self._execution.sample_in_plane_fields(self.data)
+        self._adopt_in_plane_samples(current_samples)
 
     ###########################################
     # METHODS FOR CALCULATING THE DESCRIPTORS #
@@ -455,106 +489,99 @@ class LineIntegral:
 
     def integrate_j(self):
         """Call this method to solve integrals for J-integral :math:`J`
+
+        Returns:
+            None. The J-Integral and energy-equivalent SIF facade
+            attributes are updated in place.
         """
-        self.j_integral = self._solve_j_integral()  # in N/mm
-        self.sif_k_j = np.sqrt(np.abs(self.j_integral) / 1000.0 * self.material.E)  # MPa*sqrt(mm) -> MPa*sqrt(m)
+        self._synchronize_execution()
+        self.j_integral, self.sif_k_j = self._execution.evaluate_j_integral()
 
     def integrate_j_decompose(self):
         """Call this method to solve integrals for J-integral :math:`J` and its mode I, II, III decomposition
             Negative J values are sanitized to NaN for SIF calculation.
 
+        Returns:
+            None. Modal J-Integral and modal SIF facade attributes are
+            updated in place.
         """
         #############################################
         # Mode decomposition of J integral
         # see: Molteno, M. R., & Becker, T. H. (2015). Mode I-III decomposition of the j-integral from DIC
         # displacement data. Strain, 51(6), 492–503. https://doi.org/10.1111/str.12166
         #############################################
-        data_orig = deepcopy(self.data)
-        self._map_displacement_data_on_regular_grid(grid_points=200)
-
-        # Mode I
-        self.data = self._prepare_mode_data(mode='I')
-        self._interpolate_on_integration_points()
-        self.decomp_j_integral_I = self._solve_j_integral()  # in N/mm
-        j_san = np.where(self.decomp_j_integral_I >= 0, self.decomp_j_integral_I, np.nan)
-        self.decomp_j_integral_K_I = np.sqrt(j_san * self.material.E) / np.sqrt(1000)  # MPa*sqrt(m)
-
-        # Mode II
-        self.data = self._prepare_mode_data(mode='II')
-        self._interpolate_on_integration_points()
-        self.decomp_j_integral_II = self._solve_j_integral()  # in N/mm
-        j_san = np.where(self.decomp_j_integral_II >= 0, self.decomp_j_integral_II, np.nan)
-        self.decomp_j_integral_K_II = np.sqrt(j_san * self.material.E) / np.sqrt(1000)  # MPa*sqrt(m)
-
-        # Mode III
-        self.data = self._prepare_mode_data(mode='III')
-        self._interpolate_on_integration_points_z()
-        self.decomp_j_integral_III = self._solve_j_integral_III()  # in N/mm
-        j_san = np.where(self.decomp_j_integral_III >= 0, self.decomp_j_integral_III, np.nan)
-        self.decomp_j_integral_K_III = np.sqrt(j_san * self.material.E /
-                                               (1 + self.material.nu_xy)) / np.sqrt(1000)  # MPa*sqrt(m)
-
-        # Restore original data
-        self.data = data_orig
-        self._interpolate_on_integration_points()
+        self._synchronize_execution()
+        (
+            self.decomp_j_integral_I,
+            self.decomp_j_integral_II,
+            self.decomp_j_integral_III,
+            self.decomp_j_integral_K_I,
+            self.decomp_j_integral_K_II,
+            self.decomp_j_integral_K_III,
+        ) = self._execution.evaluate_j_decomposition()
+        self._adopt_in_plane_samples(self._execution.in_plane_samples)
 
     def integrate_i_k1_k2(self):
+        """Populate signed Mode I and Mode II SIFs by interaction integral.
+
+        Returns:
+            None. The interaction-integral SIF facade attributes are
+            updated in place.
+        """
         #############################################
         # see Meinhard Kuna Section 6.7.2 for details
         #############################################
-        # Mode I auxiliary loading condition
-        ki_aux = 1
-        kii_aux = 0
-        ki_aux = self._unit_m_to_mm(ki_aux)
-        kii_aux = self._unit_m_to_mm(kii_aux)
-        interaction_integral_value = self._solve_interaction_integral(ki_aux, kii_aux)
-        self.sif_k_i = self.material.E / ki_aux * interaction_integral_value / 2  # mistake in Kuna formula (6.86)
-        self.sif_k_i = self._unit_mm_to_m(self.sif_k_i)  # MPa*sqrt(mm) -> MPa*sqrt(m)
-
-        # Mode II auxiliary loading condition
-        ki_aux = 0
-        kii_aux = 1
-        ki_aux = self._unit_m_to_mm(ki_aux)
-        kii_aux = self._unit_m_to_mm(kii_aux)
-        interaction_integral_value = self._solve_interaction_integral(ki_aux, kii_aux)
-        self.sif_k_ii = self.material.E / kii_aux * interaction_integral_value / 2  # mistake in Kuna formula (6.86)
-        self.sif_k_ii = self._unit_mm_to_m(self.sif_k_ii)  # MPa*sqrt(mm) -> MPa*sqrt(m)
+        self._synchronize_execution()
+        self.sif_k_i, self.sif_k_ii = self._execution.evaluate_interaction_sifs()
 
     def integrate_i_t(self):
-        # T-stress with interaction integral method
-        t_stress_integral = self._solve_t_stress_interaction_integral()
-        if self.material.plane_strain:
-            # plane strain
-            self.t_stress_int = self.material.E / (1 - self.material.nu_xy ** 2) * t_stress_integral
-        else:
-            eps_z = self._interpolate_on_reference_point(
-                -self.material.nu_xy * (self.data.eps_x + self.data.eps_y)
-            ).item()
-            # plane stress
-            self.t_stress_int = self.material.E * (t_stress_integral + self.material.nu_xy * eps_z)
+        """Populate T-Stress by the interaction-integral method.
+
+        Returns:
+            None. The interaction-integral T-Stress facade attribute is
+            updated in place.
+        """
+        self._synchronize_execution()
+        self.t_stress_int = self._execution.evaluate_interaction_t_stress()
 
     def integrate_t_sdm(self):
-        # T-stress with stress difference method
-        self.t_stress_sdm = self._interpolate_on_reference_point(self.data.sig_x - self.data.sig_y)
+        """Populate T-Stress by the Stress-Difference Method.
+
+        Returns:
+            None. The Stress-Difference Method facade attribute is
+            updated in place.
+        """
+        self._synchronize_execution()
+        self.t_stress_sdm = np.asarray(
+            self._execution.evaluate_stress_difference_t_stress()
+        )
+
+    def integrate_bueckner_chen(self):
+        """Populate Williams and T-Stress results by the Bueckner-Chen Integral.
+
+        Returns:
+            None. The Williams coefficient lists and ``t_stress_chen``
+            facade result are updated in place.
+        """
+        self._synchronize_execution()
+        coefficients, self.t_stress_chen = self._execution.evaluate_bueckner_chen(
+            self.bueckner_williams_terms
+        )
+        self.williams_a_n.extend(mutable_williams_a_n(coefficients))
+        self.williams_b_n.extend(mutable_williams_b_n(coefficients))
+        self.williams_coefficients.extend(mutable_williams_coefficients(coefficients))
 
     def integrate_buckner_chen(self):
-        # Williams coefficents with Chen method
-        for n in self.buckner_williams_terms:
-            a_n = self._williams_coeff_from_chen_integral(a_aux=1, n=n)
-            b_n = self._williams_coeff_from_chen_integral(b_aux=1, n=n)
-            self.williams_a_n.append(a_n)
-            self.williams_b_n.append(b_n)
-            self.williams_coefficients.append([n, a_n, b_n])
+        """Deprecated: use :meth:`integrate_bueckner_chen`.
 
-        # T-stress with Bueckner / Chen integral method
-        n = 2
-        c_m = 1
-        a_n = self._williams_coeff_from_chen_integral(a_aux=c_m, n=n)
-        self.t_stress_chen = 4 * a_n  # MPa
+        Returns:
+            None. :meth:`integrate_bueckner_chen` updates the facade results.
+        """
+        return self.integrate_bueckner_chen()
 
-    #####################################
-    # METHODS FOR SOLVING THE INTEGRALS #
-    #####################################
+    #########################################
+    # PRIVATE FUNCTIONAL DELEGATION METHODS #
+    #########################################
 
     # base method for J-integral, used in child classes
     def _solve_j_integral(self) -> float:
@@ -564,23 +591,7 @@ class LineIntegral:
             J-integral value
 
         """
-        stress_tensors = np.moveaxis(np.asarray([
-            [self.interpolated_sig_x, self.interpolated_sig_xy],
-            [self.interpolated_sig_xy, self.interpolated_sig_y],
-        ]), -1, 0)
-        strain_tensors = np.moveaxis(np.asarray([
-            [self.interpolated_eps_x, self.interpolated_eps_xy],
-            [self.interpolated_eps_xy, self.interpolated_eps_y],
-        ]), -1, 0)
-        traction_vectors = np.einsum("nij,nj->ni", stress_tensors, self._path_normals)
-        energy_terms = 0.5 * np.einsum("nij,nij->n", stress_tensors, strain_tensors)
-        stress_terms = (
-            traction_vectors[:, 0] * self.interpolated_eps_x
-            + traction_vectors[:, 1] * self.interpolated_disp_y_dx
-        )
-        return np.sum(
-            energy_terms * self._path_elem_heights - stress_terms * self._path_elem_sizes
-        )
+        return self._execution._solve_j_integral(self._in_plane_samples)
 
     def _solve_j_integral_III(self) -> float:
         """Function that returns the J-integral as a line integration.
@@ -589,57 +600,48 @@ class LineIntegral:
             J-integral value
 
         """
-        energy_terms = (
-            self.interpolated_eps_xz * self.interpolated_sigma_xz
-            + self.interpolated_eps_yz * self.interpolated_sigma_yz
-        )
-        stress_terms = (
-            self.interpolated_sigma_xz * self.interpolated_eps_xz * self._path_normals[:, 0]
-            + self.interpolated_sigma_yz * self.interpolated_eps_xz * self._path_normals[:, 1]
-        )
-        return np.sum(
-            energy_terms * self._path_elem_heights - stress_terms * self._path_elem_sizes
-        )
+        return self._execution._solve_mode_iii_j_integral(self._mode_iii_samples)
 
     def _evaluate_shifted_auxiliary_fields(self, evaluator):
         """Evaluate an analytical field on aligned base and shifted contour points."""
+        self._shifted_auxiliary_fields = auxiliary_fields.evaluate_shifted_auxiliary_fields(
+            evaluator,
+            self._integration_contour_geometry,
+        )
         return (
-            evaluator(self._integration_eval_points_relative),
-            evaluator(self._integration_eval_points_relative_pos),
-            evaluator(self._integration_eval_points_relative_neg),
+            self._shifted_auxiliary_fields.base.copy(),
+            self._shifted_auxiliary_fields.positive_x.copy(),
+            self._shifted_auxiliary_fields.negative_x.copy(),
         )
 
     def _get_auxiliary_crack_nearfield(self, ki_aux: float, kii_aux: float):
         """Evaluate crack-nearfield tensors and the shifted displacement derivative in batches."""
-        def evaluate_displacements(relative_points: np.ndarray):
-            r, phi = self._make_polar(relative_points[:, 0], relative_points[:, 1])
-            return np.asarray(get_crack_nearfield(ki_aux, kii_aux, r, phi, self.material)[2])
-
-        stress, strain, _ = get_crack_nearfield(
+        self._auxiliary_in_plane_fields = auxiliary_fields.prepare_lefm_auxiliary_fields(
             ki_aux,
             kii_aux,
-            self._integration_eval_r,
-            self._integration_eval_phi,
-            self.material,
+            self._integration_contour_geometry,
+            material=self.material,
         )
-        _, positive, negative = self._evaluate_shifted_auxiliary_fields(evaluate_displacements)
         return (
-            np.moveaxis(stress, -1, 0),
-            np.moveaxis(strain, -1, 0),
-            ((positive - negative) / (2 * self.x_shift))[1],
+            self._auxiliary_in_plane_fields.stress.copy(),
+            self._auxiliary_in_plane_fields.strain.copy(),
+            self._auxiliary_in_plane_fields.displacement_y_gradient_x.copy(),
         )
 
     def _get_auxiliary_zhao_fields(self):
         """Evaluate Zhao auxiliary stresses and shifted displacement derivatives in batches."""
-        def evaluate(relative_points: np.ndarray):
-            r, phi = self._make_polar(relative_points[:, 0], relative_points[:, 1])
-            return np.asarray(get_zhao_solutions(r, phi, self.material))
-
-        base, positive, negative = self._evaluate_shifted_auxiliary_fields(evaluate)
-        sigma_x, sigma_y, sigma_xy, _, _ = base
-        derivatives = (positive - negative) / (2 * self.x_shift)
-        stress = np.moveaxis(np.asarray([[sigma_x, sigma_xy], [sigma_xy, sigma_y]]), -1, 0)
-        return stress, derivatives[3], derivatives[4]
+        self._zhao_auxiliary_fields = auxiliary_fields.prepare_zhao_auxiliary_fields(
+            self._integration_contour_geometry,
+            material=self.material,
+        )
+        displacement_gradient_x = (
+            self._zhao_auxiliary_fields.displacement_gradient_x
+        )
+        return (
+            self._zhao_auxiliary_fields.stress.copy(),
+            displacement_gradient_x[:, 0].copy(),
+            displacement_gradient_x[:, 1].copy(),
+        )
 
     def _solve_interaction_integral(self, ki_aux: float, kii_aux: float) -> float:
         """Function that calculates the interaction integral as a line integration.
@@ -653,34 +655,8 @@ class LineIntegral:
             interaction integral value
 
         """
-        auxiliary_stress, auxiliary_strain, auxiliary_disp_y_dx = (
-            self._get_auxiliary_crack_nearfield(ki_aux, kii_aux)
-        )
-
-        # Assemble measured stress and both tractions on the contour normal.
-        stress = np.moveaxis(np.asarray([
-            [self.interpolated_sig_x, self.interpolated_sig_xy],
-            [self.interpolated_sig_xy, self.interpolated_sig_y],
-        ]), -1, 0)
-        traction = np.einsum("nij,nj->ni", stress, self._path_normals)
-        auxiliary_traction = np.einsum("nij,nj->ni", auxiliary_stress, self._path_normals)
-
-        # Mutual strain energy projected through dx = n_x ds.
-        energy = np.einsum("nij,nij->n", stress, auxiliary_strain)
-        terms = energy * self._path_elem_heights
-
-        # Work of measured traction against the auxiliary displacement gradient.
-        terms -= (
-            traction[:, 0] * auxiliary_strain[:, 0, 0]
-            + traction[:, 1] * auxiliary_disp_y_dx
-        ) * self._path_elem_sizes
-
-        # Reciprocal work of auxiliary traction against the measured displacement gradient.
-        terms -= (
-            auxiliary_traction[:, 0] * self.interpolated_eps_x
-            + auxiliary_traction[:, 1] * self.interpolated_disp_y_dx
-        ) * self._path_elem_sizes
-        return np.sum(terms)
+        self._execution.in_plane_samples = self._in_plane_samples
+        return self._execution._solve_interaction_integral(ki_aux, kii_aux)
 
     def _solve_t_stress_interaction_integral(self) -> float:
         """Interaction path integral for the determination of T-stress according to Cardew et al. '85, Kfouri '86,
@@ -690,209 +666,101 @@ class LineIntegral:
             T stress interaction integral value
 
         """
-        # Zhao's auxiliary state supplies stress and both displacement gradients.
-        auxiliary_stress, auxiliary_disp_x_dx, auxiliary_disp_y_dx = self._get_auxiliary_zhao_fields()
-
-        # Assemble measured strain and stress, then project both stresses onto the contour normal.
-        strain = np.moveaxis(np.asarray([
-            [self.interpolated_eps_x, self.interpolated_eps_xy],
-            [self.interpolated_eps_xy, self.interpolated_eps_y],
-        ]), -1, 0)
-        stress = np.moveaxis(np.asarray([
-            [self.interpolated_sig_x, self.interpolated_sig_xy],
-            [self.interpolated_sig_xy, self.interpolated_sig_y],
-        ]), -1, 0)
-        traction = np.einsum("nij,nj->ni", stress, self._path_normals)
-        auxiliary_traction = np.einsum("nij,nj->ni", auxiliary_stress, self._path_normals)
-
-        # Mutual strain energy projected through dx = n_x ds.
-        energy = np.einsum("nij,nij->n", auxiliary_stress, strain)
-        terms = energy * self._path_elem_heights
-
-        # Work of measured traction against Zhao's auxiliary displacement gradient.
-        terms -= (
-            traction[:, 0] * auxiliary_disp_x_dx + traction[:, 1] * auxiliary_disp_y_dx
-        ) * self._path_elem_sizes
-
-        # Reciprocal work of auxiliary traction against the measured displacement gradient.
-        terms -= (
-            auxiliary_traction[:, 0] * self.interpolated_eps_x
-            + auxiliary_traction[:, 1] * self.interpolated_disp_y_dx
-        ) * self._path_elem_sizes
-        return np.sum(terms)
+        self._execution.in_plane_samples = self._in_plane_samples
+        return self._execution._solve_t_stress_interaction_integral()
 
     def _williams_coeff_from_chen_integral(self, a_aux=0, b_aux=0, n=1) -> float:
-        """This method implements formula (6.94) from Meinhard Kuna's book on fracture mechanics.
+        """Adapt a Bueckner-Chen Integral value to a Williams coefficient.
 
         Args:
-            a_aux: auxiliary state coefficient c_m
-            b_aux: auxiliary state coefficient d_m
-            n: order of Williams series coefficient
+            a_aux: Symmetric auxiliary-state coefficient ``c_m``.
+            b_aux: Antisymmetric auxiliary-state coefficient ``d_m``.
+            n: Williams coefficient term.
 
         Returns:
-            the sought Williams coefficient of order n (length unit is mm !)
-
+            Williams coefficient for term ``n`` using mm as the length unit.
         """
-        if a_aux != 0 and b_aux != 0:
-            raise ValueError("Either a_aux or b_aux has to be zero!")
-        integral_value = self._solve_chen_integral(n=-n, a_n=a_aux, b_n=b_aux)
-        williams_coeff = - self.material.G / (self.material.kappa + 1) / (a_aux + b_aux) / \
-                         (np.pi * n * (-1) ** (n + 1)) * integral_value
-        return williams_coeff
+        self._execution.in_plane_samples = self._in_plane_samples
+        return self._execution._williams_coefficient(
+            symmetric_auxiliary_amplitude=a_aux,
+            antisymmetric_auxiliary_amplitude=b_aux,
+            term=n,
+        )
 
     def _solve_chen_integral(self, n: int = -1, a_n: float = 0, b_n: float = 0) -> float:
-        """Function that calculates the Bueckner / Chen integral as a line integration.
-        [see Y. Z. Chen, New path independent integrals in linear elastic fracture mechanics, 1985]
+        """Evaluate the Bueckner-Chen Integral through delegated kernels.
 
         Args:
-            n: order of corresponding Williams series coefficient to compute
-            a_n: input coefficient to eigenfunction (typically either 0 or 1)
-            b_n: input coefficient to eigenfunction (typically either 0 or 1)
+            n: Williams term of the auxiliary eigenfield.
+            a_n: Symmetric auxiliary eigenfield coefficient.
+            b_n: Antisymmetric auxiliary eigenfield coefficient.
 
         Returns:
-            Chen integral value
+            Bueckner-Chen Integral value.
 
+        Notes:
+            The auxiliary-field formulation follows Y. Z. Chen, "New path
+            independent integrals in linear elastic fracture mechanics" (1985).
         """
-        # Assemble the measured stress, displacement, and contour traction.
-        stress = np.moveaxis(np.asarray([
-            [self.interpolated_sig_x, self.interpolated_sig_xy],
-            [self.interpolated_sig_xy, self.interpolated_sig_y],
-        ]), -1, 0)
-        displacement = np.c_[self.interpolated_disp_x, self.interpolated_disp_y]
-        traction = np.einsum("nij,nj->ni", stress, self._path_normals)
-
-        # Evaluate the auxiliary Williams eigenfunction on every contour point.
-        sigma_x, sigma_y, sigma_xy, disp_x, disp_y = eigenfunction(
-            n,
-            a_n,
-            b_n,
-            self._integration_eval_r,
-            self._integration_eval_phi,
-            self.material,
+        self._execution.in_plane_samples = self._in_plane_samples
+        return self._execution._solve_bueckner_chen_integral(
+            auxiliary_term=n,
+            symmetric_auxiliary_amplitude=a_n,
+            antisymmetric_auxiliary_amplitude=b_n,
         )
-
-        # Assemble the auxiliary stress, displacement, and contour traction.
-        auxiliary_stress = np.moveaxis(
-            np.asarray([[sigma_x, sigma_xy], [sigma_xy, sigma_y]]),
-            -1,
-            0,
-        )
-        auxiliary_displacement = np.c_[disp_x, disp_y]
-        auxiliary_traction = np.einsum("nij,nj->ni", auxiliary_stress, self._path_normals)
-
-        # Integrate the Bueckner-Chen reciprocal-work density along the contour.
-        terms = np.sum(
-            traction * auxiliary_displacement - auxiliary_traction * displacement,
-            axis=1,
-        )
-        return np.sum(terms * self._path_elem_sizes)
 
     ######################################
     # FUNCTIONS FOR STRAIN RECALCULATION #
     ######################################
 
     def _compute_strains_xy(self, u_x, u_y, gap):
-        steps = self.grid_points
-        dist = self.x_coordinates[1] - self.x_coordinates[0]
-        eps_xx = np.zeros_like(self.x_mesh)
-        eps_xx[0:int(steps / 2) - gap, 0:int(steps / 2)] = np.gradient(u_x[0:int(steps / 2) - gap, 0:int(steps / 2)],
-                                                                       dist, axis=1)
-        eps_xx[int(steps / 2) + gap:, 0:int(steps / 2)] = np.gradient(u_x[int(steps / 2) + gap:, 0:int(steps / 2)],
-                                                                      dist, axis=1)
-        eps_xx[:, int(steps / 2):] = np.gradient(u_x[:, int(steps / 2):], dist, axis=1)
-
-        eps_yy = np.zeros_like(self.x_mesh)
-        eps_yy[0:int(steps / 2) - gap, 0:int(steps / 2)] = np.gradient(u_y[0:int(steps / 2) - gap, 0:int(steps / 2)],
-                                                                       dist, axis=0)
-        eps_yy[int(steps / 2) + gap:, 0:int(steps / 2)] = np.gradient(u_y[int(steps / 2) + gap:, 0:int(steps / 2)],
-                                                                      dist, axis=0)
-        eps_yy[:, int(steps / 2):] = np.gradient(u_y[:, int(steps / 2):], dist, axis=0)
-
-        eps_xy = np.zeros_like(self.x_mesh)
-        eps_xy[0:int(steps / 2) - gap, 0:int(steps / 2)] = 0.5 * (
-                np.gradient(u_x[0:int(steps / 2) - gap, 0:int(steps / 2)], dist, axis=0) +
-                np.gradient(u_y[0:int(steps / 2) - gap, 0:int(steps / 2)], dist, axis=1))
-        eps_xy[int(steps / 2) + gap:, 0:int(steps / 2)] = 0.5 * (
-                np.gradient(u_x[int(steps / 2) + gap:, 0:int(steps / 2)], dist, axis=0) +
-                np.gradient(u_y[int(steps / 2) + gap:, 0:int(steps / 2)], dist, axis=1))
-        eps_xy[:, int(steps / 2):] = 0.5 * (np.gradient(u_x[:, int(steps / 2):], dist, axis=0) +
-                                            np.gradient(u_y[:, int(steps / 2):], dist, axis=1))
-        return eps_xx, eps_yy, eps_xy
+        self._in_plane_strains = mode_decomposition.reconstruct_in_plane_strains(
+            u_x,
+            u_y,
+            self.x_coordinates,
+            self.y_coordinates,
+            gap=gap,
+        )
+        return (
+            self._in_plane_strains.strain_x.copy(),
+            self._in_plane_strains.strain_y.copy(),
+            self._in_plane_strains.strain_xy.copy(),
+        )
 
     def _compute_stress_strain_z(self, u_z, gap):
-        steps = self.grid_points
-        dist = self.x_coordinates[1] - self.x_coordinates[0]
-        eps_xz = np.zeros_like(self.x_mesh)
-        eps_xz[0:int(steps / 2) - gap, 0:int(steps / 2)] = np.gradient(u_z[0:int(steps / 2) - gap, 0:int(steps / 2)],
-                                                                       dist, axis=1)
-        eps_xz[int(steps / 2) + gap:, 0:int(steps / 2)] = np.gradient(u_z[int(steps / 2) + gap:, 0:int(steps / 2)],
-                                                                      dist, axis=1)
-        eps_xz[:, int(steps / 2):] = np.gradient(u_z[:, int(steps / 2):], dist, axis=1)
-
-        eps_yz = np.zeros_like(self.x_mesh)
-        eps_yz[0:int(steps / 2) - gap, 0:int(steps / 2)] = np.gradient(u_z[0:int(steps / 2) - gap, 0:int(steps / 2)],
-                                                                       dist, axis=0)
-        eps_yz[int(steps / 2) + gap:, 0:int(steps / 2)] = np.gradient(u_z[int(steps / 2) + gap:, 0:int(steps / 2)],
-                                                                      dist, axis=0)
-        eps_yz[:, int(steps / 2):] = np.gradient(u_z[:, int(steps / 2):], dist, axis=0)
-
-        sigma_xz = self.material.G * eps_xz
-        sigma_yz = self.material.G * eps_yz
-
-        return eps_xz, eps_yz, sigma_xz, sigma_yz
+        self._mode_iii_fields = mode_decomposition.reconstruct_mode_iii_fields(
+            u_z,
+            self.x_coordinates,
+            self.y_coordinates,
+            material=self.material,
+            gap=gap,
+        )
+        return (
+            self._mode_iii_fields.out_of_plane_displacement_derivative_x.copy(),
+            self._mode_iii_fields.out_of_plane_displacement_derivative_y.copy(),
+            self._mode_iii_fields.shear_stress_xz.copy(),
+            self._mode_iii_fields.shear_stress_yz.copy(),
+        )
 
     #########################################################
     # FUNCTIONS FOR PREPARING DATA FOR J-MODE DECOMPOSITION #
     #########################################################
 
     def _prepare_mode_data(self, mode: str):
-        """Prepare `InputData` for mode 1, 2 or 3 decomposition (j-integral).
+        """Prepare ``InputData`` for Mode I, II, or III J-Integral decomposition.
 
         Args:
-            mode: 1 / 'I' -> Mode I, 2 / 'II' -> Mode II, 3 / 'III' -> Mode III
+            mode: Fracture mode as ``"I"``, ``"II"``, or ``"III"``.
 
         Returns:
             InputData instance populated for requested mode.
         """
 
-        if mode == 'I':
-            u_x = 0.5 * (self.disp_u_mesh + np.flipud(self.disp_u_mesh))
-            u_y = 0.5 * (self.disp_v_mesh - np.flipud(self.disp_v_mesh))
-            u_z = np.zeros_like(u_x)
-        elif mode == 'II':
-            u_x = 0.5 * (self.disp_u_mesh - np.flipud(self.disp_u_mesh))
-            u_y = 0.5 * (self.disp_v_mesh + np.flipud(self.disp_v_mesh))
-            u_z = np.zeros_like(u_x)
-        elif mode == 'III':
-            u_z = 0.5 * (self.disp_w_mesh - np.flipud(self.disp_w_mesh))
-            u_x = np.zeros_like(u_z)
-            u_y = np.zeros_like(u_z)
-        else:
-            raise ValueError("Mode has to be 'I', 'II' or 'III'!")
-
-        eps_xx, eps_yy, eps_xy = self._compute_strains_xy(u_x, u_y, 2)
-        eps_xz, eps_yz, sigma_xz, sigma_yz = self._compute_stress_strain_z(u_z, 2)
-
-        # populate the container
-        decomp_data = InputData()
-        decomp_data.coor_x = self.x_mesh.flatten()
-        decomp_data.coor_y = self.y_mesh.flatten()
-        decomp_data.disp_x = u_x.flatten()
-        decomp_data.disp_y = u_y.flatten()
-        decomp_data.disp_z = u_z.flatten()
-        decomp_data.eps_x = eps_xx.flatten()
-        decomp_data.eps_y = eps_yy.flatten()
-        decomp_data.eps_xy = eps_xy.flatten()
-        decomp_data.eps_xz = eps_xz.flatten()
-        decomp_data.eps_yz = eps_yz.flatten()
-        decomp_data.sigma_xz = sigma_xz.flatten()
-        decomp_data.sigma_yz = sigma_yz.flatten()
-
-        # recalc Von Mises strains and stresses
-        decomp_data.calc_eps_vm()
-        decomp_data.calc_stresses(self.material)
-
-        return decomp_data
+        return mode_decomposition.prepare_mode_data(
+            mode,
+            self._regular_grid_displacements,
+            material=self.material,
+        )
 
     ################################
     # HELPER FUNCTIONS FOR MESHING #
@@ -900,30 +768,29 @@ class LineIntegral:
 
     def _build_path_geometry(self) -> None:
         """Precompute contour and shifted evaluation geometry used by every functional."""
-        self._integration_eval_points = self.np_integration_points[:, :2].copy()
-        self._integration_eval_points_pos = self._integration_eval_points + np.asarray([self.x_shift, 0.0])
-        self._integration_eval_points_neg = self._integration_eval_points - np.asarray([self.x_shift, 0.0])
-        self._integration_eval_points_all = np.r_[
-            self._integration_eval_points,
-            self._integration_eval_points_pos,
-            self._integration_eval_points_neg,
-        ]
-        origin = np.asarray([[self.origin_x, self.origin_y]])
-        self._integration_eval_points_relative = self._integration_eval_points - origin
-        self._integration_eval_points_relative_pos = self._integration_eval_points_pos - origin
-        self._integration_eval_points_relative_neg = self._integration_eval_points_neg - origin
-        self._integration_eval_r, self._integration_eval_phi = self._make_polar(
-            self._integration_eval_points_relative[:, 0],
-            self._integration_eval_points_relative[:, 1],
+        geometry = self._execution.geometry
+        self._integration_contour_geometry = geometry
+        self._integration_eval_points = geometry.evaluation_points.copy()
+        self._integration_eval_points_pos = (
+            geometry.positive_x_shifted_evaluation_points.copy()
         )
-        self._path_elem_heights = self.np_integration_points[:, 3].copy()
-        self._path_elem_sizes = np.linalg.norm(self.np_integration_points[:, 2:4], axis=1)
-        direction_vectors = np.c_[self.np_integration_points[:, 2:4], np.zeros(len(self.np_integration_points))]
-        normal_vectors = np.cross(direction_vectors, [0.0, 0.0, 1.0])
-        self._path_normals = (
-            normal_vectors / np.linalg.norm(normal_vectors, axis=1)[:, np.newaxis]
-        )[:, :2]
-        self._reference_eval_point = np.asarray([[np.max(self.np_integration_points[:, 0]), 0.0]])
+        self._integration_eval_points_neg = (
+            geometry.negative_x_shifted_evaluation_points.copy()
+        )
+        self._integration_eval_points_all = geometry.combined_evaluation_points.copy()
+        self._integration_eval_points_relative = geometry.relative_evaluation_points.copy()
+        self._integration_eval_points_relative_pos = (
+            geometry.relative_positive_x_shifted_evaluation_points.copy()
+        )
+        self._integration_eval_points_relative_neg = (
+            geometry.relative_negative_x_shifted_evaluation_points.copy()
+        )
+        self._integration_eval_r = geometry.polar_radii.copy()
+        self._integration_eval_phi = geometry.polar_angles.copy()
+        self._path_elem_heights = geometry.segment_dy.copy()
+        self._path_elem_sizes = geometry.segment_lengths.copy()
+        self._path_normals = geometry.outward_unit_normals.copy()
+        self._reference_eval_point = geometry.reference_point.copy()
 
     def _get_integration_point_interpolator(
             self,
@@ -934,60 +801,48 @@ class LineIntegral:
         """Return cached interpolation geometry for one semantic evaluation layout."""
         if eval_points is None:
             eval_points = self._integration_eval_points
-        return self._interpolator_cache.get_interpolator(
-            data.coor_x,
-            data.coor_y,
+        return sampling._get_interpolator(
+            data,
             eval_points,
             label,
+            interpolator_cache=self._interpolator_cache,
         )
 
     def _get_masked_data(self, mask_tol: float | None = None) -> InputData:
         """Return the nodemap restricted to the configured contour band when requested."""
         tolerance = self.mask_tol if mask_tol is None else mask_tol
-        if tolerance is None:
-            return self.data
-        left, right = np.min(self.np_integration_points[:, 0]), np.max(self.np_integration_points[:, 0])
-        bottom, top = np.min(self.np_integration_points[:, 1]), np.max(self.np_integration_points[:, 1])
-        outer_square = ((left - tolerance <= self.data.coor_x) * (self.data.coor_x <= right + tolerance)
-                        * (bottom - tolerance <= self.data.coor_y) * (self.data.coor_y <= top + tolerance))
-        inner_square = ((left + tolerance <= self.data.coor_x) * (self.data.coor_x <= right - tolerance)
-                        * (bottom + tolerance <= self.data.coor_y) * (self.data.coor_y <= top - tolerance))
-        return apply_mask(self.data, np.where(outer_square * (1 - inner_square)))
+        return sampling.mask_contour_data(
+            self.data,
+            self._integration_contour_geometry.evaluation_points,
+            tolerance,
+        )
 
     def _interpolate_on_reference_point(self, values: np.ndarray) -> np.ndarray:
         """Interpolate one measured scalar field at the contour reference point."""
-        return self._get_integration_point_interpolator(
+        self._reference_point_sample = sampling.interpolate_reference_value(
             self.data,
+            values,
             self._reference_eval_point,
-            InterpolationTarget.REFERENCE_POINT,
-        ).interpolate(values).squeeze()
+            interpolator_cache=self._interpolator_cache,
+        )
+        return self._reference_point_sample.copy()
 
     def _map_displacement_data_on_regular_grid(self, grid_points: int):
-        left = np.min(self.np_integration_points[:, 0])
-        right = np.max(self.np_integration_points[:, 0])
-        bottom = np.min(self.np_integration_points[:, 1])
-        top = np.max(self.np_integration_points[:, 1])
-
-        grid_size_x = max(abs(left), abs(right)) * 1.2
-        grid_size_y = max(abs(bottom), abs(top)) * 1.2
-
         self.grid_points = int(grid_points)
-        self.x_coordinates = np.linspace(-grid_size_x, grid_size_x, self.grid_points, endpoint=True)
-        self.y_coordinates = np.linspace(-grid_size_y, grid_size_y, self.grid_points, endpoint=True)
-
-        # used for j decomposition
-        self.x_mesh, self.y_mesh = np.meshgrid(self.x_coordinates, self.y_coordinates, indexing="xy")
-
-        grid_points = np.c_[self.x_mesh.ravel(), self.y_mesh.ravel()]
-
-        interp_disp = self._get_integration_point_interpolator(
+        self._regular_grid_displacements = sampling.sample_regular_grid_displacements(
             self.data,
-            grid_points,
-            InterpolationTarget.REGULAR_GRID,
+            self._integration_contour_geometry.evaluation_points,
+            self.grid_points,
+            interpolator_cache=self._interpolator_cache,
         )
-        uvw = interp_disp.interpolate(np.c_[self.data.disp_x, self.data.disp_y, self.data.disp_z])
-        uvw = uvw.reshape(self.x_mesh.shape + (3,))
-        self.disp_u_mesh, self.disp_v_mesh, self.disp_w_mesh = uvw[:, :, 0], uvw[:, :, 1], uvw[:, :, 2]
+        grid = self._regular_grid_displacements
+        self.x_coordinates = grid.x_coordinates.copy()
+        self.y_coordinates = grid.y_coordinates.copy()
+        self.x_mesh = grid.x_mesh.copy()
+        self.y_mesh = grid.y_mesh.copy()
+        self.disp_u_mesh = grid.displacement_x_mesh.copy()
+        self.disp_v_mesh = grid.displacement_y_mesh.copy()
+        self.disp_w_mesh = grid.displacement_z_mesh.copy()
 
     ###########################################
     # HELPER FUNCTIONS FOR DATA INTERPOLATION #
@@ -997,26 +852,36 @@ class LineIntegral:
         """Interpolates full field data onto the integration path coordinates.
         Further, calculates the interpolated results for shifted points for derivatives."""
 
+        sampled_fields = sampling.sample_in_plane_fields(
+            self.data,
+            self._integration_contour_geometry,
+            mask_tolerance=self.mask_tol,
+            interpolator_cache=self._interpolator_cache,
+        )
+        self._adopt_in_plane_samples(sampled_fields)
+
+    def _adopt_in_plane_samples(self, sampled_fields) -> None:
+        """Project measured contour samples onto the facade's mutable attributes."""
         self.pos_shifted_np_int_points = self._integration_eval_points_pos[:, 0].copy()
         self.neg_shifted_np_int_points = self._integration_eval_points_neg[:, 0].copy()
-        data = self._get_masked_data()
-        interpolator = self._get_integration_point_interpolator(
-            data,
-            self._integration_eval_points_all,
-            InterpolationTarget.INTEGRATION_POINTS_ALL,
-        )
-        sampled = interpolator.interpolate(
-            np.c_[data.eps_x, data.eps_y, data.eps_xy,
-            data.sig_x, data.sig_y, data.sig_xy,
-            data.disp_x, data.disp_y])
-        base, positive, negative = sampled.reshape(3, len(self._integration_eval_points), 8)
+        self._in_plane_samples = sampled_fields
+        self._execution.in_plane_samples = sampled_fields
+        shifted = self._in_plane_samples.shifted
+        base = shifted.base
         (self.interpolated_eps_x, self.interpolated_eps_y, self.interpolated_eps_xy,
          self.interpolated_sig_x, self.interpolated_sig_y, self.interpolated_sig_xy,
-         self.interpolated_disp_x, self.interpolated_disp_y) = tuple(base[:, index] for index in range(8))
-        self.interpolated_disp_y_dx_positive = positive[:, 7]
-        self.interpolated_disp_y_dx_negative = negative[:, 7]
-        self.interpolated_disp_y_dx = (self.interpolated_disp_y_dx_positive -
-                                       self.interpolated_disp_y_dx_negative) / (2.0 * self.x_shift)
+         self.interpolated_disp_x, self.interpolated_disp_y) = tuple(
+            base[:, index].copy() for index in range(8)
+        )
+        self.interpolated_disp_y_dx_positive = (
+            shifted.positive_x_displacement_y.copy()
+        )
+        self.interpolated_disp_y_dx_negative = (
+            shifted.negative_x_displacement_y.copy()
+        )
+        self.interpolated_disp_y_dx = (
+            self._in_plane_samples.displacement_gradient_x[:, 1].copy()
+        )
 
     def _interpolate_on_integration_points_z(self, mask_tol: float = None):
         """Interpolates full field data onto the integration path coordinates.
@@ -1024,12 +889,20 @@ class LineIntegral:
         This method is used for the mode III decomposition of J integral.
         """
 
-        data = self.data if mask_tol is None else self._get_masked_data(mask_tol)
-        interpolator = self._get_integration_point_interpolator(data)
-        intp_data = interpolator.interpolate(np.c_[data.eps_xz, data.eps_yz, data.sigma_xz, data.sigma_yz])
-        (self.interpolated_eps_xz, self.interpolated_eps_yz,
-         self.interpolated_sigma_xz, self.interpolated_sigma_yz) = (intp_data[:, 0], intp_data[:, 1],
-                                                                    intp_data[:, 2], intp_data[:, 3])
+        self._mode_iii_samples = sampling.sample_mode_iii_fields(
+            self.data,
+            self._integration_eval_points,
+            mask_tolerance=mask_tol,
+            interpolator_cache=self._interpolator_cache,
+        )
+        self.interpolated_eps_xz = (
+            self._mode_iii_samples.out_of_plane_displacement_derivative_x.copy()
+        )
+        self.interpolated_eps_yz = (
+            self._mode_iii_samples.out_of_plane_displacement_derivative_y.copy()
+        )
+        self.interpolated_sigma_xz = self._mode_iii_samples.shear_stress_xz.copy()
+        self.interpolated_sigma_yz = self._mode_iii_samples.shear_stress_yz.copy()
 
     ########
     # MISC #
@@ -1037,28 +910,46 @@ class LineIntegral:
 
     @staticmethod
     def _unit_m_to_mm(quantity_in_m, n=1):
-        return quantity_in_m * 1000 ** (1 - n / 2)
+        return williams_quantities.williams_coefficient_m_to_mm(
+            quantity_in_m,
+            term=n,
+        )
 
     @staticmethod
     def _unit_mm_to_m(quantity_in_mm, n=1):
-        return quantity_in_mm / 1000 ** (1 - n / 2)
+        return williams_quantities.williams_coefficient_mm_to_m(
+            quantity_in_mm,
+            term=n,
+        )
 
     @staticmethod
-    def _make_polar(x: float, y: float):
-        """Takes cartesian coordinates and maps onto polar coordinates."""
-        r = np.sqrt(x ** 2.0 + y ** 2.0)
-        phi = np.arctan2(y, x)
-        return r, phi
+    def ensure_defaults_bueckner_chen(options: IntegralProperties):
+        """Normalize Bueckner-Chen Williams terms on integral properties.
+
+        Args:
+            options: Integral properties whose selected terms are normalized.
+
+        Returns:
+            None. ``options.bueckner_williams_terms`` is updated in place.
+        """
+        if options.bueckner_williams_terms is None:
+            options.bueckner_williams_terms = DEFAULT_BUECKNER_CHEN_TERMS.copy()
+        elif 1 not in options.bueckner_williams_terms:
+            options.bueckner_williams_terms.append(1)
+            logger.info('Bueckner-Williams terms should include 1. Term added.')
+        if 0 in options.bueckner_williams_terms:
+            options.bueckner_williams_terms.remove(0)
+            logger.warning('Bueckner-Williams terms should not include 0. Term removed.')
+        options.bueckner_williams_terms.sort()
 
     @staticmethod
     def ensure_defaults_buckner_chen(options: IntegralProperties):
-        """Ensures that the default terms for the Buckner-Chen Integral are provided."""
-        if options.buckner_williams_terms is None:
-            options.buckner_williams_terms = [1, 2, 3, 4, 5]
-        elif 1 not in options.buckner_williams_terms:
-            options.buckner_williams_terms.append(1)
-            logger.info('Buckner-Williams terms should include 1. Term added.')
-        if 0 in options.buckner_williams_terms:
-            options.buckner_williams_terms.remove(0)
-            logger.warning('Buckner-Williams terms should not include 0. Term removed.')
-        options.buckner_williams_terms.sort()
+        """Deprecated: use :meth:`ensure_defaults_bueckner_chen`.
+
+        Args:
+            options: Integral properties whose selected terms are normalized.
+
+        Returns:
+            None. :meth:`ensure_defaults_bueckner_chen` updates ``options``.
+        """
+        return LineIntegral.ensure_defaults_bueckner_chen(options)

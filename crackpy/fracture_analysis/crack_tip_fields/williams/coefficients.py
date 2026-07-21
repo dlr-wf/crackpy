@@ -19,6 +19,12 @@ class WilliamsInPlaneCoefficients:
     a_n: tuple[float, ...]
     b_n: tuple[float, ...]
 
+    def __post_init__(self) -> None:
+        """Normalize and snapshot terms as native integers and coefficients as native floats."""
+        object.__setattr__(self, "terms", tuple(int(term) for term in self.terms))
+        object.__setattr__(self, "a_n", tuple(float(value) for value in self.a_n))
+        object.__setattr__(self, "b_n", tuple(float(value) for value in self.b_n))
+
 
 @dataclass(frozen=True)
 class WilliamsOutOfPlaneCoefficients:
@@ -32,3 +38,8 @@ class WilliamsOutOfPlaneCoefficients:
 
     terms: tuple[int, ...]
     c_n: tuple[float, ...]
+
+    def __post_init__(self) -> None:
+        """Normalize and snapshot terms as native integers and coefficients as native floats."""
+        object.__setattr__(self, "terms", tuple(int(term) for term in self.terms))
+        object.__setattr__(self, "c_n", tuple(float(value) for value in self.c_n))

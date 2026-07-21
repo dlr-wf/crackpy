@@ -36,6 +36,73 @@ class WilliamsOutOfPlaneQuantities:
     k_iii: float
 
 
+def williams_coefficient_m_to_mm(
+    quantity_in_m: float,
+    *,
+    term: int = 1,
+) -> float:
+    """Convert a Williams coefficient from metre- to millimetre-based units.
+
+    Args:
+        quantity_in_m: Coefficient in MPa m**(1 - n/2).
+        term: Williams expansion term ``n``.
+
+    Returns:
+        Coefficient in MPa mm**(1 - n/2).
+    """
+    # Williams term n scales with length raised to the exponent 1 - n/2.
+    length_unit_factor = 1000 ** (1 - term / 2)
+    converted_coefficient = quantity_in_m * length_unit_factor
+    return converted_coefficient
+
+
+def williams_coefficient_mm_to_m(
+    quantity_in_mm: float,
+    *,
+    term: int = 1,
+) -> float:
+    """Convert a Williams coefficient from millimetre- to metre-based units.
+
+    Args:
+        quantity_in_mm: Coefficient in MPa mm**(1 - n/2).
+        term: Williams expansion term ``n``.
+
+    Returns:
+        Coefficient in MPa m**(1 - n/2).
+    """
+    # Williams term n scales with length raised to the exponent 1 - n/2.
+    length_unit_factor = 1000 ** (1 - term / 2)
+    converted_coefficient = quantity_in_mm / length_unit_factor
+    return converted_coefficient
+
+
+def t_stress_from_williams_coefficient(
+    second_order_symmetric_coefficient: float,
+) -> float:
+    """Map the second-order symmetric Williams coefficient to T-stress.
+
+    Args:
+        second_order_symmetric_coefficient: The symmetric ``a_2`` coefficient
+            in MPa.
+
+    Returns:
+        T-stress in MPa.
+
+    Notes:
+        The coefficient interpretation follows Williams, "On the Stress
+        Distribution at the Base of a Stationary Crack" (1957), DOI
+        10.1115/1.4011454. Kuna, "Finite Elements in Fracture Mechanics:
+        Theory---Numerics---Applications" (2013), equations 3.41--3.44,
+        gives ``sigma_xx = 4 a_2`` and ``sigma_yy = 0`` for ``n = 2``, hence
+        ``T = 4 a_2``. DOI https://doi.org/10.1007/978-94-007-6680-8;
+        Citation Key ``kuna_fracture_mechanics``.
+    """
+    # Kuna (2013), Eqs. 3.41--3.44: n=2 gives sigma_xx=4 a_2 and
+    # sigma_yy=0, so the crack-parallel T-stress is T=4 a_2.
+    t_stress = 4 * second_order_symmetric_coefficient
+    return t_stress
+
+
 def derive_williams_in_plane_fracture_quantities(
     terms: Iterable[int],
     a_n: Iterable[float],
@@ -60,8 +127,6 @@ def derive_williams_in_plane_fracture_quantities(
         10.1115/1.4011454, and Kuna, "Finite Elements in Fracture Mechanics:
         Theory---Numerics---Applications" (2013), DOI
         10.1007/978-94-007-6680-8.
-        This formula-level function is the future attachment point for structured
-        scientific-reference metadata.
     """
     ordered_terms = tuple(terms)
     a_by_term = dict(zip(ordered_terms, a_n))
@@ -74,7 +139,7 @@ def derive_williams_in_plane_fracture_quantities(
         k_i = np.sqrt(2 * np.pi) * a_by_term[1] * _SQRT_MM_TO_SQRT_M
 
         # CrackPy's antisymmetric eigenfield convention maps positive b_1 to
-        # negative K_II; preserve that sign at the authoritative field kernel.
+        # negative K_II.
         k_ii = -np.sqrt(2 * np.pi) * b_by_term[1] * _SQRT_MM_TO_SQRT_M
     else:
         k_i = np.nan
@@ -82,8 +147,9 @@ def derive_williams_in_plane_fracture_quantities(
 
     if 2 in a_by_term:
         # The second-order symmetric coefficient is the constant stress term.
-        # Under this normalization, T = 4 a_2 and already uses MPa.
-        t_stress = 4 * a_by_term[2]
+        t_stress = t_stress_from_williams_coefficient(
+            second_order_symmetric_coefficient=a_by_term[2]
+        )
     else:
         t_stress = np.nan
 
@@ -114,8 +180,6 @@ def derive_williams_out_of_plane_fracture_quantities(
         10.1115/1.4011454, and Kuna, "Finite Elements in Fracture Mechanics:
         Theory---Numerics---Applications" (2013), DOI
         10.1007/978-94-007-6680-8.
-        This formula-level function is the future attachment point for structured
-        scientific-reference metadata.
     """
     c_by_term = dict(zip(terms, c_n))
 

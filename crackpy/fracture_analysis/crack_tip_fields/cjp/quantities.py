@@ -69,8 +69,6 @@ def derive_cjp_mode_i_fracture_quantities(
         The coefficient interpretation follows Camacho-Reyes et al., "Study of
         Effective Stress Intensity Factor through the CJP Model Using Full-Field
         Experimental Data" (2023), DOI 10.3390/ma16165705.
-        This formula-level function is the future attachment point for structured
-        scientific-reference metadata.
     """
     a, b, c, e, f = coefficients
 
@@ -118,8 +116,6 @@ def derive_cjp_mixed_mode_fracture_quantities(
         The coefficient interpretation follows Christopher et al., "Extension
         of the CJP Model to Mixed Mode I and Mode II" (2013), DOI
         10.3221/IGF-ESIS.25.23.
-        This formula-level function is the future attachment point for structured
-        scientific-reference metadata.
     """
     a_r, b_r, b_i, c, e = coefficients
 

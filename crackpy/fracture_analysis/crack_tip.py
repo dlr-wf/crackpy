@@ -270,7 +270,7 @@ def cjp_displ_field_modeI(coeffs: Union[list, np.ndarray], phi: float, r: float,
     [see formulas 10 and 11 in Camacho-Reyes et al. 2023 for the crack tip displacement fields]
 
     Args:
-        coeffs: Z = (A, B, C, E, F) as in Yang et al. 2021; Future considerations: Camacho-Reyes et al. (2023) introduced F and split T in T_x and T_y
+        coeffs: Z = (A, B, C, E, F), following the parameter mapping in Camacho-Reyes et al. (2023)
         phi: angle from polar coordinates [rad]
         r: radius from polar coordinates [mm]
         material: obj of class Material used to calculate *kappa* and **G**
