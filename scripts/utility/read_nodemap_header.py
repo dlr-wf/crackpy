@@ -1,23 +1,14 @@
-"""
+"""Read selected metadata from one nodemap without loading its field data."""
 
-    Example script:
-        Example how to read only the header of a nodemap file.
-
-    Needed:
-        - Nodemap
-
-    Output:
-        - List of data in the header
-"""
-
-# Imports
-from pathlib import Path
-import time
 import logging
+import time
+from pathlib import Path
+
 from crackpy.input.input_data import InputData
 from crackpy.structure_elements.data_files import Nodemap
 
-# Determine project root (two levels above scripts/<subdir>)
+# Input: one DIC nodemap from the repository test data.
+# Output: selected metadata and elapsed read time in the log.
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # Logging

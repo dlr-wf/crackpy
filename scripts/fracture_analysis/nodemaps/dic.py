@@ -1,21 +1,5 @@
-"""
+"""Run fracture analysis for one DIC nodemap."""
 
-    Example script:
-        Fracture analysis for a single FE nodemap.
-
-    Input:
-        - Output folder
-        - Nodemap file
-        - Nodemap structure
-        - Material properties
-        - Integral properties
-        - Optimization properties
-        - Crack tip position
-
-    Output:
-        - Fracture Analysis results (plots, txt-files)
-
-"""
 import logging
 from pathlib import Path
 
@@ -34,12 +18,13 @@ from crackpy.structure_elements.material import Material
 # Logging
 logger = logging.getLogger(__name__)
 
-# Determine project root
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# Input: one DIC nodemap from the repository test data.
+# Output: fracture-analysis plots, text results, and JSON data.
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
-NODEMAP_FILENAME = 'File_F_10000.0_a_0.5_B_200.0_H_200.0.txt'
-NODEMAP_FOLDER = PROJECT_ROOT / 'test_data' / 'simulations' / 'Nodemaps'
-OUT_FOLDER = PROJECT_ROOT / 'Fracture_Analysis_FE_results'
+NODEMAP_FILENAME = 'Dummy2_WPXXX_DummyVersuch_2_dic_results_1_52.txt'
+NODEMAP_FOLDER = PROJECT_ROOT / 'test_data' / 'crack_detection' / 'Nodemaps'
+OUT_FOLDER = PROJECT_ROOT / 'Fracture_Analysis_DIC_results'
 OUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 ########################
@@ -52,9 +37,6 @@ int_props = IntegralProperties(
     number_of_paths=10,
     number_of_nodes=100,
 
-    bottom_offset=-0.5,
-    top_offset=0.5,
-
     integral_size_left=-5,
     integral_size_right=5,
     integral_size_top=5,
@@ -65,20 +47,28 @@ int_props = IntegralProperties(
     paths_distance_right=0.5,
     paths_distance_bottom=0.5,
 
-    # mask_tolerance=2,
+    top_offset=2.5,
+    bottom_offset=-2.5,
+
+    mask_tolerance=2,
 
     bueckner_williams_terms=[-1, 1, 2, 3, 4, 5]
 )
 
 opt_props = OptimizationProperties(
-    angle_gap=10,
+    angle_gap=20,
     min_radius=5,
     max_radius=10,
     tick_size=0.01,
-    terms=[-1, 0, 1, 2, 3, 4, 5]
+    terms=[-3, -2, -1, 0, 1, 2, 3, 4, 5],
 )
 
-ct = CrackTipInfo(50, 0, 0, 'right')
+ct = CrackTipInfo(
+    crack_tip_x=15.16,
+    crack_tip_y=0.49,
+    crack_tip_angle=-0.46,
+    left_or_right='right'
+)
 
 ###############
 # Main script #
@@ -86,8 +76,8 @@ ct = CrackTipInfo(50, 0, 0, 'right')
 
 nodemap = Nodemap(name=NODEMAP_FILENAME, folder=NODEMAP_FOLDER)
 input_data = InputData(nodemap=nodemap)
-input_data.calc_stresses(material)
 input_data.transform_data(ct.crack_tip_x, ct.crack_tip_y, ct.crack_tip_angle)
+input_data.calc_stresses(material)
 
 analysis = FractureAnalysis(
     material=Material(),

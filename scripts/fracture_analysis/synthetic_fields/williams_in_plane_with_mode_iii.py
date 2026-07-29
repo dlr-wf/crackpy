@@ -1,21 +1,4 @@
-"""
-
-    Example script:
-        Fracture analysis for synthetic data.
-
-    Input:
-        - Output folder
-        - Nodemap file
-        - Nodemap structure
-        - Material properties
-        - Integral properties
-        - Optimization properties
-        - Crack tip position
-
-    Output:
-        - Fracture Analysis results (plots, txt-files)
-
-"""
+"""Run fracture analysis on a synthetic Williams field containing in-plane and Mode III displacements."""
 
 import logging
 from pathlib import Path
@@ -37,7 +20,9 @@ from crackpy.structure_elements.material import Material
 # Logging
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# Input: the synthetic Williams field configured in ``main``.
+# Output: fracture-analysis plots, text results, JSON data, and a result CSV file.
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 OUT_FOLDER = PROJECT_ROOT / 'Fracture_Analysis_Williams_results_3D'
 OUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
@@ -47,14 +32,22 @@ def main():
     # Generation of synthetic data #
     ################################
 
-    K_I = 10 * np.sqrt(1000)  # MPa * sqrt(m)
-    K_II = -20 * np.sqrt(1000)  # MPa * sqrt(m)
-    K_III = 30 * np.sqrt(1000)  # MPa * sqrt(m)
+    # Prescribed Stress Intensity Factors use the package's public MPa sqrt(m)
+    # unit.
+    mode_i_sif_mpa_sqrt_m = 10.0
+    mode_ii_sif_mpa_sqrt_m = -20.0
+    mode_iii_sif_mpa_sqrt_m = 30.0
     T = 40  # MPa
-    A_1 = K_I / np.sqrt(2 * np.pi)
+
+    # Williams coefficients use mm as their length unit, so convert sqrt(m)
+    # to sqrt(mm) before mapping the modal Stress Intensity Factors.
+    mode_i_sif_mpa_sqrt_mm = mode_i_sif_mpa_sqrt_m * np.sqrt(1000.0)
+    mode_ii_sif_mpa_sqrt_mm = mode_ii_sif_mpa_sqrt_m * np.sqrt(1000.0)
+    mode_iii_sif_mpa_sqrt_mm = mode_iii_sif_mpa_sqrt_m * np.sqrt(1000.0)
+    A_1 = mode_i_sif_mpa_sqrt_mm / np.sqrt(2 * np.pi)
     A_2 = T / 4.0
-    B_1 = - K_II / np.sqrt(2 * np.pi)
-    C_1 = K_III / np.sqrt(0.5 * np.pi)
+    B_1 = -mode_ii_sif_mpa_sqrt_mm / np.sqrt(2 * np.pi)
+    C_1 = mode_iii_sif_mpa_sqrt_mm / np.sqrt(0.5 * np.pi)
     A = [A_1, A_2]
     B = [B_1, 0]
     C = [C_1, 0]
@@ -212,20 +205,4 @@ def main():
 
 
 if __name__ == '__main__':
-    # Profiling (optional)
-    import cProfile
-    import pstats
-    import subprocess
-    import sys
-    from datetime import datetime
-
-    script_dir = OUT_FOLDER
-    fname = script_dir / f"{datetime.now():%Y%m%d%H%M%S}_profile.prof"
-
-    pr = cProfile.Profile()
-    pr.enable()
     main()
-    pr.disable()
-    pstats.Stats(pr).dump_stats(str(fname))
-
-    subprocess.run([sys.executable, "-m", "snakeviz", str(fname)], check=True)

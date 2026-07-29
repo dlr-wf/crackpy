@@ -183,6 +183,20 @@ def test_public_analysis_run_projects_completed_results_and_aggregate_containers
     assert derive_quantities.call_count == 3
 
 
+def test_public_analysis_run_updates_an_initially_empty_progress_mapping():
+    analysis = _analysis()
+    progress = {}
+
+    with mock.patch.object(
+        analysis_module,
+        "_LineIntegralExecution",
+        side_effect=_fake_execution([]),
+    ):
+        analysis.run(progress_bar=progress, task_id=7)
+
+    assert progress == {7: {"progress": 2, "total": 2}}
+
+
 def test_second_public_analysis_run_preserves_established_failure_and_partial_state():
     analysis = _analysis()
     observations = []
