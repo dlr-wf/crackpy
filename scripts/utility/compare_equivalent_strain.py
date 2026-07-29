@@ -1,10 +1,9 @@
-import numpy as np
-from numpy import linalg as LA
+"""Compare established equivalent-strain calculations for one example strain tensor."""
+
 import logging
 
-"""
-    This script compares formulas to compute the equivalent strain from the strain tensor.
-"""
+import numpy as np
+from numpy import linalg as LA
 
 # Logging
 logger = logging.getLogger(__name__)

@@ -150,6 +150,17 @@ Just install via pip from the GitHub repository
 pip install --upgrade git+https://github.com/dlr-wf/crackpy.git
 ```
 
+## Development setup
+
+Install the editable project and its development group with pip 25.1 or newer.
+The development group includes Playwright for validating Mermaid diagrams.
+
+```bash
+python -m pip install -e .
+python -m pip install --group dev
+python -m playwright install chromium
+```
+
 ## How to use?
 To check out how to use the package, please read our [Wiki](https://github.com/dlr-wf/crackpy/wiki).
 

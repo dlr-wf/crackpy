@@ -33,7 +33,13 @@ _INTERPOLATOR_GEOMETRY_CACHE = InterpolatorCache(max_interpolators=4)
 
 
 class OptimizationProperties:
-    """Class for setting the Optimization properties."""
+    """Configure the established polar ODM fitting domain and Williams terms.
+
+    ``FractureAnalysis`` resolves ``None`` values, ensures the first and second
+    Williams terms are present, sorts the selected terms, and mutates this
+    configuration before constructing ``Optimization``.
+    Direct ``Optimization`` construction consumes the values as supplied.
+    """
 
     def __init__(
             self,
@@ -43,19 +49,26 @@ class OptimizationProperties:
             tick_size: Optional[float] = 0.01,
             terms=None,
     ):
-        """Initialize Optimization properties.
+        """Store the ODM fitting-domain configuration.
 
         Args:
-            angle_gap: Angle gap between crack path and fitting domain.
-                If None, angle_gap is set to 20.
-            min_radius: minimum radius of fitting domain.
-                If None, min_radius is set to crack_length / 20.
-            max_radius: maximum radius of fitting domain.
-                If None, max_radius is set to crack_length / 5.
-            tick_size: tick size of fitting domain.
-                If None, tick_size is set to 0.01.
-            terms: (list or None) list of Williams terms to be used in optimization, e.g. [-1, 1, 2].
-
+            angle_gap: Angular margin excluded on each side of the negative
+                crack-parallel axis, in degrees.
+                The total excluded wedge is twice this value.
+                ``FractureAnalysis`` resolves ``None`` to 20 degrees.
+            min_radius: Inclusive minimum fitting radius in mm.
+                ``FractureAnalysis`` resolves ``None`` to one twentieth of the
+                absolute crack-tip x-coordinate.
+            max_radius: Exclusive maximum fitting radius in mm.
+                ``FractureAnalysis`` resolves ``None`` to one fifth of the
+                absolute crack-tip x-coordinate.
+            tick_size: Shared established polar-grid increment, applied to
+                radius in mm and angle in radians.
+                ``FractureAnalysis`` resolves ``None`` to 0.01.
+            terms: Williams term orders used for in-plane and out-of-plane
+                fitting.
+                ``FractureAnalysis`` defaults to ``[-1, 1, 2, 3, 4, 5]``,
+                ensures terms 1 and 2 are present, and sorts the list in place.
         """
         self.angle_gap = angle_gap
         self.min_radius = min_radius
@@ -65,20 +78,35 @@ class OptimizationProperties:
 
 
 class Optimization:
-    """Optimization class
+    """Fit CJP and Williams displacement formulations through the established facade.
 
-    Methods:
-        * optimize_cjp_displacements
-        * optimize_williams_displacements
-        * optimize_williams_stresses
+    The public fitting operations are
+    ``optimize_cjp_displacements_modeI``,
+    ``optimize_cjp_displacements_mixedmode``,
+    ``optimize_williams_displacements_xy``, and
+    ``optimize_williams_displacements_z``.
+    Each returns a mutable normalized SciPy ``OptimizeResult`` with these
+    common fields:
 
-        * residuals_cjp_displacements
-        * residuals_williams_displacements
-        * residuals_williams_stresses
+    - ``solver`` records the selected ``direct``, ``iterative``, or ``legacy``
+      Solver Route.
+    - ``x`` contains the fitted coefficient vector in the formulation-specific
+      order documented by the fitting operation.
+    - ``fun`` contains the final displacement-residual vector in mm.
+    - ``cost`` is half the squared Euclidean residual norm in mm².
+    - ``jac`` contains the residual-by-coefficient Jacobian.
+    - ``rank`` and ``singular_values`` contain direct-solver matrix evidence
+      and are ``None`` for iterative and legacy routes.
+    - ``success``, ``message``, and ``status`` describe numerical completion.
+    - ``nfev`` and ``njev`` record the available residual and Jacobian
+      evaluation counts.
 
-        * mse_williams_displacements
-        * mse_williams_stresses
-
+    The direct route solves the fixed linear system through GELSS and ignores
+    ``method`` and ``init_coeffs``.
+    The iterative route evaluates the same fixed matrix and exact Jacobian,
+    using a zero vector when ``init_coeffs`` is absent.
+    The legacy route evaluates the established residual and Jacobian callbacks,
+    using a random initial vector when ``init_coeffs`` is absent.
     """
 
     def __init__(self,
@@ -207,18 +235,15 @@ class Optimization:
                 ``legacy``.
 
         Returns:
-            A normalized SciPy ``OptimizeResult``.
-            ``x`` has shape ``(5,)`` in ``(A, B, C, E, F)`` order, where
+            The normalized SciPy ``OptimizeResult`` described by the class
+            contract.
+            Its ``x`` field has shape ``(5,)`` in ``(A, B, C, E, F)`` order, where
             ``A``, ``B``, and ``E`` use MPa sqrt(mm) and ``C`` and ``F`` use MPa.
-            ``fun`` has shape ``(m,)`` and contains valid x-displacement residuals
+            Its ``fun`` field has shape ``(m,)`` and contains valid
+            x-displacement residuals
             followed by valid y-displacement residuals in mm.
-            ``cost`` is half the squared residual norm in mm squared, and ``jac``
-            has shape ``(m, 5)`` in the same equation and coefficient order.
-            The remaining normalized fields are ``solver``, ``rank``,
-            ``singular_values``, ``success``, ``message``, ``status``, ``nfev``,
-            and ``njev``.
-            Rank and singular values are available for ``direct`` and otherwise
-            are ``None``.
+            Its ``jac`` field has shape ``(m, 5)`` in the same equation and
+            coefficient order.
 
         Raises:
             ValueError: If ``solver`` is unsupported or a selected SciPy route
@@ -257,19 +282,17 @@ class Optimization:
                 ``legacy``.
 
         Returns:
-            A normalized SciPy ``OptimizeResult``.
-            ``x`` has shape ``(5,)`` in ``(A_r, B_r, B_i, C, E)`` order, where
+            The normalized SciPy ``OptimizeResult`` described by the class
+            contract.
+            Its ``x`` field has shape ``(5,)`` in
+            ``(A_r, B_r, B_i, C, E)`` order, where
             ``A_r``, ``B_r``, ``B_i``, and ``E`` use MPa sqrt(mm) and ``C`` uses
             MPa.
-            ``fun`` has shape ``(m,)`` and contains valid x-displacement residuals
+            Its ``fun`` field has shape ``(m,)`` and contains valid
+            x-displacement residuals
             followed by valid y-displacement residuals in mm.
-            ``cost`` is half the squared residual norm in mm squared, and ``jac``
-            has shape ``(m, 5)`` in the same equation and coefficient order.
-            The remaining normalized fields are ``solver``, ``rank``,
-            ``singular_values``, ``success``, ``message``, ``status``, ``nfev``,
-            and ``njev``.
-            Rank and singular values are available for ``direct`` and otherwise
-            are ``None``.
+            Its ``jac`` field has shape ``(m, 5)`` in the same equation and
+            coefficient order.
 
         Raises:
             ValueError: If ``solver`` is unsupported or a selected SciPy route
@@ -309,20 +332,17 @@ class Optimization:
                 ``legacy``.
 
         Returns:
-            A normalized SciPy ``OptimizeResult``.
-            ``x`` has shape ``(2 * len(terms),)`` with all ``a_n`` coefficients in
-            configured term order followed by all ``b_n`` coefficients in that
-            order.
+            The normalized SciPy ``OptimizeResult`` described by the class
+            contract.
+            Its ``x`` field has shape ``(2 * len(terms),)`` with all ``a_n``
+            coefficients in configured term order followed by all ``b_n``
+            coefficients in that order.
             A coefficient for term ``n`` uses MPa mm**(1 - n/2).
-            ``fun`` has shape ``(m,)`` and contains valid x-displacement residuals
+            Its ``fun`` field has shape ``(m,)`` and contains valid
+            x-displacement residuals
             followed by valid y-displacement residuals in mm.
-            ``cost`` is half the squared residual norm in mm squared, and ``jac``
-            has shape ``(m, 2 * len(terms))`` in the same ordering.
-            The remaining normalized fields are ``solver``, ``rank``,
-            ``singular_values``, ``success``, ``message``, ``status``, ``nfev``,
-            and ``njev``.
-            Rank and singular values are available for ``direct`` and otherwise
-            are ``None``.
+            Its ``jac`` field has shape ``(m, 2 * len(terms))`` in the same
+            ordering.
 
         Raises:
             ValueError: If ``solver`` is unsupported or a selected SciPy route
@@ -360,19 +380,15 @@ class Optimization:
                 ``legacy``.
 
         Returns:
-            A normalized SciPy ``OptimizeResult``.
-            ``x`` has shape ``(len(terms),)`` with ``c_n`` coefficients in
-            configured term order.
+            The normalized SciPy ``OptimizeResult`` described by the class
+            contract.
+            Its ``x`` field has shape ``(len(terms),)`` with ``c_n``
+            coefficients in configured term order.
             A coefficient for term ``n`` uses MPa mm**(1 - n/2).
-            ``fun`` has shape ``(m,)`` and contains valid z-displacement residuals
-            in mm.
-            ``cost`` is half the squared residual norm in mm squared, and ``jac``
-            has shape ``(m, len(terms))`` in the same term order.
-            The remaining normalized fields are ``solver``, ``rank``,
-            ``singular_values``, ``success``, ``message``, ``status``, ``nfev``,
-            and ``njev``.
-            Rank and singular values are available for ``direct`` and otherwise
-            are ``None``.
+            Its ``fun`` field has shape ``(m,)`` and contains valid
+            z-displacement residuals in mm.
+            Its ``jac`` field has shape ``(m, len(terms))`` in the same term
+            order.
 
         Raises:
             ValueError: If ``solver`` is unsupported or a selected SciPy route

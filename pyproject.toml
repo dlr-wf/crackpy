@@ -37,6 +37,11 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[dependency-groups]
+dev = [
+    "playwright>=1.61.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["crackpy*"]

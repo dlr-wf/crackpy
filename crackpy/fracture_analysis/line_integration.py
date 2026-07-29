@@ -337,11 +337,26 @@ class IntegrationPath:
 
 
 class LineIntegral(_DeprecatedBuecknerSpellingAliases):
-    """Line integral object for solving J-Integral and Interaction Integral for given material's input data
-    and path of integration.
+    """Evaluate one Integration Contour through the established mutable facade.
 
-    Methods:
-        * integrate - solve for J-integral, interaction integral, Bueckner/Chen integral
+    ``integrate_all`` evaluates the J-Integral, modal J-Integral decomposition,
+    interaction-integral Stress Intensity Factors and T-Stress,
+    Stress-Difference Method T-Stress, and configured Bueckner-Chen Integral
+    terms.
+    It returns the authoritative immutable ``ContourWiseLineIntegralResult``
+    and projects its values onto the established mutable result attributes.
+
+    ``integrate_j``, ``integrate_j_decompose``, ``integrate_i_k1_k2``,
+    ``integrate_i_t``, ``integrate_t_sdm``, and
+    ``integrate_bueckner_chen`` evaluate individual technique families and
+    update their compatibility attributes in place.
+    ``integrate_buckner_chen`` remains a deprecated spelling of
+    ``integrate_bueckner_chen``.
+
+    Current ``data``, ``material``, ``mask_tol``, and Williams-term selection
+    are synchronized before each evaluation.
+    Sampling, interpolation, and fracture-mechanics evaluation errors
+    propagate to the caller.
 
     """
 
@@ -435,7 +450,7 @@ class LineIntegral(_DeprecatedBuecknerSpellingAliases):
         """Call this method to solve all integrals
         - J-integral
         - Mode I, II, III decomposition of J-integral
-        - Interaction integral for SIF K_I and K_II
+        - Interaction integral for Stress Intensity Factors K_I and K_II
         - T-stress with interaction integral method
         - T-stress with stress difference method
         - Williams coefficients with Bueckner-Chen method (if terms are given)
@@ -491,7 +506,7 @@ class LineIntegral(_DeprecatedBuecknerSpellingAliases):
         """Call this method to solve integrals for J-integral :math:`J`
 
         Returns:
-            None. The J-Integral and energy-equivalent SIF facade
+            None. The J-Integral and energy-equivalent Stress Intensity Factor facade
             attributes are updated in place.
         """
         self._synchronize_execution()
@@ -499,10 +514,10 @@ class LineIntegral(_DeprecatedBuecknerSpellingAliases):
 
     def integrate_j_decompose(self):
         """Call this method to solve integrals for J-integral :math:`J` and its mode I, II, III decomposition
-            Negative J values are sanitized to NaN for SIF calculation.
+            Negative J values are sanitized to NaN for Stress Intensity Factor calculation.
 
         Returns:
-            None. Modal J-Integral and modal SIF facade attributes are
+            None. Modal J-Integral and modal Stress Intensity Factor facade attributes are
             updated in place.
         """
         #############################################
@@ -522,10 +537,10 @@ class LineIntegral(_DeprecatedBuecknerSpellingAliases):
         self._adopt_in_plane_samples(self._execution.in_plane_samples)
 
     def integrate_i_k1_k2(self):
-        """Populate signed Mode I and Mode II SIFs by interaction integral.
+        """Populate signed Mode I and Mode II Stress Intensity Factors by interaction integral.
 
         Returns:
-            None. The interaction-integral SIF facade attributes are
+            None. The interaction-integral Stress Intensity Factor facade attributes are
             updated in place.
         """
         #############################################

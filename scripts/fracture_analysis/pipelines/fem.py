@@ -1,18 +1,5 @@
-"""
+"""Run fracture analysis for a collection of finite-element nodemaps."""
 
-    Example script:
-        Fracture Analysis Pipeline for FE nodemaps.
-
-    Needed:
-        - folder containing FE Nodemap data
-        - crack_info_by_nodemap.txt file with the crack tip positions and angles
-
-    Output:
-        - folder containing Fracture Analysis results (plots, txt-files) for each nodemap
-
-"""
-
-# Imports
 import logging
 from pathlib import Path
 
@@ -28,10 +15,9 @@ from crackpy.structure_elements.material import Material
 # Logging
 logger = logging.getLogger(__name__)
 
-# Determine project root
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-# Paths
+# Input: finite-element nodemaps and crack-tip metadata from repository test data.
+# Output: fracture-analysis results and one aggregate CSV file.
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATA_PATH = PROJECT_ROOT / 'test_data' / 'simulations'
 OUT_FOLDER = PROJECT_ROOT / 'Fracture_Analysis_Pipeline_FE_results'
 OUT_FOLDER.mkdir(parents=True, exist_ok=True)

@@ -4,7 +4,7 @@ stores their latest results.
 
 import logging
 import warnings
-from typing import Any, Mapping, MutableMapping, Optional, Union
+from typing import MutableMapping, Optional, Union
 
 import numpy as np
 import rich.progress as progress_rich
@@ -190,14 +190,39 @@ class FractureAnalysis:
         """Return completed Contour-Wise Results in execution order."""
         return tuple(self._contour_results)
 
-    def run(self, progress_bar: Optional[Mapping[str, object]] = None, task_id=None):
-        """Run fracture analysis with the provided data, crack_tip_info, and integral_properties.
-        Results are stored as class instance attributes 'results', 'sifs', 'path_sizes', and 'path_nodes'.
+    def run(
+        self,
+        progress_bar: Optional[MutableMapping[int, dict[str, int]]] = None,
+        task_id: int | None = None,
+    ) -> None:
+        """Execute the configured Analysis Techniques for this nodemap.
+
+        ODM execution updates the authoritative CJP and Williams Technique
+        Result properties and their established mutable compatibility
+        attributes.
+        Line-Integral Evaluation appends each completed Contour-Wise Result in
+        execution order and updates the corresponding path-wise and aggregate
+        compatibility attributes.
 
         Args:
-            progress_bar: whether to show progress bar for line integral calculation
-            task_id: task id for progress bar (handed-over automatically during pipeline, not needed for single run)
+            progress_bar: Mutable progress-state mapping used for external
+                Integration Contour progress.
+                ``None`` uses the internal Rich progress display.
+            task_id: Key used to update ``progress_bar``.
+                Single-nodemap execution with the internal display leaves it
+                unset.
 
+        Returns:
+            ``None``.
+            Results remain available through the read-only Technique Result
+            properties, ``contour_results``, and established compatibility
+            attributes.
+
+        Raises:
+            Exception: Propagates errors raised during Line-Integral Evaluation
+                or contour aggregation.
+                ODM execution errors are represented by failed Technique
+                Results and NaN compatibility payloads.
         """
         logger.info("Starting fracture analysis for %s", self.nodemap_file)
         logger.debug(
@@ -364,7 +389,11 @@ class FractureAnalysis:
                 out_of_plane_result.quantities.k_iii,
             )
 
-    def _run_line_integrals(self, progress_bar: Optional[MutableMapping[str, Any]] = None, task_id=None) -> None:
+    def _run_line_integrals(
+        self,
+        progress_bar: Optional[MutableMapping[int, dict[str, int]]] = None,
+        task_id: int | None = None,
+    ) -> None:
         """Run line integrals if integral properties are provided."""
 
         contour_set = self._build_contour_set()
@@ -402,8 +431,11 @@ class FractureAnalysis:
             self.tick_sizes.append(geometry.tick_size)
 
             # Update progress bar
-            if progress_bar:
-                progress_bar[task_id] = {"progress": n + 1, "total": self.integral_properties.number_of_paths}
+            if progress_bar is not None:
+                progress_bar[task_id] = {
+                    "progress": n + 1,
+                    "total": self.integral_properties.number_of_paths,
+                }
 
         # Aggregate results
         self._aggregate_integral_results()

@@ -1,8 +1,4 @@
-"""Compare ODM Solver Routes on one deterministic in-memory displacement field.
-
-The elapsed values are observational single-run measurements, not benchmarks or
-evidence that one Solver Route is faster than another.
-"""
+"""Compare the supported ODM Solver Routes on one deterministic displacement field."""
 
 import json
 from dataclasses import dataclass

@@ -10,12 +10,12 @@ from pathlib import Path
 
 import numpy as np
 
-from scripts.fracture_analysis import compare_odm_solver_routes
+from scripts.fracture_analysis.odm import compare_solver_routes
 
 
 class TestCompareOdmSolverRoutesScript(unittest.TestCase):
     def test_comparison_retains_equivalent_full_facade_results(self):
-        rows = compare_odm_solver_routes._compare_solver_routes()
+        rows = compare_solver_routes._compare_solver_routes()
 
         self.assertEqual(len(rows), 6)
         expected_results = (
@@ -61,7 +61,7 @@ class TestCompareOdmSolverRoutesScript(unittest.TestCase):
         repository_root = Path(__file__).resolve().parents[3]
 
         completed = subprocess.run(
-            [sys.executable, "-m", "scripts.fracture_analysis.compare_odm_solver_routes"],
+            [sys.executable, "-m", "scripts.fracture_analysis.odm.compare_solver_routes"],
             cwd=repository_root,
             capture_output=True,
             check=False,

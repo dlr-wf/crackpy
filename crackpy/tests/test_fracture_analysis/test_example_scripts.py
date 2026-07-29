@@ -7,6 +7,24 @@ import sys
 from pathlib import Path
 
 
+def test_nested_fracture_analysis_scripts_resolve_the_repository_root() -> None:
+    repository_root = Path(__file__).resolve().parents[3]
+    fracture_analysis_directory = repository_root / "scripts" / "fracture_analysis"
+    relative_paths = (
+        "nodemaps/dic.py",
+        "nodemaps/fem.py",
+        "synthetic_fields/williams_in_plane.py",
+        "synthetic_fields/williams_in_plane_with_mode_iii.py",
+        "pipelines/dic_generated_contours.py",
+        "pipelines/dic_predefined_contours.py",
+        "pipelines/fem.py",
+    )
+
+    for relative_path in relative_paths:
+        source = (fracture_analysis_directory / relative_path).read_text(encoding="utf-8")
+        assert "Path(__file__).resolve().parents[3]" in source
+
+
 def test_j_integral_mode_decomposition_demonstration_reports_finite_quantities():
     repository_root = Path(__file__).resolve().parents[3]
     completed = subprocess.run(
