@@ -193,6 +193,7 @@ and was developed in the Institute of Materials Research. Feel free to check out
 _Tobias Strohmann_\
 _David Melching_\
 _Florian Paysan_\
+_Ferdinand Dömling_\
 _Eric Dietrich_\
 _Guillermo Requena_\
 _Eric Breitbarth_
@@ -202,5 +203,4 @@ We thank\
 _Alina Klein_\
 _Erik Schultheis_\
 _Vanessa Schöne_\
-_Ferdinand Dömling_\
 for continuous support regarding tests and user feedback for the package.
