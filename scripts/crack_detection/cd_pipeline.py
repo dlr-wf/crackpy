@@ -12,12 +12,16 @@
 """
 
 # imports
-from pathlib import Path
 import logging
+from pathlib import Path
+
 from matplotlib import pyplot as plt
 
 from crackpy.crack_detection.model import get_model
-from crackpy.crack_detection.pipeline.pipeline import CrackDetectionSetup, CrackDetectionPipeline
+from crackpy.crack_detection.pipeline.pipeline import (
+    CrackDetectionPipeline,
+    CrackDetectionSetup,
+)
 
 # Logging
 logger = logging.getLogger(__name__)
@@ -32,12 +36,13 @@ PROJECT_ROOT = Path(__file__).parents[2]
 DATA_PATH = PROJECT_ROOT / 'test_data' / 'crack_detection' / 'Nodemaps'
 OUTPUT_PATH = PROJECT_ROOT / 'Pipeline_Output'
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
+TIP_ONLY = False
 
 # tip detector
 tip_detector = get_model('ParallelNets')
 
 # path detector
-path_detector = get_model('UNetPath')
+path_detector = None if TIP_ONLY else get_model('UNetPath')
 
 # setup
 det_setup = CrackDetectionSetup(
@@ -45,7 +50,8 @@ det_setup = CrackDetectionSetup(
     sides=['left', 'right'],
     detection_window_size=40,
     detection_boundary=(0, 70, -35, 35),
-    start_offset=(5, 0)
+    start_offset=(5, 0),
+    tip_only=TIP_ONLY,
 )
 
 # pipeline
