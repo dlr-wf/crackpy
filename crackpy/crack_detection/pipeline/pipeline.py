@@ -47,11 +47,9 @@ class CrackDetectionSetup:
             start_offset: (offset_x, offset_y) offset from the standard starting window
                                                adapted automatically during the pipeline
             angle_det_radius: radius (in mm) around the crack tip
-            tip_only: skip crack-path detection and angle estimation. The P1 benchmark reduced the measured runtime
-                      for a pre-interpolated image from 10.87 ms to 7.40 ms (about 32 percent); end-to-end gains
-                      depend on interpolation time. The angle does not control or rotate later detection windows, but
-                      downstream fracture-analysis and crack-tip-correction workflows require it.
-
+            tip_only: whether to skip crack-path and angle estimation for faster inference. Use only when the crack-tip
+                        position is sufficient; downstream crack tip field analyses require the omitted angle
+                        to establish the local crack-tip coordinate system
         """
 
         self.specimen_size = specimen_size
