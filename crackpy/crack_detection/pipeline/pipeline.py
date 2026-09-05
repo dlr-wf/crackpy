@@ -40,7 +40,8 @@ class CrackDetectionSetup:
             detection_window_size: window size used to predict the crack tip
                                    (if None: detection_window_size is equal to specimen_size / 2 - 10)
             detection_boundary: (x_min, x_max, y_min, y_max) hard boundary of the crack detection window (to avoid NaNs)
-                                The 'left' side is mirrored to the 'right' side.
+                                The x bounds describe the 'right' side and are mirrored to
+                                (-x_max, -x_min) for the 'left' side.
                                 Example: (0, 70, -35, 35) for MT160 specimen
                                 If None: detection_boundary is set to
                                 (0, specimen_size / 2, -specimen_size / 4, specimen_size / 4)
@@ -263,18 +264,26 @@ class CrackDetectionPipeline:
 
                 # Case distinction for left and right side
                 if (side == 'right'
-                        and offset_x <= x_max - self.setup.window_size
                         and crack_tip_x > offset_x + self.setup.window_size / 2):
                     offset_x += (crack_tip_x - offset_x - self.setup.window_size / 2)
                 if (side == 'left'
-                        and offset_x >= x_min + self.setup.window_size
                         and crack_tip_x < offset_x - self.setup.window_size / 2):
                     offset_x -= (offset_x - self.setup.window_size / 2 - crack_tip_x)
-                if y_min + self.setup.window_size / 2 <= offset_y <= y_max - self.setup.window_size / 2:
-                    if crack_tip_y > offset_y + self.setup.window_size / 8:
-                        offset_y += (crack_tip_y - offset_y - self.setup.window_size / 8)
-                    if crack_tip_y < offset_y - self.setup.window_size / 8:
-                        offset_y -= (offset_y - self.setup.window_size / 8 - crack_tip_y)
+                if crack_tip_y > offset_y + self.setup.window_size / 8:
+                    offset_y += (crack_tip_y - offset_y - self.setup.window_size / 8)
+                elif crack_tip_y < offset_y - self.setup.window_size / 8:
+                    offset_y -= (offset_y - self.setup.window_size / 8 - crack_tip_y)
+
+                # Bound the new window, including its full extent and the mirrored left side.
+                if side == 'right':
+                    offset_x = np.clip(offset_x, x_min, x_max - self.setup.window_size)
+                else:
+                    offset_x = np.clip(offset_x, self.setup.window_size - x_max, -x_min)
+                offset_y = np.clip(
+                    offset_y,
+                    y_min + self.setup.window_size / 2,
+                    y_max - self.setup.window_size / 2,
+                )
 
                 if offset_x != old_offset_x or offset_y != old_offset_y:
                     logger.debug(f"Stage {stage} ({side}): detection window adjusted from ({old_offset_x:.2f}, {old_offset_y:.2f}) "
@@ -295,7 +304,7 @@ class CrackDetectionPipeline:
                 # Plot crack detection
                 plot_prediction(background=interp_eps_vm * 100,
                                 interp_size=self.setup.window_size if side == 'right' else -self.setup.window_size,
-                                offset=(offset_x, offset_y),
+                                offset=det.offset,
                                 save_name=Path(nodemap).stem,
                                 crack_tip_prediction=np.asarray([crack_tip_pixels]),
                                 crack_tip_seg=crack_tip_seg,
