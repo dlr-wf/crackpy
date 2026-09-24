@@ -749,46 +749,88 @@ def test_williams_runner_skips_all_zero_z_displacements() -> None:
     optimization.optimize_williams_displacements_z.assert_not_called()
 
 
-def test_all_nan_z_displacements_complete_the_empty_direct_system() -> None:
-    axis = np.linspace(-1.5, 1.5, 9)
+@pytest.mark.parametrize("selection", ["outside-domain", "empty-z", "empty-xy", "zero-xy"])
+def test_run_distinguishes_empty_fits_from_supported_zero_displacements(selection) -> None:
+    axis = np.linspace(-2.0, 2.0, 9)
     coor_x, coor_y = np.meshgrid(axis, axis)
     data = InputData()
     data.coor_x = coor_x.ravel()
     data.coor_y = coor_y.ravel()
     data.coor_z = np.zeros(coor_x.size)
-    data.disp_x = (0.04 + 0.02 * coor_x - 0.01 * coor_y).ravel()
-    data.disp_y = (-0.02 + 0.01 * coor_x + 0.03 * coor_y).ravel()
-    data.disp_z = np.full(coor_x.size, np.nan)
+    data.disp_x = (0.02 * coor_x - 0.01 * coor_y).ravel()
+    data.disp_y = (0.01 * coor_x + 0.03 * coor_y).ravel()
+    data.disp_z = (-0.015 * coor_x + 0.005 * coor_y).ravel()
+    if selection == "empty-z":
+        data.disp_z[:] = np.nan
+    elif selection == "empty-xy":
+        data.disp_x[:] = np.nan
+        data.disp_y[:] = np.nan
+    elif selection == "zero-xy":
+        data.disp_x[:] = 0.0
+        data.disp_y[:] = 0.0
+    outside_domain = selection == "outside-domain"
     analysis = FractureAnalysis(
-        material=Material(),
-        nodemap="all-nan-z",
-        data=data,
+        material=Material(), nodemap="empty-fit-selection", data=data,
         crack_tip_info=CrackTipInfo(0.0, 0.0, 0.0, "right"),
         integral_properties=None,
         optimization_properties=OptimizationProperties(
-            angle_gap=25,
-            min_radius=0.3,
-            max_radius=1.1,
-            tick_size=0.2,
-            terms=[-1, 1, 2],
+            angle_gap=25, min_radius=10.0 if outside_domain else 0.3,
+            max_radius=11.0 if outside_domain else 1.1,
+            tick_size=0.2, terms=[1, 2],
         ),
     )
 
-    with (
-        mock.patch.object(analysis, "_run_cjp_optimization_modeI"),
-        mock.patch.object(analysis, "_run_cjp_optimization_mixedmode"),
-    ):
-        analysis.run()
+    analysis.run()
 
-    result = analysis.williams_out_of_plane_odm_result
-    assert result.status == "completed"
-    assert result.coefficient_fit is not None
-    assert result.coefficient_fit.solver == "direct"
-    assert result.coefficient_fit.residual.size == 0
-    assert result.coefficients.c_n == (0.0, 0.0, 0.0)
-    assert result.cost == 0.0
-    assert result.quantities.k_iii == 0.0
-    np.testing.assert_array_equal(analysis.williams_coeffs[-3:], np.zeros(3))
+    xy_failed = selection in ("outside-domain", "empty-xy")
+    z_failed = selection in ("outside-domain", "empty-z")
+    for result, failed in (
+        (analysis.cjp_mode_i_odm_result, xy_failed),
+        (analysis.cjp_mixed_mode_odm_result, xy_failed),
+        (analysis.williams_in_plane_odm_result, xy_failed),
+        (analysis.williams_out_of_plane_odm_result, z_failed),
+    ):
+        assert result.status == ("failed" if failed else "completed")
+        fit = result.coefficient_fit
+        assert fit is not None
+        assert fit.success
+        if failed:
+            assert fit.residual.size == 0
+            assert fit.cost == 0.0
+            assert np.isnan(result.cost)
+            assert np.isnan(astuple(result.quantities)).all()
+        else:
+            assert fit.residual.size > 0
+            assert np.isfinite(result.cost)
+            assert np.isfinite(astuple(result.quantities)).all()
+
+    for coefficients, quantities in (
+        (analysis.cjp_coeffs_m1, analysis.cjp_res_m1),
+        (analysis.cjp_coeffs_mm, analysis.cjp_res_mm),
+    ):
+        assert coefficients.shape == (5,)
+        if xy_failed:
+            assert np.isnan(coefficients).all()
+            assert all(np.isnan(value) for value in quantities.values())
+        elif selection == "zero-xy":
+            np.testing.assert_array_equal(coefficients, np.zeros(5))
+            assert all(value == 0.0 for value in quantities.values())
+    for coefficients, failed in (
+        (analysis.williams_fit_a_n, xy_failed),
+        (analysis.williams_fit_b_n, xy_failed),
+        (analysis.williams_fit_c_n, z_failed),
+    ):
+        assert list(coefficients) == [1, 2]
+        assert all(np.isnan(value) if failed else np.isfinite(value)
+                   for value in coefficients.values())
+    for key, failed in (
+        ("Error_xy", xy_failed), ("K_I", xy_failed), ("K_II", xy_failed),
+        ("T", xy_failed), ("Error_z", z_failed), ("K_III", z_failed),
+    ):
+        value = analysis.williams_fit_res[key]
+        assert np.isnan(value) if failed else np.isfinite(value)
+        if selection == "zero-xy" and key not in ("Error_z", "K_III"):
+            assert value == 0.0
 
 
 def test_run_returns_none_and_preserves_technique_execution_order() -> None:

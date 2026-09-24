@@ -43,7 +43,7 @@ The legacy route evaluates the established residual and Jacobian callbacks.
 
 `CoefficientFitResult` owns immutable fitted coefficients, residuals, cost, completion evidence, and available matrix evidence.
 `OdmFitResult` combines that evidence with formulation-specific coefficient and quantity contracts.
-Its `completed`, `failed`, and `skipped` states describe numerical execution.
+Its `completed`, `failed`, and `skipped` states describe technique execution.
 
 ## Fitting Invariants
 

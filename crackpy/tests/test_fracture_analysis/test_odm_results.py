@@ -2,7 +2,7 @@
 completed, failed, and skipped Technique Result state.
 """
 
-from dataclasses import FrozenInstanceError, fields
+from dataclasses import FrozenInstanceError, fields, replace
 
 import numpy as np
 import pytest
@@ -151,8 +151,6 @@ def test_public_result_docstrings_describe_every_field_and_units() -> None:
             assert f"{field_name}:" in docstring
 
     generic_doc = " ".join(OdmFitResult.__doc__.split())
-    assert "numerical completion" in generic_doc
-    assert "scientific validity" in generic_doc
     assert "mm squared" in generic_doc
     for payload_type in (
         CjpModeICoefficients,
@@ -165,3 +163,19 @@ def test_public_result_docstrings_describe_every_field_and_units() -> None:
         WilliamsOutOfPlaneQuantities,
     ):
         assert "MPa" in payload_type.__doc__
+
+
+def test_odm_fit_result_rejects_empty_observations_but_retains_solver_evidence() -> None:
+    fit = replace(
+        _fit(), coefficients=np.zeros(5), residual=np.empty(0), cost=0.0,
+        jacobian=np.empty((0, 5)), rank=0, singular_values=np.empty(0),
+    )
+    coefficients, quantities = _mode_i_payloads()
+
+    result = OdmFitResult(fit, coefficients, quantities)
+
+    assert result.status == "failed"
+    assert np.isnan(result.cost)
+    assert result.coefficient_fit is fit
+    assert fit.success
+    assert fit.cost == 0.0
