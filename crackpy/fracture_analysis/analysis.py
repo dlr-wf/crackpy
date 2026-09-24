@@ -195,34 +195,22 @@ class FractureAnalysis:
         progress_bar: Optional[MutableMapping[int, dict[str, int]]] = None,
         task_id: int | None = None,
     ) -> None:
-        """Execute the configured Analysis Techniques for this nodemap.
+        """Run configured CJP, Williams and line-integral analyses.
 
-        ODM execution updates the authoritative CJP and Williams Technique
-        Result properties and their established mutable compatibility
-        attributes.
-        Line-Integral Evaluation appends each completed Contour-Wise Result in
-        execution order and updates the corresponding path-wise and aggregate
-        compatibility attributes.
+        Fits replace previous results; line-integral results are appended and
+        aggregated. Empty or failed fits produce NaN outputs.
 
         Args:
-            progress_bar: Mutable progress-state mapping used for external
-                Integration Contour progress.
-                ``None`` uses the internal Rich progress display.
-            task_id: Key used to update ``progress_bar``.
-                Single-nodemap execution with the internal display leaves it
-                unset.
+            progress_bar: External contour-progress mapping, or ``None`` for
+                the built-in Rich display.
+            task_id: Entry to update in ``progress_bar``.
 
         Returns:
-            ``None``.
-            Results remain available through the read-only Technique Result
-            properties, ``contour_results``, and established compatibility
-            attributes.
+            None. Results are stored in the analysis properties and
+            compatibility attributes.
 
         Raises:
-            Exception: Propagates errors raised during Line-Integral Evaluation
-                or contour aggregation.
-                ODM execution errors are represented by failed Technique
-                Results and NaN compatibility payloads.
+            Exception: Errors from line-integral evaluation or aggregation.
         """
         logger.info("Starting fracture analysis for %s", self.nodemap_file)
         logger.debug(

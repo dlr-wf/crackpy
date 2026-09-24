@@ -1,5 +1,6 @@
 """ODM result completion maps successful, failed, and skipped coefficient-fit
-outcomes to authoritative Technique Results.
+outcomes to authoritative Technique Results. Fits without displacement
+observations retain their numerical evidence but have NaN accepted payloads.
 """
 
 from __future__ import annotations
@@ -69,7 +70,11 @@ def _build_cjp_mode_i_odm_result(
         fixed-shape NaN payloads otherwise.
     """
     _require_coefficient_count(coefficient_fit, 5)
-    if coefficient_fit is None or not coefficient_fit.success:
+    if (
+        coefficient_fit is None
+        or not coefficient_fit.success
+        or coefficient_fit.residual.size == 0
+    ):
         nan = float("nan")
         return OdmFitResult(
             coefficient_fit,
@@ -113,7 +118,11 @@ def _build_cjp_mixed_mode_odm_result(
         fixed-shape NaN payloads otherwise.
     """
     _require_coefficient_count(coefficient_fit, 5)
-    if coefficient_fit is None or not coefficient_fit.success:
+    if (
+        coefficient_fit is None
+        or not coefficient_fit.success
+        or coefficient_fit.residual.size == 0
+    ):
         nan = float("nan")
         return OdmFitResult(
             coefficient_fit,
@@ -159,7 +168,11 @@ def _build_williams_in_plane_odm_result(
     """
     ordered_terms = tuple(terms)
     _require_coefficient_count(coefficient_fit, 2 * len(ordered_terms))
-    if coefficient_fit is None or not coefficient_fit.success:
+    if (
+        coefficient_fit is None
+        or not coefficient_fit.success
+        or coefficient_fit.residual.size == 0
+    ):
         nan_values = tuple(np.nan for _ in ordered_terms)
         return OdmFitResult(
             coefficient_fit,
@@ -218,7 +231,12 @@ def _build_williams_out_of_plane_odm_result(
     """
     ordered_terms = tuple(terms)
     _require_coefficient_count(coefficient_fit, len(ordered_terms))
-    if skipped or coefficient_fit is None or not coefficient_fit.success:
+    if (
+        skipped
+        or coefficient_fit is None
+        or not coefficient_fit.success
+        or coefficient_fit.residual.size == 0
+    ):
         nan_values = tuple(np.nan for _ in ordered_terms)
         return OdmFitResult(
             coefficient_fit,
