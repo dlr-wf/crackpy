@@ -3,6 +3,10 @@
 The `fracture_analysis` package coordinates crack-tip-field evaluation with the Over-Deterministic Method (ODM) and Line-Integral Evaluation Techniques.
 `FractureAnalysis` evaluates one nodemap, while `FractureAnalysisPipeline` applies the same analysis contract across a nodemap collection.
 
+Established package-level modules load on first access. Direct module imports and
+package attributes refer to the same modules; importing analysis does not load
+AI detection dependencies.
+
 ## Package Ownership
 
 The diagram records the intended dependency direction between current package seams.
