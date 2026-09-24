@@ -1,3 +1,5 @@
+"""Detect crack tips and paths from line-intercept displacement fits."""
+
 import logging
 from pathlib import Path
 
@@ -13,10 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class CrackDetectionLineIntercept:
-    """Crack detection class using a line interception method.
-
-    This method fits a tanh function to displacement data on vertical slices
-    to detect the crack path and tip position.
+    """Detect a crack tip and path from vertical displacement slices.
 
     Attributes:
         data: Input nodemap data
@@ -24,18 +23,18 @@ class CrackDetectionLineIntercept:
         x_max: Maximum x-coordinate of detection window
         y_min: Minimum y-coordinate of detection window
         y_max: Maximum y-coordinate of detection window
-        tick_size_x: Tick size in x direction
-        tick_size_y: Tick size in y direction
+        tick_size_x: Tick size in x direction [mm]
+        tick_size_y: Tick size in y direction [mm]
         grid_component: Displacement component for detection ('ux' or 'uy')
         eps_vm_threshold: Threshold for crack detection
         window_size: Size of sliding window for thresholding
-        angle_estimation_mm_radius: Radius for crack angle estimation in mm
-        crack_tip: Detected crack tip position
-        crack_path: Detected crack path
-        crack_angle: Detected crack angle
+        angle_estimation_mm_radius: Radius for crack angle estimation [mm]
+        crack_tip: Detected crack tip position [mm]
+        crack_path: Detected path points [mm], ordered toward the tip
+        crack_angle: Crack-extension angle from global +x [°], or NaN if unavailable
 
     Methods:
-        * predict_tip_pos - predict the crack tip position using line interception method
+        * run - detect the crack tip position using the line-intercept method
 
     """
 
@@ -70,8 +69,14 @@ class CrackDetectionLineIntercept:
             angle_estimation_mm_radius: mm radius used for crack angle estimation
             side: side of the crack tip (left or right)
 
+        Raises:
+            ValueError: If ``side`` is not ``'left'`` or ``'right'``.
+
         """
-        self.tip_index = 0
+        if side not in ('left', 'right'):
+            raise ValueError("side must be 'left' or 'right'")
+
+        self.tip_index = None
         self.eps_vm_crack_path = None
         self.x_path = None
         self.y_path = None
@@ -150,12 +155,7 @@ class CrackDetectionLineIntercept:
         # Find the crack tip
         self.eps_vm_crack_path = scipy.interpolate.griddata((self.data.coor_x, self.data.coor_y), self.data.eps_vm,
                                                        (self.x_path, self.y_path), method='linear')
-        self.tip_index = 0
-
-        if self.detection_side not in ('left', 'right'):
-            logger.error("Invalid detection_side '%s'. Expected 'right' or 'left'. Defaulting to 'right'.",
-                         self.detection_side)
-            self.detection_side = 'right'
+        self.tip_index = None
 
         eps_vm_path = self.eps_vm_crack_path[::-1] if self.detection_side == 'right' else self.eps_vm_crack_path
 
@@ -164,14 +164,20 @@ class CrackDetectionLineIntercept:
                 if self.detection_side == 'right':
                     self.tip_index = len(eps_vm_path) - i - 1
                 else:
-                    self.tip_index = i + self.window_size - 1
+                    self.tip_index = i
                 break
 
-        logger.debug("Crack tip search: tip_index=%d out of %d path points", self.tip_index, len(self.x_path))
+        logger.debug("Crack tip search: tip_index=%s out of %d path points", self.tip_index, len(self.x_path))
 
-        if self.tip_index > 0:
+        if self.tip_index is not None:
             self.crack_tip = np.asarray([self.x_path[self.tip_index], self.y_path[self.tip_index]])
-            self.crack_path = np.stack([self.x_path[0:self.tip_index], self.y_path[0:self.tip_index]], axis=-1)
+            if self.detection_side == 'right':
+                path_indices = slice(None, self.tip_index)
+            else:
+                path_indices = slice(self.tip_index + 1, None)
+            self.crack_path = np.stack([self.x_path[path_indices], self.y_path[path_indices]], axis=-1)
+            if self.detection_side == 'left':
+                self.crack_path = self.crack_path[::-1]
 
             # crack angle estimation
             angle_estimation_px_radius = int(self.angle_estimation_mm_radius / self.tick_size_x)
@@ -179,11 +185,14 @@ class CrackDetectionLineIntercept:
             # linear fit near crack tip
             x = self.crack_path[-angle_estimation_px_radius:-1, 0]
             y = self.crack_path[-angle_estimation_px_radius:-1, 1]
-            line_coeffs = np.polyfit(x, y, 1)
-            m = line_coeffs[0]
-            c = line_coeffs[1]
-            yy = m * x + c
-            self.crack_angle = np.arctan2(yy[-1] - yy[0], x[-1] - x[0]) * 180.0 / np.pi
+            if angle_estimation_px_radius >= 3 and len(x) >= 2:
+                line_coeffs = np.polyfit(x, y, 1)
+                m = line_coeffs[0]
+                self.crack_angle = np.degrees(np.arctan(m))
+                if self.detection_side == 'left':
+                    self.crack_angle += 180.0
+            else:
+                self.crack_angle = np.nan
 
             logger.debug("Crack tip detected at (%.3f, %.3f) mm, angle=%.2f°", self.crack_tip[0], self.crack_tip[1], self.crack_angle)
             logger.debug("Crack path contains %d points", len(self.crack_path))
