@@ -67,16 +67,12 @@ def coefficient_fit_from_optimize_result(
     """
     return CoefficientFitResult(
         solver=cast(SolverRoute, result.solver),
-        coefficients=np.array(result.x, copy=True),
-        residual=np.array(result.fun, copy=True),
+        coefficients=result.x,
+        residual=result.fun,
         cost=result.cost,
-        jacobian=None if result.jac is None else np.array(result.jac, copy=True),
+        jacobian=result.jac,
         rank=result.rank,
-        singular_values=(
-            None
-            if result.singular_values is None
-            else np.array(result.singular_values, copy=True)
-        ),
+        singular_values=result.singular_values,
         success=result.success,
         message=result.message,
         status=result.status,

@@ -54,7 +54,6 @@ from crackpy.fracture_analysis.odm.runners import (
     _build_williams_in_plane_odm_result,
     _build_williams_out_of_plane_odm_result,
 )
-from crackpy.fracture_analysis.odm.solvers import coefficient_fit_from_optimize_result
 from crackpy.fracture_analysis.optimization import Optimization, OptimizationProperties
 from crackpy.input.crack_tip_info import CrackTipInfo
 from crackpy.input.input_data import InputData
@@ -254,8 +253,7 @@ class FractureAnalysis:
         """Run CJP optimization if optimization properties are provided."""
 
         try:
-            cjp_results_m1 = self.optimization.optimize_cjp_displacements_modeI()
-            coefficient_fit = coefficient_fit_from_optimize_result(cjp_results_m1)
+            coefficient_fit = self.optimization._fit_cjp_displacements_modeI()
             result = _build_cjp_mode_i_odm_result(coefficient_fit)
             coefficients, quantities = _project_cjp_mode_i_compatibility(result)
             self._cjp_mode_i_odm_result = result
@@ -284,8 +282,7 @@ class FractureAnalysis:
         """Run CJP optimization if optimization properties are provided."""
 
         try:
-            cjp_results = self.optimization.optimize_cjp_displacements_mixedmode()
-            coefficient_fit = coefficient_fit_from_optimize_result(cjp_results)
+            coefficient_fit = self.optimization._fit_cjp_displacements_mixedmode()
             result = _build_cjp_mixed_mode_odm_result(coefficient_fit)
             coefficients, quantities = _project_cjp_mixed_mode_compatibility(result)
             self._cjp_mixed_mode_odm_result = result
@@ -316,8 +313,7 @@ class FractureAnalysis:
             self.data.disp_z)  # -> both None or all zeros mean no sensible z-displacements are provided
 
         try:
-            williams_results_xy = self.optimization.optimize_williams_displacements_xy()
-            in_plane_fit = coefficient_fit_from_optimize_result(williams_results_xy)
+            in_plane_fit = self.optimization._fit_williams_displacements_xy()
         except Exception:
             logger.exception(
                 'Williams optimization for xy failed. Corresponding Williams optimization results set to NaN.')
@@ -329,10 +325,7 @@ class FractureAnalysis:
             out_of_plane_fit = None
         else:
             try:
-                williams_results_z = self.optimization.optimize_williams_displacements_z()
-                out_of_plane_fit = coefficient_fit_from_optimize_result(
-                    williams_results_z
-                )
+                out_of_plane_fit = self.optimization._fit_williams_displacements_z()
             except Exception:
                 logger.exception(
                     'Williams optimization for z-displacements failed. Corresponding Williams optimization results set to NaN.')

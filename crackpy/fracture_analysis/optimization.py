@@ -13,6 +13,7 @@ from crackpy.fracture_analysis.odm.assembly import (
     assemble_cjp,
     assemble_williams,
 )
+from crackpy.fracture_analysis.odm.results import CoefficientFitResult
 from crackpy.fracture_analysis.odm.sampling import (
     build_optimization_grid,
     prepare_interpolated_displacement_grid,
@@ -197,28 +198,15 @@ class Optimization:
             method: str,
             init_coeffs: np.ndarray | None,
             residuals: ResidualFunction,
-            jacobian: ResidualFunction):
-        """Solve one fixed ODM system and adapt it to the public facade.
-
-        Args:
-            system: Fixed residual-by-coefficient system to solve.
-            solver: Numerical Solver Route to use.
-            method: SciPy method forwarded to iterative and legacy routes.
-            init_coeffs: Optional initialization forwarded to iterative and legacy routes.
-            residuals: Existing residual callback supplied only to the legacy route.
-            jacobian: Existing Jacobian callback supplied only to the legacy route.
-
-        Returns:
-            A mutable normalized SciPy-compatible optimization result.
-        """
+            jacobian: ResidualFunction) -> CoefficientFitResult:
+        """Solve one fixed ODM displacement system."""
         solver_arguments = {}
         if solver != "direct":
             initial = None if init_coeffs is None else np.array(init_coeffs, copy=True)
             solver_arguments.update(method=method, init_coeffs=initial)
         if solver == "legacy":
             solver_arguments.update(residuals=residuals, jacobian=jacobian)
-        result = solve_coefficient_fit(system, solver=solver, **solver_arguments)
-        return to_optimize_result(result)
+        return solve_coefficient_fit(system, solver=solver, **solver_arguments)
 
     def optimize_cjp_displacements_modeI(
             self, method='lm', init_coeffs=None, *, solver: SolverRoute = "direct"):
@@ -250,22 +238,9 @@ class Optimization:
                 rejects ``method`` or ``init_coeffs``.
 
         """
-        logger.debug("Starting CJP mode I optimization using solver '%s' and method '%s'", solver, method)
-        logging.warning("CJP Mode I optimization is experimental and may produce unreliable results. "
-                        "Use only for Mode I–dominated load cases. Interpret all outputs with caution.")
-
-        result = self._solve_displacement_system(
-            self._cjp_assembly.mode_i,
-            solver=solver,
-            method=method,
-            init_coeffs=init_coeffs,
-            residuals=self.residuals_cjp_displacements_modeI,
-            jacobian=self.jacobian_cjp_displacements_modeI,
+        return to_optimize_result(
+            self._fit_cjp_displacements_modeI(method, init_coeffs, solver=solver)
         )
-        logger.debug(
-            "CJP mode I optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success,
-            result.nfev)
-        return result
 
     def optimize_cjp_displacements_mixedmode(
             self, method='lm', init_coeffs=None, *, solver: SolverRoute = "direct"):
@@ -299,24 +274,9 @@ class Optimization:
                 rejects ``method`` or ``init_coeffs``.
 
         """
-        logger.debug("Starting CJP mixedmode optimization using solver '%s' and method '%s'", solver, method)
-        logging.warning(
-            "CJP Mode I/II optimization is experimental and may produce unreliable results. "
-            "Use only for Mode I–dominated load cases. Interpret all outputs with caution.")
-
-        result = self._solve_displacement_system(
-            self._cjp_assembly.mixed_mode,
-            solver=solver,
-            method=method,
-            init_coeffs=init_coeffs,
-            residuals=self.residuals_cjp_displacements_mixedmode,
-            jacobian=self.jacobian_cjp_displacements_mixedmode,
+        return to_optimize_result(
+            self._fit_cjp_displacements_mixedmode(method, init_coeffs, solver=solver)
         )
-
-        logger.debug(
-            "CJP mixedmode optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success,
-            result.nfev)
-        return result
 
     def optimize_williams_displacements_xy(
             self, method='lm', init_coeffs=None, *, solver: SolverRoute = "direct"):
@@ -349,22 +309,9 @@ class Optimization:
                 rejects ``method`` or ``init_coeffs``.
 
         """
-        logger.debug(
-            "Starting Williams 2D optimization with %d terms using solver '%s' and method '%s'",
-            len(self.terms), solver, method,
+        return to_optimize_result(
+            self._fit_williams_displacements_xy(method, init_coeffs, solver=solver)
         )
-        result = self._solve_displacement_system(
-            self._williams_assembly.xy,
-            solver=solver,
-            method=method,
-            init_coeffs=init_coeffs,
-            residuals=self.residuals_williams_displacements,
-            jacobian=self.jacobian_williams_displacements,
-        )
-
-        logger.debug(
-            "Williams optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success, result.nfev)
-        return result
 
     def optimize_williams_displacements_z(
             self, method='lm', init_coeffs=None, *, solver: SolverRoute = "direct"):
@@ -395,21 +342,62 @@ class Optimization:
                 rejects ``method`` or ``init_coeffs``.
 
         """
-        logger.debug(
-            "Starting Williams 3D optimization with %d terms using solver '%s' and method '%s'",
-            len(self.terms), solver, method,
+        return to_optimize_result(
+            self._fit_williams_displacements_z(method, init_coeffs, solver=solver)
         )
+
+    def _fit_cjp_displacements_modeI(
+            self, method='lm', init_coeffs=None, *, solver: SolverRoute = "direct") -> CoefficientFitResult:
+        """Fit the prepared CJP Mode I displacement system."""
+        logger.debug("Starting CJP mode I optimization using solver '%s' and method '%s'", solver, method)
+        logging.warning("CJP Mode I optimization is experimental and may produce unreliable results. "
+                        "Use only for Mode I–dominated load cases. Interpret all outputs with caution.")
         result = self._solve_displacement_system(
-            self._williams_assembly.z,
-            solver=solver,
-            method=method,
-            init_coeffs=init_coeffs,
-            residuals=self.residuals_williams_displacements_z,
-            jacobian=self.jacobian_williams_displacements_z,
+            self._cjp_assembly.mode_i, solver=solver, method=method, init_coeffs=init_coeffs,
+            residuals=self.residuals_cjp_displacements_modeI, jacobian=self.jacobian_cjp_displacements_modeI,
         )
-        logger.debug(
-            "Williams 3D optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success,
-            result.nfev)
+        logger.debug("CJP mode I optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success,
+                     result.nfev)
+        return result
+
+    def _fit_cjp_displacements_mixedmode(
+            self, method='lm', init_coeffs=None, *, solver: SolverRoute = "direct") -> CoefficientFitResult:
+        """Fit the prepared mixed-mode CJP displacement system."""
+        logger.debug("Starting CJP mixedmode optimization using solver '%s' and method '%s'", solver, method)
+        logging.warning("CJP Mode I/II optimization is experimental and may produce unreliable results. "
+                        "Use only for Mode I–dominated load cases. Interpret all outputs with caution.")
+        result = self._solve_displacement_system(
+            self._cjp_assembly.mixed_mode, solver=solver, method=method, init_coeffs=init_coeffs,
+            residuals=self.residuals_cjp_displacements_mixedmode, jacobian=self.jacobian_cjp_displacements_mixedmode,
+        )
+        logger.debug("CJP mixedmode optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success,
+                     result.nfev)
+        return result
+
+    def _fit_williams_displacements_xy(
+            self, method='lm', init_coeffs=None, *, solver: SolverRoute = "direct") -> CoefficientFitResult:
+        """Fit the prepared in-plane Williams displacement system."""
+        logger.debug("Starting Williams 2D optimization with %d terms using solver '%s' and method '%s'",
+                     len(self.terms), solver, method)
+        result = self._solve_displacement_system(
+            self._williams_assembly.xy, solver=solver, method=method, init_coeffs=init_coeffs,
+            residuals=self.residuals_williams_displacements, jacobian=self.jacobian_williams_displacements,
+        )
+        logger.debug("Williams optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success,
+                     result.nfev)
+        return result
+
+    def _fit_williams_displacements_z(
+            self, method='lm', init_coeffs=None, *, solver: SolverRoute = "direct") -> CoefficientFitResult:
+        """Fit the prepared out-of-plane Williams displacement system."""
+        logger.debug("Starting Williams 3D optimization with %d terms using solver '%s' and method '%s'",
+                     len(self.terms), solver, method)
+        result = self._solve_displacement_system(
+            self._williams_assembly.z, solver=solver, method=method, init_coeffs=init_coeffs,
+            residuals=self.residuals_williams_displacements_z, jacobian=self.jacobian_williams_displacements_z,
+        )
+        logger.debug("Williams 3D optimization completed: cost=%.6e, success=%s, nfev=%d", result.cost, result.success,
+                     result.nfev)
         return result
 
     def residuals_cjp_displacements_modeI(self, inp: list or np.array) -> np.ndarray:
