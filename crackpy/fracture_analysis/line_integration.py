@@ -18,7 +18,7 @@ from crackpy.fracture_analysis.crack_tip_fields.williams import (
 )
 from crackpy.fracture_analysis.line_integrals import (
     ContourWiseLineIntegralResult,
-    auxiliary_fields,
+    auxiliary_field_preparation,
     mode_decomposition,
     sampling,
 )
@@ -619,7 +619,7 @@ class LineIntegral(_DeprecatedBuecknerSpellingAliases):
 
     def _evaluate_shifted_auxiliary_fields(self, evaluator):
         """Evaluate an analytical field on aligned base and shifted contour points."""
-        self._shifted_auxiliary_fields = auxiliary_fields.evaluate_shifted_auxiliary_fields(
+        self._shifted_auxiliary_fields = auxiliary_field_preparation.evaluate_shifted_auxiliary_fields(
             evaluator,
             self._integration_contour_geometry,
         )
@@ -631,7 +631,7 @@ class LineIntegral(_DeprecatedBuecknerSpellingAliases):
 
     def _get_auxiliary_crack_nearfield(self, ki_aux: float, kii_aux: float):
         """Evaluate crack-nearfield tensors and the shifted displacement derivative in batches."""
-        self._auxiliary_in_plane_fields = auxiliary_fields.prepare_lefm_auxiliary_fields(
+        self._auxiliary_in_plane_fields = auxiliary_field_preparation.prepare_lefm_auxiliary_fields(
             ki_aux,
             kii_aux,
             self._integration_contour_geometry,
@@ -645,7 +645,7 @@ class LineIntegral(_DeprecatedBuecknerSpellingAliases):
 
     def _get_auxiliary_zhao_fields(self):
         """Evaluate Zhao auxiliary stresses and shifted displacement derivatives in batches."""
-        self._zhao_auxiliary_fields = auxiliary_fields.prepare_zhao_auxiliary_fields(
+        self._zhao_auxiliary_fields = auxiliary_field_preparation.prepare_zhao_auxiliary_fields(
             self._integration_contour_geometry,
             material=self.material,
         )

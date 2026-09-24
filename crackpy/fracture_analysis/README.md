@@ -49,7 +49,7 @@ flowchart LR
 
 | Package | Responsibility |
 | --- | --- |
-| [`crack_tip_fields`](crack_tip_fields/README.md) | CJP and Williams bases, coefficient contracts, and derived fracture-mechanics quantities. |
+| [`crack_tip_fields`](crack_tip_fields/README.md) | Analytical crack-tip fields, displacement bases, coefficient contracts, and derived fracture-mechanics quantities. |
 | [`odm`](odm/README.md) | Displacement sampling, linear fitting, Solver Routes, and ODM Technique Results. |
 | [`functionals`](functionals/README.md) | Fracture-mechanics expressions evaluated before contour integration. |
 | [`line_integrals`](line_integrals/README.md) | Contour geometry, sampled fields, auxiliary fields, integration, and Contour-Wise Results. |

@@ -7,10 +7,10 @@ import sys
 
 import numpy as np
 
-from crackpy.fracture_analysis.crack_tip import (
-    williams_displ_field_xy,
-    williams_displ_field_z,
-    williams_stress_field,
+from crackpy.fracture_analysis.crack_tip_fields.williams.solutions import (
+    williams_in_plane_displacement_field,
+    williams_in_plane_stress_field,
+    williams_out_of_plane_displacement_field,
 )
 from crackpy.fracture_analysis.line_integration import (
     IntegrationPath,
@@ -57,7 +57,7 @@ def _synthetic_williams_data(
     x_mesh, y_mesh = np.meshgrid(coordinates, coordinates, indexing="xy")
     radius = np.hypot(x_mesh, y_mesh)
     angle = np.arctan2(y_mesh, x_mesh)
-    displacement_x, displacement_y = williams_displ_field_xy(
+    displacement_x, displacement_y = williams_in_plane_displacement_field(
         symmetric_coefficients,
         antisymmetric_coefficients,
         terms,
@@ -65,14 +65,14 @@ def _synthetic_williams_data(
         radius,
         material,
     )
-    displacement_z = williams_displ_field_z(
+    displacement_z = williams_out_of_plane_displacement_field(
         out_of_plane_coefficients,
         terms,
         angle,
         radius,
         material,
     )
-    stress_x, stress_y, stress_xy = williams_stress_field(
+    stress_x, stress_y, stress_xy = williams_in_plane_stress_field(
         symmetric_coefficients,
         antisymmetric_coefficients,
         terms,

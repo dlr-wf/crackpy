@@ -96,3 +96,33 @@ def test_rerun_clears_geometry_when_plateau_disappears(side):
     assert np.isnan(detection.crack_tip).all()
     assert np.isnan(detection.crack_path).all()
     assert np.isnan(detection.crack_angle)
+
+
+def test_left_fit_follows_measured_crack_like_its_right_reflection():
+    """Stage 55 must follow the displacement jump, not drift above the crack."""
+    from copy import deepcopy
+    from pathlib import Path
+
+    from crackpy.structure_elements.data_files import Nodemap
+
+    folder = Path(__file__).resolve().parents[3] / 'test_data/crack_detection/Nodemaps'
+    data = InputData(Nodemap(
+        name='Dummy2_WPXXX_DummyVersuch_2_dic_results_1_55.txt', folder=str(folder),
+    ))
+    reflected = deepcopy(data)
+    reflected.coor_x *= -1
+    reflected.disp_x *= -1
+    settings = {
+        'y_min': -10, 'y_max': 10, 'tick_size_x': 0.1, 'tick_size_y': 0.1,
+        'eps_vm_threshold': 0.01, 'window_size': 3, 'angle_estimation_mm_radius': 5,
+    }
+    left = CrackDetectionLineIntercept(data, x_min=-25, x_max=0, side='left', **settings)
+    right = CrackDetectionLineIntercept(reflected, x_min=0, x_max=25, side='right', **settings)
+    left.run()
+    right.run()
+
+    assert np.isfinite(left.crack_tip).all()
+    assert np.isfinite(right.crack_tip).all()
+    np.testing.assert_allclose(left.crack_tip, right.crack_tip * [-1, 1], atol=1e-5)
+    np.testing.assert_allclose(left.crack_path, right.crack_path * [-1, 1], atol=1e-5)
+    assert left.crack_angle == pytest.approx(180 - right.crack_angle, abs=1e-4)

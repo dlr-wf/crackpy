@@ -9,12 +9,14 @@ LineIntegral compatibility facade.
 import numpy as np
 
 from crackpy.fracture_analysis._interpolation_cache import InterpolatorCache
-from crackpy.fracture_analysis.crack_tip import eigenfunction
 from crackpy.fracture_analysis.crack_tip_fields.williams import (
     quantities as williams_quantities,
 )
 from crackpy.fracture_analysis.crack_tip_fields.williams.coefficients import (
     WilliamsInPlaneCoefficients,
+)
+from crackpy.fracture_analysis.crack_tip_fields.williams.solutions import (
+    williams_in_plane_eigenfunction,
 )
 from crackpy.fracture_analysis.functionals.bueckner_chen import (
     bueckner_chen_integral_terms,
@@ -37,7 +39,7 @@ from crackpy.fracture_analysis.functionals.stress_difference import (
     t_stress_from_stress_difference,
 )
 from crackpy.fracture_analysis.line_integrals import (
-    auxiliary_fields,
+    auxiliary_field_preparation,
     mode_decomposition,
     sampling,
 )
@@ -357,7 +359,7 @@ class _LineIntegralExecution:
         auxiliary_sif_i: float,
         auxiliary_sif_ii: float,
     ) -> float:
-        auxiliary_field_values = auxiliary_fields.prepare_lefm_auxiliary_fields(
+        auxiliary_field_values = auxiliary_field_preparation.prepare_lefm_auxiliary_fields(
             auxiliary_sif_i,
             auxiliary_sif_ii,
             self.geometry,
@@ -379,7 +381,7 @@ class _LineIntegralExecution:
         return interaction_integral
 
     def _solve_t_stress_interaction_integral(self) -> float:
-        auxiliary_field_values = auxiliary_fields.prepare_zhao_auxiliary_fields(
+        auxiliary_field_values = auxiliary_field_preparation.prepare_zhao_auxiliary_fields(
             self.geometry,
             material=self.material,
         )
@@ -427,7 +429,7 @@ class _LineIntegralExecution:
         symmetric_auxiliary_amplitude: float,
         antisymmetric_auxiliary_amplitude: float,
     ) -> float:
-        sigma_x, sigma_y, sigma_xy, displacement_x, displacement_y = eigenfunction(
+        sigma_x, sigma_y, sigma_xy, displacement_x, displacement_y = williams_in_plane_eigenfunction(
             auxiliary_term,
             symmetric_auxiliary_amplitude,
             antisymmetric_auxiliary_amplitude,

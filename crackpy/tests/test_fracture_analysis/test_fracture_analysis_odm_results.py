@@ -875,3 +875,19 @@ def test_run_returns_none_and_preserves_technique_execution_order() -> None:
         "williams",
         "line_integrals",
     ]
+
+
+@pytest.mark.parametrize("formulation", ["modeI", "mixedmode"])
+def test_cjp_rejects_a_fit_with_the_wrong_coefficient_count(formulation):
+    analysis = _analysis()
+    optimization = _enable_optimization(analysis)
+    getattr(optimization, "_fit_cjp_displacements_" + formulation).return_value = (
+        _fit_result([1.0, 2.0, 3.0, 4.0])
+    )
+    other = "mixedmode" if formulation == "modeI" else "modeI"
+    with (
+        mock.patch.object(analysis, "_run_cjp_optimization_" + other),
+        mock.patch.object(analysis, "_run_williams_optimization"),
+        pytest.raises(ValueError, match="exactly 5 coefficients"),
+    ):
+        analysis.run()

@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 class CrackDetectionLineIntercept:
     """Detect a crack tip and path from vertical displacement slices.
 
+    This method fits a tanh function to displacement data on vertical slices
+    to detect the crack path and tip position.
+    Fits proceed from the crack interior toward the tip: right to left for a
+    left tip and left to right for a right tip.
+
     Attributes:
         data: Input nodemap data
         x_min: Minimum x-coordinate of detection window
@@ -124,7 +129,11 @@ class CrackDetectionLineIntercept:
 
         self.x_path = []
         num_valid_slices = 0
-        for step, x_coordinate in enumerate(self.x_coords):
+        slice_indices = range(len(self.x_coords))
+        if self.detection_side == 'left':
+            slice_indices = reversed(slice_indices)
+        for step in slice_indices:
+            x_coordinate = self.x_coords[step]
             if not np.isnan(self.disp_grid[:, step]).all():
                 num_valid_slices += 1
                 init_coeffs = [1.0, init_coeff, 1.0, 0.0, 0.0]
@@ -146,6 +155,9 @@ class CrackDetectionLineIntercept:
 
         logger.debug("Fitted tanh function to %d valid slices out of %d total slices", num_valid_slices, len(self.x_coords))
 
+        if self.detection_side == 'left':
+            self.x_path.reverse()
+            coefficients_fitted.reverse()
         self.coefficients_fitted = np.asarray(coefficients_fitted).T
 
         # The y-coordinate of the crack path corresponds to the coefficient "B".

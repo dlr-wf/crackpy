@@ -1,6 +1,6 @@
 # Crack-Tip Fields
 
-The `crack_tip_fields` package owns the analytical displacement bases, coefficient contracts, and derived fracture-mechanics quantities for the CJP Model and Williams Expansion.
+The `crack_tip_fields` package owns analytical stress and displacement fields, displacement bases, coefficient contracts, and derived fracture-mechanics quantities for the CJP Model and Williams Expansion.
 Its formulation packages preserve coefficient order, sign conventions, and units from the analytical field through downstream results.
 
 ## Formulation Contracts
@@ -13,6 +13,7 @@ Its formulation packages preserve coefficient order, sign conventions, and units
 | Williams out-of-plane | `williams_out_of_plane_displacement_basis` returns z-displacement responses in selected `c_n` term order. | `WilliamsOutOfPlaneCoefficients` binds terms to `c_n`; `WilliamsOutOfPlaneQuantities` stores `K_III`. |
 
 Callers use `crack_tip_fields.cjp` and `crack_tip_fields.williams` as the supported formulation namespaces.
+The `cjp.solutions` and `williams.solutions` modules evaluate analytical fields; `auxiliary` supplies the near-field and Zhao reference fields used by contour integrals.
 ODM assembly consumes the coefficient-separated displacement bases.
 ODM results carry the matching coefficient and quantity contracts.
 Line-integral evaluation uses Williams in-plane coefficients for Bueckner-Chen results and the second-order coefficient transformation for T-stress.

@@ -1,11 +1,9 @@
-"""ODM result completion maps successful, failed, and skipped coefficient-fit
-outcomes to authoritative Technique Results. Fits without displacement
-observations retain their numerical evidence but have NaN accepted payloads.
-"""
+"""ODM runners execute prepared displacement fits and complete their results."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import logging
+from collections.abc import Callable, Sequence
 
 import numpy as np
 
@@ -31,6 +29,8 @@ from crackpy.fracture_analysis.crack_tip_fields.williams.quantities import (
 )
 from crackpy.fracture_analysis.odm.results import CoefficientFitResult, OdmFitResult
 
+logger = logging.getLogger(__name__)
+
 ################################
 # SHARED RESULT-FIT VALIDATION #
 ################################
@@ -49,6 +49,72 @@ def _require_coefficient_count(
             f"ODM result requires exactly {expected_count} coefficients; "
             f"received {coefficient_fit.coefficients.size}."
         )
+
+
+def _run_cjp_mode_i_odm(
+    fit: Callable[[], CoefficientFitResult],
+) -> OdmFitResult[CjpModeICoefficients, CjpModeIQuantities]:
+    """Execute a prepared CJP Mode I fit and complete its result."""
+    try:
+        coefficient_fit = fit()
+    except Exception:
+        logger.exception(
+            "CJP optimization (Mode I) failed. CJP Mode I optimization results set to NaN."
+        )
+        coefficient_fit = None
+    return _build_cjp_mode_i_odm_result(coefficient_fit)
+
+
+def _run_cjp_mixed_mode_odm(
+    fit: Callable[[], CoefficientFitResult],
+) -> OdmFitResult[CjpMixedModeCoefficients, CjpMixedModeQuantities]:
+    """Execute a prepared CJP mixed-mode fit and complete its result."""
+    try:
+        coefficient_fit = fit()
+    except Exception:
+        logger.exception("CJP optimization failed. CJP Mixed Mode optimization results set to NaN.")
+        coefficient_fit = None
+    return _build_cjp_mixed_mode_odm_result(coefficient_fit)
+
+
+def _run_williams_odm(
+    terms: Sequence[int],
+    fit_in_plane: Callable[[], CoefficientFitResult],
+    fit_out_of_plane: Callable[[], CoefficientFitResult] | None,
+) -> tuple[
+    OdmFitResult[WilliamsInPlaneCoefficients, WilliamsInPlaneQuantities],
+    OdmFitResult[WilliamsOutOfPlaneCoefficients, WilliamsOutOfPlaneQuantities],
+]:
+    """Execute prepared Williams fits and complete their independent results."""
+    try:
+        in_plane_fit = fit_in_plane()
+    except Exception:
+        logger.exception(
+            "Williams optimization for xy failed. Corresponding Williams optimization results set to NaN."
+        )
+        in_plane_fit = None
+
+    if fit_out_of_plane is None:
+        out_of_plane_fit = None
+        skipped = True
+    else:
+        try:
+            out_of_plane_fit = fit_out_of_plane()
+        except Exception:
+            logger.exception(
+                "Williams optimization for z-displacements failed. Corresponding Williams optimization results set to NaN."
+            )
+            out_of_plane_fit = None
+        skipped = False
+
+    return (
+        _build_williams_in_plane_odm_result(terms, in_plane_fit),
+        _build_williams_out_of_plane_odm_result(
+            terms,
+            out_of_plane_fit,
+            skipped=skipped,
+        ),
+    )
 
 
 ##############################################################

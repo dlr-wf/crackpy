@@ -63,7 +63,7 @@ def test_result_contract_contains_no_fracture_formula_dependencies():
 
 def test_field_preparation_responsibilities_are_split_by_scientific_role():
     sampling_source = (PACKAGE_ROOT / "sampling.py").read_text(encoding="utf-8")
-    auxiliary_fields_source = (PACKAGE_ROOT / "auxiliary_fields.py").read_text(encoding="utf-8")
+    auxiliary_fields_source = (PACKAGE_ROOT / "auxiliary_field_preparation.py").read_text(encoding="utf-8")
     mode_decomposition_source = (PACKAGE_ROOT / "mode_decomposition.py").read_text(encoding="utf-8")
 
     assert "def sample_in_plane_fields" in sampling_source
