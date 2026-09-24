@@ -8,9 +8,10 @@ from unittest import mock
 
 import numpy as np
 import pytest
-from scipy.optimize import OptimizeResult
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
+from crackpy.fracture_analysis.odm.results import CoefficientFitResult
+from crackpy.fracture_analysis.odm.solvers import to_optimize_result
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.input.crack_tip_info import CrackTipInfo
 from crackpy.input.input_data import InputData
@@ -29,20 +30,20 @@ def _analysis(data: InputData | None = None) -> FractureAnalysis:
     )
 
 
-def _facade_result(
+def _fit_result(
     coefficients: list[float] | np.ndarray,
     *,
     cost: float = 1.25,
     success: bool = True,
-) -> OptimizeResult:
-    """Build one normalized mutable result returned by the Optimization facade."""
+) -> CoefficientFitResult:
+    """Build one coefficient fit with controlled completion evidence."""
     values = np.asarray(coefficients, dtype=float)
-    return OptimizeResult(
+    return CoefficientFitResult(
         solver="direct",
-        x=values,
-        fun=np.array([0.25, -0.5]),
+        coefficients=values,
+        residual=np.array([0.25, -0.5]),
         cost=cost,
-        jac=np.ones((2, values.size)),
+        jacobian=np.ones((2, values.size)),
         rank=values.size,
         singular_values=np.ones(values.size),
         success=success,
@@ -54,7 +55,7 @@ def _facade_result(
 
 
 def _enable_optimization(analysis: FractureAnalysis) -> mock.Mock:
-    """Attach a controllable Optimization facade and enable the public run path."""
+    """Attach controlled fits and enable the public run path."""
     analysis.optimization_properties = SimpleNamespace(
         min_radius=0.3,
         max_radius=1.1,
@@ -81,9 +82,9 @@ def test_analysis_initializes_empty_authoritative_odm_results() -> None:
 
 def test_run_stores_and_projects_completed_cjp_mode_i_result() -> None:
     analysis = _analysis()
-    facade = _facade_result([1.0, 2.0, 3.0, 4.0, 5.0])
+    fit = _fit_result([1.0, 2.0, 3.0, 4.0, 5.0])
     optimization = _enable_optimization(analysis)
-    optimization.optimize_cjp_displacements_modeI.return_value = facade
+    optimization._fit_cjp_displacements_modeI.return_value = fit
 
     with (
         mock.patch.object(analysis, "_run_cjp_optimization_mixedmode"),
@@ -117,7 +118,7 @@ def test_run_stores_and_projects_completed_cjp_mode_i_result() -> None:
 def test_run_records_cjp_mode_i_exception_as_failure_without_a_fit() -> None:
     analysis = _analysis()
     optimization = _enable_optimization(analysis)
-    optimization.optimize_cjp_displacements_modeI.side_effect = RuntimeError("boom")
+    optimization._fit_cjp_displacements_modeI.side_effect = RuntimeError("boom")
 
     with (
         mock.patch.object(analysis, "_run_cjp_optimization_mixedmode"),
@@ -139,9 +140,9 @@ def test_run_records_cjp_mode_i_exception_as_failure_without_a_fit() -> None:
 
 def test_run_records_unsuccessful_cjp_mode_i_fit_without_using_candidates() -> None:
     analysis = _analysis()
-    facade = _facade_result([1.0, 2.0, 3.0, 4.0, 5.0], success=False)
+    fit = _fit_result([1.0, 2.0, 3.0, 4.0, 5.0], success=False)
     optimization = _enable_optimization(analysis)
-    optimization.optimize_cjp_displacements_modeI.return_value = facade
+    optimization._fit_cjp_displacements_modeI.return_value = fit
 
     with (
         mock.patch.object(analysis, "_run_cjp_optimization_mixedmode"),
@@ -154,7 +155,7 @@ def test_run_records_unsuccessful_cjp_mode_i_fit_without_using_candidates() -> N
     assert result.status == "failed"
     assert result.coefficient_fit is not None
     assert result.coefficient_fit.success is False
-    np.testing.assert_array_equal(result.coefficient_fit.coefficients, facade.x)
+    np.testing.assert_array_equal(result.coefficient_fit.coefficients, fit.coefficients)
     assert all(np.isnan(value) for value in astuple(result.coefficients))
     assert np.isnan(analysis.cjp_coeffs_m1).all()
     assert all(np.isnan(value) for value in analysis.cjp_res_m1.values())
@@ -163,9 +164,9 @@ def test_run_records_unsuccessful_cjp_mode_i_fit_without_using_candidates() -> N
 def test_cjp_mode_i_failure_replaces_a_previous_success_without_stale_values() -> None:
     analysis = _analysis()
     optimization = _enable_optimization(analysis)
-    optimization.optimize_cjp_displacements_modeI.side_effect = [
-        _facade_result([1.0, 2.0, 3.0, 4.0, 5.0]),
-        _facade_result([6.0, 7.0, 8.0, 9.0, 10.0], success=False),
+    optimization._fit_cjp_displacements_modeI.side_effect = [
+        _fit_result([1.0, 2.0, 3.0, 4.0, 5.0]),
+        _fit_result([6.0, 7.0, 8.0, 9.0, 10.0], success=False),
     ]
 
     with (
@@ -197,9 +198,9 @@ def test_cjp_mode_i_authoritative_property_is_read_only() -> None:
 
 def test_cjp_mode_i_authoritative_result_isolated_from_mutable_projections() -> None:
     analysis = _analysis()
-    facade = _facade_result([1.0, 2.0, 3.0, 4.0, 5.0])
+    fit = _fit_result([1.0, 2.0, 3.0, 4.0, 5.0])
     optimization = _enable_optimization(analysis)
-    optimization.optimize_cjp_displacements_modeI.return_value = facade
+    optimization._fit_cjp_displacements_modeI.return_value = fit
 
     with (
         mock.patch.object(analysis, "_run_cjp_optimization_mixedmode"),
@@ -208,7 +209,7 @@ def test_cjp_mode_i_authoritative_result_isolated_from_mutable_projections() -> 
         analysis.run()
 
     result = analysis.cjp_mode_i_odm_result
-    facade.x.fill(10.0)
+    to_optimize_result(fit).x.fill(10.0)
     analysis.cjp_coeffs_m1.fill(20.0)
     analysis.cjp_res_m1["K_F"] = 30.0
 
@@ -223,7 +224,7 @@ def test_cjp_mode_i_authoritative_result_isolated_from_mutable_projections() -> 
 def test_run_stores_and_projects_completed_cjp_mixed_mode_result() -> None:
     analysis = _analysis()
     optimization = _enable_optimization(analysis)
-    optimization.optimize_cjp_displacements_mixedmode.return_value = _facade_result(
+    optimization._fit_cjp_displacements_mixedmode.return_value = _fit_result(
         [1.0, 2.0, 3.0, 4.0, 5.0]
     )
 
@@ -258,7 +259,7 @@ def test_run_stores_and_projects_completed_cjp_mixed_mode_result() -> None:
 def test_run_records_cjp_mixed_mode_exception_as_failure_without_a_fit() -> None:
     analysis = _analysis()
     optimization = _enable_optimization(analysis)
-    optimization.optimize_cjp_displacements_mixedmode.side_effect = RuntimeError("boom")
+    optimization._fit_cjp_displacements_mixedmode.side_effect = RuntimeError("boom")
 
     with (
         mock.patch.object(analysis, "_run_cjp_optimization_modeI"),
@@ -280,9 +281,9 @@ def test_run_records_cjp_mixed_mode_exception_as_failure_without_a_fit() -> None
 
 def test_run_records_unsuccessful_cjp_mixed_mode_fit_without_using_candidates() -> None:
     analysis = _analysis()
-    facade = _facade_result([1.0, 2.0, 3.0, 4.0, 5.0], success=False)
+    fit = _fit_result([1.0, 2.0, 3.0, 4.0, 5.0], success=False)
     optimization = _enable_optimization(analysis)
-    optimization.optimize_cjp_displacements_mixedmode.return_value = facade
+    optimization._fit_cjp_displacements_mixedmode.return_value = fit
 
     with (
         mock.patch.object(analysis, "_run_cjp_optimization_modeI"),
@@ -295,7 +296,7 @@ def test_run_records_unsuccessful_cjp_mixed_mode_fit_without_using_candidates() 
     assert result.status == "failed"
     assert result.coefficient_fit is not None
     assert result.coefficient_fit.success is False
-    np.testing.assert_array_equal(result.coefficient_fit.coefficients, facade.x)
+    np.testing.assert_array_equal(result.coefficient_fit.coefficients, fit.coefficients)
     assert all(np.isnan(value) for value in astuple(result.coefficients))
     assert np.isnan(analysis.cjp_coeffs_mm).all()
     assert all(np.isnan(value) for value in analysis.cjp_res_mm.values())
@@ -304,9 +305,9 @@ def test_run_records_unsuccessful_cjp_mixed_mode_fit_without_using_candidates() 
 def test_cjp_mixed_mode_failure_replaces_previous_success_without_stale_values() -> None:
     analysis = _analysis()
     optimization = _enable_optimization(analysis)
-    optimization.optimize_cjp_displacements_mixedmode.side_effect = [
-        _facade_result([1.0, 2.0, 3.0, 4.0, 5.0]),
-        _facade_result([6.0, 7.0, 8.0, 9.0, 10.0], success=False),
+    optimization._fit_cjp_displacements_mixedmode.side_effect = [
+        _fit_result([1.0, 2.0, 3.0, 4.0, 5.0]),
+        _fit_result([6.0, 7.0, 8.0, 9.0, 10.0], success=False),
     ]
 
     with (
@@ -338,9 +339,9 @@ def test_cjp_mixed_mode_authoritative_property_is_read_only() -> None:
 
 def test_cjp_mixed_mode_result_isolated_from_mutable_projections() -> None:
     analysis = _analysis()
-    facade = _facade_result([1.0, 2.0, 3.0, 4.0, 5.0])
+    fit = _fit_result([1.0, 2.0, 3.0, 4.0, 5.0])
     optimization = _enable_optimization(analysis)
-    optimization.optimize_cjp_displacements_mixedmode.return_value = facade
+    optimization._fit_cjp_displacements_mixedmode.return_value = fit
 
     with (
         mock.patch.object(analysis, "_run_cjp_optimization_modeI"),
@@ -349,7 +350,7 @@ def test_cjp_mixed_mode_result_isolated_from_mutable_projections() -> None:
         analysis.run()
 
     result = analysis.cjp_mixed_mode_odm_result
-    facade.x.fill(10.0)
+    to_optimize_result(fit).x.fill(10.0)
     analysis.cjp_coeffs_mm.fill(20.0)
     analysis.cjp_res_mm["K_F"] = 30.0
 
@@ -366,11 +367,11 @@ def test_run_stores_and_projects_completed_williams_results() -> None:
     data.disp_z = np.array([1.0])
     analysis = _analysis(data)
     optimization = _enable_optimization(analysis)
-    optimization.optimize_williams_displacements_xy.return_value = _facade_result(
+    optimization._fit_williams_displacements_xy.return_value = _fit_result(
         [10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
         cost=1.5,
     )
-    optimization.optimize_williams_displacements_z.return_value = _facade_result(
+    optimization._fit_williams_displacements_z.return_value = _fit_result(
         [70.0, 80.0, 90.0],
         cost=0.5,
     )
@@ -424,11 +425,11 @@ def test_custom_williams_terms_retain_fit_and_derive_supported_quantities() -> N
     optimization = _enable_optimization(analysis)
     analysis.optimization_properties.terms = [1, 3]
     optimization.terms = np.array([1, 3])
-    optimization.optimize_williams_displacements_xy.return_value = _facade_result(
+    optimization._fit_williams_displacements_xy.return_value = _fit_result(
         [10.0, 20.0, 30.0, 40.0],
         cost=1.5,
     )
-    optimization.optimize_williams_displacements_z.return_value = _facade_result(
+    optimization._fit_williams_displacements_z.return_value = _fit_result(
         [70.0, 80.0],
         cost=0.5,
     )
@@ -483,8 +484,8 @@ def test_williams_in_plane_exception_preserves_out_of_plane_completion() -> None
     data.disp_z = np.array([1.0])
     analysis = _analysis(data)
     optimization = _enable_optimization(analysis)
-    optimization.optimize_williams_displacements_xy.side_effect = RuntimeError("xy")
-    optimization.optimize_williams_displacements_z.return_value = _facade_result(
+    optimization._fit_williams_displacements_xy.side_effect = RuntimeError("xy")
+    optimization._fit_williams_displacements_z.return_value = _fit_result(
         [70.0, 80.0, 90.0],
         cost=0.5,
     )
@@ -516,11 +517,11 @@ def test_williams_out_of_plane_exception_preserves_in_plane_completion() -> None
     data.disp_z = np.array([1.0])
     analysis = _analysis(data)
     optimization = _enable_optimization(analysis)
-    optimization.optimize_williams_displacements_xy.return_value = _facade_result(
+    optimization._fit_williams_displacements_xy.return_value = _fit_result(
         [10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
         cost=1.5,
     )
-    optimization.optimize_williams_displacements_z.side_effect = RuntimeError("z")
+    optimization._fit_williams_displacements_z.side_effect = RuntimeError("z")
 
     with (
         mock.patch.object(analysis, "_run_cjp_optimization_modeI"),
@@ -548,11 +549,11 @@ def test_williams_partial_completion_retains_unsuccessful_in_plane_fit() -> None
     data.disp_z = np.array([1.0])
     analysis = _analysis(data)
     optimization = _enable_optimization(analysis)
-    optimization.optimize_williams_displacements_xy.return_value = _facade_result(
+    optimization._fit_williams_displacements_xy.return_value = _fit_result(
         [10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
         success=False,
     )
-    optimization.optimize_williams_displacements_z.return_value = _facade_result(
+    optimization._fit_williams_displacements_z.return_value = _fit_result(
         [70.0, 80.0, 90.0],
         cost=0.5,
     )
@@ -587,11 +588,11 @@ def test_williams_partial_completion_retains_unsuccessful_out_of_plane_fit() -> 
     data.disp_z = np.array([1.0])
     analysis = _analysis(data)
     optimization = _enable_optimization(analysis)
-    optimization.optimize_williams_displacements_xy.return_value = _facade_result(
+    optimization._fit_williams_displacements_xy.return_value = _fit_result(
         [10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
         cost=1.5,
     )
-    optimization.optimize_williams_displacements_z.return_value = _facade_result(
+    optimization._fit_williams_displacements_z.return_value = _fit_result(
         [70.0, 80.0, 90.0],
         success=False,
     )
@@ -622,16 +623,16 @@ def test_williams_failed_rerun_replaces_all_previous_success_values() -> None:
     data.disp_z = np.array([1.0])
     analysis = _analysis(data)
     optimization = _enable_optimization(analysis)
-    optimization.optimize_williams_displacements_xy.side_effect = [
-        _facade_result([10.0, 20.0, 30.0, 40.0, 50.0, 60.0]),
-        _facade_result(
+    optimization._fit_williams_displacements_xy.side_effect = [
+        _fit_result([10.0, 20.0, 30.0, 40.0, 50.0, 60.0]),
+        _fit_result(
             [11.0, 21.0, 31.0, 41.0, 51.0, 61.0],
             success=False,
         ),
     ]
-    optimization.optimize_williams_displacements_z.side_effect = [
-        _facade_result([70.0, 80.0, 90.0]),
-        _facade_result([71.0, 81.0, 91.0], success=False),
+    optimization._fit_williams_displacements_z.side_effect = [
+        _fit_result([70.0, 80.0, 90.0]),
+        _fit_result([71.0, 81.0, 91.0], success=False),
     ]
 
     with (
@@ -664,10 +665,10 @@ def test_williams_authoritative_result_isolated_from_mutable_projections() -> No
     data.disp_z = np.array([1.0])
     analysis = _analysis(data)
     optimization = _enable_optimization(analysis)
-    xy_facade = _facade_result([10.0, 20.0, 30.0, 40.0, 50.0, 60.0])
-    z_facade = _facade_result([70.0, 80.0, 90.0])
-    optimization.optimize_williams_displacements_xy.return_value = xy_facade
-    optimization.optimize_williams_displacements_z.return_value = z_facade
+    xy_fit = _fit_result([10.0, 20.0, 30.0, 40.0, 50.0, 60.0])
+    z_fit = _fit_result([70.0, 80.0, 90.0])
+    optimization._fit_williams_displacements_xy.return_value = xy_fit
+    optimization._fit_williams_displacements_z.return_value = z_fit
 
     with (
         mock.patch.object(analysis, "_run_cjp_optimization_modeI"),
@@ -677,8 +678,8 @@ def test_williams_authoritative_result_isolated_from_mutable_projections() -> No
 
     in_plane_result = analysis.williams_in_plane_odm_result
     out_of_plane_result = analysis.williams_out_of_plane_odm_result
-    xy_facade.x.fill(1.0)
-    z_facade.x.fill(2.0)
+    to_optimize_result(xy_fit).x.fill(1.0)
+    to_optimize_result(z_fit).x.fill(2.0)
     analysis.williams_coeffs.fill(3.0)
     analysis.williams_fit_a_n[1] = 4.0
     analysis.williams_fit_b_n[1] = 5.0
@@ -712,7 +713,7 @@ def test_williams_runner_skips_missing_z_displacements() -> None:
     data.disp_z = None
     analysis = _analysis(data)
     optimization = _enable_optimization(analysis)
-    optimization.optimize_williams_displacements_xy.return_value = _facade_result(
+    optimization._fit_williams_displacements_xy.return_value = _fit_result(
         [10.0, 20.0, 30.0, 40.0, 50.0, 60.0]
     )
 
@@ -725,7 +726,7 @@ def test_williams_runner_skips_missing_z_displacements() -> None:
     assert all(np.isnan(value) for value in result.coefficients.c_n)
     assert np.isnan(result.cost)
     assert np.isnan(result.quantities.k_iii)
-    optimization.optimize_williams_displacements_z.assert_not_called()
+    optimization._fit_williams_displacements_z.assert_not_called()
 
 
 def test_williams_runner_skips_all_zero_z_displacements() -> None:
@@ -733,7 +734,7 @@ def test_williams_runner_skips_all_zero_z_displacements() -> None:
     data.disp_z = np.zeros(4)
     analysis = _analysis(data)
     optimization = _enable_optimization(analysis)
-    optimization.optimize_williams_displacements_xy.return_value = _facade_result(
+    optimization._fit_williams_displacements_xy.return_value = _fit_result(
         [10.0, 20.0, 30.0, 40.0, 50.0, 60.0]
     )
 
@@ -746,49 +747,91 @@ def test_williams_runner_skips_all_zero_z_displacements() -> None:
     assert all(np.isnan(value) for value in result.coefficients.c_n)
     assert np.isnan(result.cost)
     assert np.isnan(result.quantities.k_iii)
-    optimization.optimize_williams_displacements_z.assert_not_called()
+    optimization._fit_williams_displacements_z.assert_not_called()
 
 
-def test_all_nan_z_displacements_complete_the_empty_direct_system() -> None:
-    axis = np.linspace(-1.5, 1.5, 9)
+@pytest.mark.parametrize("selection", ["outside-domain", "empty-z", "empty-xy", "zero-xy"])
+def test_run_distinguishes_empty_fits_from_supported_zero_displacements(selection) -> None:
+    axis = np.linspace(-2.0, 2.0, 9)
     coor_x, coor_y = np.meshgrid(axis, axis)
     data = InputData()
     data.coor_x = coor_x.ravel()
     data.coor_y = coor_y.ravel()
     data.coor_z = np.zeros(coor_x.size)
-    data.disp_x = (0.04 + 0.02 * coor_x - 0.01 * coor_y).ravel()
-    data.disp_y = (-0.02 + 0.01 * coor_x + 0.03 * coor_y).ravel()
-    data.disp_z = np.full(coor_x.size, np.nan)
+    data.disp_x = (0.02 * coor_x - 0.01 * coor_y).ravel()
+    data.disp_y = (0.01 * coor_x + 0.03 * coor_y).ravel()
+    data.disp_z = (-0.015 * coor_x + 0.005 * coor_y).ravel()
+    if selection == "empty-z":
+        data.disp_z[:] = np.nan
+    elif selection == "empty-xy":
+        data.disp_x[:] = np.nan
+        data.disp_y[:] = np.nan
+    elif selection == "zero-xy":
+        data.disp_x[:] = 0.0
+        data.disp_y[:] = 0.0
+    outside_domain = selection == "outside-domain"
     analysis = FractureAnalysis(
-        material=Material(),
-        nodemap="all-nan-z",
-        data=data,
+        material=Material(), nodemap="empty-fit-selection", data=data,
         crack_tip_info=CrackTipInfo(0.0, 0.0, 0.0, "right"),
         integral_properties=None,
         optimization_properties=OptimizationProperties(
-            angle_gap=25,
-            min_radius=0.3,
-            max_radius=1.1,
-            tick_size=0.2,
-            terms=[-1, 1, 2],
+            angle_gap=25, min_radius=10.0 if outside_domain else 0.3,
+            max_radius=11.0 if outside_domain else 1.1,
+            tick_size=0.2, terms=[1, 2],
         ),
     )
 
-    with (
-        mock.patch.object(analysis, "_run_cjp_optimization_modeI"),
-        mock.patch.object(analysis, "_run_cjp_optimization_mixedmode"),
-    ):
-        analysis.run()
+    analysis.run()
 
-    result = analysis.williams_out_of_plane_odm_result
-    assert result.status == "completed"
-    assert result.coefficient_fit is not None
-    assert result.coefficient_fit.solver == "direct"
-    assert result.coefficient_fit.residual.size == 0
-    assert result.coefficients.c_n == (0.0, 0.0, 0.0)
-    assert result.cost == 0.0
-    assert result.quantities.k_iii == 0.0
-    np.testing.assert_array_equal(analysis.williams_coeffs[-3:], np.zeros(3))
+    xy_failed = selection in ("outside-domain", "empty-xy")
+    z_failed = selection in ("outside-domain", "empty-z")
+    for result, failed in (
+        (analysis.cjp_mode_i_odm_result, xy_failed),
+        (analysis.cjp_mixed_mode_odm_result, xy_failed),
+        (analysis.williams_in_plane_odm_result, xy_failed),
+        (analysis.williams_out_of_plane_odm_result, z_failed),
+    ):
+        assert result.status == ("failed" if failed else "completed")
+        fit = result.coefficient_fit
+        assert fit is not None
+        assert fit.success
+        if failed:
+            assert fit.residual.size == 0
+            assert fit.cost == 0.0
+            assert np.isnan(result.cost)
+            assert np.isnan(astuple(result.quantities)).all()
+        else:
+            assert fit.residual.size > 0
+            assert np.isfinite(result.cost)
+            assert np.isfinite(astuple(result.quantities)).all()
+
+    for coefficients, quantities in (
+        (analysis.cjp_coeffs_m1, analysis.cjp_res_m1),
+        (analysis.cjp_coeffs_mm, analysis.cjp_res_mm),
+    ):
+        assert coefficients.shape == (5,)
+        if xy_failed:
+            assert np.isnan(coefficients).all()
+            assert all(np.isnan(value) for value in quantities.values())
+        elif selection == "zero-xy":
+            np.testing.assert_array_equal(coefficients, np.zeros(5))
+            assert all(value == 0.0 for value in quantities.values())
+    for coefficients, failed in (
+        (analysis.williams_fit_a_n, xy_failed),
+        (analysis.williams_fit_b_n, xy_failed),
+        (analysis.williams_fit_c_n, z_failed),
+    ):
+        assert list(coefficients) == [1, 2]
+        assert all(np.isnan(value) if failed else np.isfinite(value)
+                   for value in coefficients.values())
+    for key, failed in (
+        ("Error_xy", xy_failed), ("K_I", xy_failed), ("K_II", xy_failed),
+        ("T", xy_failed), ("Error_z", z_failed), ("K_III", z_failed),
+    ):
+        value = analysis.williams_fit_res[key]
+        assert np.isnan(value) if failed else np.isfinite(value)
+        if selection == "zero-xy" and key not in ("Error_z", "K_III"):
+            assert value == 0.0
 
 
 def test_run_returns_none_and_preserves_technique_execution_order() -> None:

@@ -2,7 +2,7 @@
 skips, and legacy compatibility projections.
 """
 
-from dataclasses import astuple
+from dataclasses import astuple, replace
 
 import numpy as np
 import pytest
@@ -367,3 +367,34 @@ def test_legacy_projections_preserve_order_shape_and_mutation_isolation() -> Non
         _project_williams_compatibility(in_plane, out_of_plane)[0],
         np.r_[np.arange(6.0), np.arange(3.0)],
     )
+
+
+@pytest.mark.parametrize(
+    ("builder", "coefficient_count"),
+    [
+        (_build_cjp_mode_i_odm_result, 5),
+        (_build_cjp_mixed_mode_odm_result, 5),
+        (lambda fit: _build_williams_in_plane_odm_result((-1, 1, 2), fit), 6),
+        (lambda fit: _build_williams_out_of_plane_odm_result(
+            (-1, 1, 2), fit, skipped=False), 3),
+    ],
+    ids=["cjp-mode-i", "cjp-mixed", "williams-xy", "williams-z"],
+)
+def test_builders_reject_empty_observations_with_nan_payloads(
+    builder, coefficient_count: int,
+) -> None:
+    fit = replace(
+        _fit(np.zeros(coefficient_count)), residual=np.empty(0), cost=0.0,
+        jacobian=np.empty((0, coefficient_count)), rank=0,
+        singular_values=np.empty(0),
+    )
+
+    result = builder(fit)
+
+    assert result.status == "failed"
+    assert result.coefficient_fit is fit
+    assert fit.success
+    assert fit.cost == 0.0
+    assert np.isnan(result.cost)
+    _assert_dataclass_nan(result.coefficients)
+    _assert_dataclass_nan(result.quantities)

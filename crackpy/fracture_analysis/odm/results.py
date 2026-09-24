@@ -82,9 +82,6 @@ class CoefficientFitResult:
 class OdmFitResult(Generic[CoefficientsT, QuantitiesT]):
     """Store one typed ODM Technique Result and its numerical fit evidence.
 
-    A completed status records numerical completion only; it does not establish
-    coefficient identifiability, model adequacy, or scientific validity.
-
     Attributes:
         coefficient_fit: Owned low-level fit retained as numerical evidence, or
             ``None`` when solving raised or execution was skipped.
@@ -94,7 +91,7 @@ class OdmFitResult(Generic[CoefficientsT, QuantitiesT]):
             correctly shaped NaN payload when execution failed or was skipped.
         skipped: Init-only indication that execution was intentionally skipped.
             A skipped result cannot retain a coefficient fit.
-        status: Derived numerical outcome: ``completed``, ``failed``, or
+        status: Technique execution outcome: ``completed``, ``failed``, or
             ``skipped``.
         cost: Half the squared displacement-residual norm in mm squared for a
             completed fit, or NaN for failed and skipped execution.
@@ -114,7 +111,11 @@ class OdmFitResult(Generic[CoefficientsT, QuantitiesT]):
                 raise ValueError("A skipped ODM result cannot retain a coefficient fit.")
             status = "skipped"
             cost = float("nan")
-        elif self.coefficient_fit is None or not self.coefficient_fit.success:
+        elif (
+            self.coefficient_fit is None
+            or not self.coefficient_fit.success
+            or self.coefficient_fit.residual.size == 0
+        ):
             status = "failed"
             cost = float("nan")
         else:

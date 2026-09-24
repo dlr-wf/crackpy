@@ -256,3 +256,36 @@ def test_facade_rejects_an_unsupported_solver_route() -> None:
 
     with pytest.raises(ValueError, match="Unsupported Solver Route 'unsupported'"):
         optimization.optimize_williams_displacements_z(solver="unsupported")
+
+
+@pytest.mark.parametrize("formulation,n_coefficients", [
+    ("cjp_displacements_modeI", 5),
+    ("cjp_displacements_mixedmode", 5),
+    ("williams_displacements_xy", 6),
+    ("williams_displacements_z", 3),
+])
+@pytest.mark.parametrize("solver", ["direct", "iterative", "legacy"])
+def test_typed_fits_match_public_results_and_keep_owned_arrays(
+    formulation, n_coefficients, solver,
+):
+    optimization = _make_optimization()
+    arguments = {"solver": solver, "init_coeffs": np.zeros(n_coefficients)}
+    fit = getattr(optimization, "_fit_" + formulation)(**arguments)
+    public = getattr(optimization, "optimize_" + formulation)(**arguments)
+
+    for name in ("solver", "cost", "rank", "success", "message", "status", "nfev", "njev"):
+        assert getattr(public, name) == getattr(fit, name)
+    for public_name, fit_name in (
+        ("x", "coefficients"), ("fun", "residual"),
+        ("jac", "jacobian"), ("singular_values", "singular_values"),
+    ):
+        actual, expected = getattr(public, public_name), getattr(fit, fit_name)
+        if expected is None:
+            assert actual is None
+        else:
+            np.testing.assert_array_equal(actual, expected)
+            assert actual.flags.writeable
+            assert not expected.flags.writeable
+            retained = expected.copy()
+            actual.fill(123.0)
+            np.testing.assert_array_equal(expected, retained)
