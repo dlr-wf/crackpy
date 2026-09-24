@@ -15,7 +15,10 @@ import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import logging
 
-from crackpy.fracture_analysis.crack_tip import williams_stress_field, williams_displ_field_xy
+from crackpy.fracture_analysis.crack_tip_fields.williams.solutions import (
+    williams_in_plane_stress_field,
+    williams_in_plane_displacement_field,
+)
 from crackpy.fracture_analysis.optimization import Optimization
 from crackpy.structure_elements.material import Material
 
@@ -71,11 +74,11 @@ for index in range(1, len(coefficients_a) + 1):
     r_grid, phi_grid = np.mgrid[min_radius:max_radius:tick_size, -np.pi:np.pi:tick_size]
 
     # Calculate the stress and displacement fields
-    sigma_xx, sigma_yy, sigma_xy = williams_stress_field(coefficients_a[:index],
+    sigma_xx, sigma_yy, sigma_xy = williams_in_plane_stress_field(coefficients_a[:index],
                                                          coefficients_b[:index],
                                                          coefficients_n[:index],
                                                          phi_grid, r_grid)
-    disp_x, disp_y = williams_displ_field_xy(coefficients_a[:index], coefficients_b[:index], coefficients_n[:index],
+    disp_x, disp_y = williams_in_plane_displacement_field(coefficients_a[:index], coefficients_b[:index], coefficients_n[:index],
                                              phi_grid, r_grid, material)
 
     sigma_vm = np.sqrt(sigma_xx ** 2 + sigma_yy ** 2 - sigma_xx * sigma_yy + 3 * sigma_xy ** 2)

@@ -944,9 +944,9 @@ def test_batched_auxiliary_fields_match_scalar_evaluation():
         return np.sqrt(x**2.0 + y**2.0), np.arctan2(y, x)
 
     with mock.patch.object(
-        line_integration_module.auxiliary_fields,
+        line_integration_module.auxiliary_field_preparation,
         "get_crack_nearfield",
-        wraps=line_integration_module.auxiliary_fields.get_crack_nearfield,
+        wraps=line_integration_module.auxiliary_field_preparation.get_crack_nearfield,
     ) as crack_nearfield:
         actual_stress, actual_strain, actual_disp_y_dx = (
             line_integral._get_auxiliary_crack_nearfield(1.0, 0.0)
@@ -956,7 +956,7 @@ def test_batched_auxiliary_fields_match_scalar_evaluation():
     expected_disp_y_dx = []
     for point in line_integral.np_integration_points:
         r, phi = polar(point[0] - line_integral.origin_x, point[1] - line_integral.origin_y)
-        stress, strain, _ = line_integration_module.auxiliary_fields.get_crack_nearfield(
+        stress, strain, _ = line_integration_module.auxiliary_field_preparation.get_crack_nearfield(
             1.0,
             0.0,
             r,
@@ -973,10 +973,10 @@ def test_batched_auxiliary_fields_match_scalar_evaluation():
             point[0] - line_integral.origin_x - line_integral.x_shift,
             point[1] - line_integral.origin_y,
         )
-        disp_pos = line_integration_module.auxiliary_fields.get_crack_nearfield(
+        disp_pos = line_integration_module.auxiliary_field_preparation.get_crack_nearfield(
             1.0, 0.0, r_pos, phi_pos, line_integral.material
         )[2]
-        disp_neg = line_integration_module.auxiliary_fields.get_crack_nearfield(
+        disp_neg = line_integration_module.auxiliary_field_preparation.get_crack_nearfield(
             1.0, 0.0, r_neg, phi_neg, line_integral.material
         )[2]
         expected_disp_y_dx.append((disp_pos[1] - disp_neg[1]) / (2 * line_integral.x_shift))
@@ -998,9 +998,9 @@ def test_batched_auxiliary_fields_match_scalar_evaluation():
     )
 
     with mock.patch.object(
-        line_integration_module.auxiliary_fields,
+        line_integration_module.auxiliary_field_preparation,
         "get_zhao_solutions",
-        wraps=line_integration_module.auxiliary_fields.get_zhao_solutions,
+        wraps=line_integration_module.auxiliary_field_preparation.get_zhao_solutions,
     ) as zhao:
         actual_zhao_stress, actual_disp_x_dx, actual_zhao_disp_y_dx = (
             line_integral._get_auxiliary_zhao_fields()
@@ -1010,7 +1010,7 @@ def test_batched_auxiliary_fields_match_scalar_evaluation():
     expected_zhao_disp_y_dx = []
     for point in line_integral.np_integration_points:
         r, phi = polar(point[0] - line_integral.origin_x, point[1] - line_integral.origin_y)
-        sigma_x, sigma_y, sigma_xy, _, _ = line_integration_module.auxiliary_fields.get_zhao_solutions(
+        sigma_x, sigma_y, sigma_xy, _, _ = line_integration_module.auxiliary_field_preparation.get_zhao_solutions(
             r, phi, line_integral.material
         )
         expected_zhao_stress.append([[sigma_x, sigma_xy], [sigma_xy, sigma_y]])
@@ -1022,10 +1022,10 @@ def test_batched_auxiliary_fields_match_scalar_evaluation():
             point[0] - line_integral.origin_x - line_integral.x_shift,
             point[1] - line_integral.origin_y,
         )
-        positive = line_integration_module.auxiliary_fields.get_zhao_solutions(
+        positive = line_integration_module.auxiliary_field_preparation.get_zhao_solutions(
             r_pos, phi_pos, line_integral.material
         )
-        negative = line_integration_module.auxiliary_fields.get_zhao_solutions(
+        negative = line_integration_module.auxiliary_field_preparation.get_zhao_solutions(
             r_neg, phi_neg, line_integral.material
         )
         expected_disp_x_dx.append((positive[3] - negative[3]) / (2 * line_integral.x_shift))
@@ -1183,8 +1183,8 @@ def test_vectorized_reductions_preserve_scalar_reference_values():
     ]:
         with mock.patch.object(
             line_integral_runners,
-            "eigenfunction",
-            wraps=line_integral_runners.eigenfunction,
+            "williams_in_plane_eigenfunction",
+            wraps=line_integral_runners.williams_in_plane_eigenfunction,
         ) as eigenfunction:
             actual = line_integral._solve_chen_integral(n=n, a_n=a_n, b_n=b_n)
         np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)

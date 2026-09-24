@@ -13,7 +13,10 @@ Output:
 from pathlib import Path
 import logging
 
-from crackpy.fracture_analysis.crack_tip import cjp_stress_field_mixedmode, cjp_displ_field_mixedmode
+from crackpy.fracture_analysis.crack_tip_fields.cjp.solutions import (
+    cjp_stress_field_mixedmode,
+    cjp_displ_field_mixedmode,
+)
 from crackpy.structure_elements.material import Material
 from crackpy.fracture_analysis.optimization import Optimization
 

@@ -1,6 +1,6 @@
 # Over-Deterministic Method
 
-The `odm` package owns displacement sampling, linear fitting-system assembly, Solver Routes, numerical fit evidence, and typed Over-Deterministic Method results.
+The `odm` package owns displacement sampling, linear fitting-system assembly, fit execution, Solver Routes, numerical fit evidence, and typed Over-Deterministic Method results.
 It consumes the CJP and Williams displacement bases owned by [`crack_tip_fields`](../crack_tip_fields/README.md).
 
 ## Execution Contract

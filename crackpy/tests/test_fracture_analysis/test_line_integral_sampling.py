@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from crackpy.fracture_analysis._interpolation_cache import InterpolatorCache
-from crackpy.fracture_analysis.line_integrals.auxiliary_fields import (
+from crackpy.fracture_analysis.line_integrals.auxiliary_field_preparation import (
     evaluate_shifted_auxiliary_fields,
     prepare_lefm_auxiliary_fields,
     prepare_zhao_auxiliary_fields,
@@ -227,16 +227,16 @@ def test_auxiliary_payloads_preserve_batching_parity_calls_and_ownership(monkeyp
     for field_name in shifted.__dataclass_fields__:
         assert not getattr(shifted, field_name).flags.writeable
 
-    from crackpy.fracture_analysis.line_integrals import auxiliary_fields
+    from crackpy.fracture_analysis.line_integrals import auxiliary_field_preparation
 
     lefm_calls = []
-    real_lefm = auxiliary_fields.get_crack_nearfield
+    real_lefm = auxiliary_field_preparation.get_crack_nearfield
 
     def counted_lefm(*args):
         lefm_calls.append(args)
         return real_lefm(*args)
 
-    monkeypatch.setattr(auxiliary_fields, "get_crack_nearfield", counted_lefm)
+    monkeypatch.setattr(auxiliary_field_preparation, "get_crack_nearfield", counted_lefm)
     lefm = prepare_lefm_auxiliary_fields(
         1.0,
         0.0,
@@ -248,13 +248,13 @@ def test_auxiliary_payloads_preserve_batching_parity_calls_and_ownership(monkeyp
     assert lefm.strain.shape == (len(relative_points), 2, 2)
 
     zhao_calls = []
-    real_zhao = auxiliary_fields.get_zhao_solutions
+    real_zhao = auxiliary_field_preparation.get_zhao_solutions
 
     def counted_zhao(*args):
         zhao_calls.append(args)
         return real_zhao(*args)
 
-    monkeypatch.setattr(auxiliary_fields, "get_zhao_solutions", counted_zhao)
+    monkeypatch.setattr(auxiliary_field_preparation, "get_zhao_solutions", counted_zhao)
     zhao = prepare_zhao_auxiliary_fields(
         geometry,
         material=material,
@@ -287,9 +287,9 @@ def test_translated_auxiliary_derivative_uses_exact_nonbinary_shift(monkeypatch)
         zeros = np.zeros_like(relative_x)
         return zeros, zeros, zeros, relative_x, 2.0 * relative_x
 
-    from crackpy.fracture_analysis.line_integrals import auxiliary_fields
+    from crackpy.fracture_analysis.line_integrals import auxiliary_field_preparation
 
-    monkeypatch.setattr(auxiliary_fields, "get_zhao_solutions", linear_zhao)
+    monkeypatch.setattr(auxiliary_field_preparation, "get_zhao_solutions", linear_zhao)
     fields = prepare_zhao_auxiliary_fields(
         geometry,
         material=Material(E=72000, nu_xy=0.33),

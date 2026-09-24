@@ -10,7 +10,9 @@ from pathlib import Path
 import numpy as np
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.fracture_analysis.crack_tip import unit_of_williams_coefficients
+from crackpy.fracture_analysis.crack_tip_fields.williams.solutions import (
+    unit_of_williams_coefficients,
+)
 
 logger = logging.getLogger(__name__)
 

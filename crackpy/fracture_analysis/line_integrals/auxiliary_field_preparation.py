@@ -6,7 +6,10 @@ from typing import Callable
 
 import numpy as np
 
-from crackpy.fracture_analysis.crack_tip import get_crack_nearfield, get_zhao_solutions
+from crackpy.fracture_analysis.crack_tip_fields.auxiliary import (
+    get_crack_nearfield,
+    get_zhao_solutions,
+)
 from crackpy.fracture_analysis.line_integrals.contours import IntegrationContourGeometry
 from crackpy.structure_elements.material import Material
 
@@ -168,7 +171,7 @@ def prepare_lefm_auxiliary_fields(
 
     Notes:
         Crack-nearfield formula evaluation is delegated to
-        :func:`crackpy.fracture_analysis.crack_tip.get_crack_nearfield`, which
+        :func:`crackpy.fracture_analysis.crack_tip_fields.auxiliary.get_crack_nearfield`, which
         implements Sladek et al. (1997), equations 3--4.
         DOI: https://doi.org/10.1016/S0167-8442(97)00013-X.
         Citation key: ``sladek_et_al_1997_contour_integrals``.
@@ -248,7 +251,7 @@ def prepare_zhao_auxiliary_fields(
 
     Notes:
         Auxiliary formula evaluation is delegated to
-        :func:`crackpy.fracture_analysis.crack_tip.get_zhao_solutions`, which
+        :func:`crackpy.fracture_analysis.crack_tip_fields.auxiliary.get_zhao_solutions`, which
         implements Zhao et al. (2001), equations 4a--4b.
         DOI: https://doi.org/10.1023/A:1011016720630.
         Citation key: ``zhao_et_al_2001_corner_cracks``.
