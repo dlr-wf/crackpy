@@ -37,13 +37,19 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[dependency-groups]
+dev = [
+    "playwright>=1.61.0",
+    "ruff>=0.16.6",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["crackpy*"]
 exclude = ["test_scripts*", "crackpy.tests*", "example_images*", "scripts*"]
 
 [tool.setuptools.package-data]
-crackpy = ["logging.yaml"]
+crackpy = ["logging.yaml", "references.bib"]
 
 [tool.setuptools.dynamic]
 version = { attr = "crackpy.__version__" }

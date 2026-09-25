@@ -1,9 +1,14 @@
 import unittest
+from importlib import import_module
 
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 
-from crackpy.fracture_analysis.crack_tip import williams_stress_field, get_crack_nearfield
+from crackpy.fracture_analysis.crack_tip import (
+    get_crack_nearfield,
+    williams_stress_field,
+)
 from crackpy.structure_elements.material import Material
 
 
@@ -53,3 +58,28 @@ class CrackTipField(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+@pytest.mark.parametrize("module, names", [
+    ("williams.solutions", (
+        "williams_stress_field", "williams_displ_field_xy", "williams_stress_field_3d",
+        "williams_displ_field_z", "eigenfunction", "unit_of_williams_coefficients",
+    )),
+    ("cjp.solutions", (
+        "cjp_stress_field_mixedmode", "cjp_displ_field_mixedmode",
+        "cjp_stress_field_modeI", "cjp_displ_field_modeI",
+    )),
+    ("auxiliary", ("get_crack_nearfield", "get_zhao_solutions")),
+])
+def test_legacy_field_imports_preserve_functions(module, names):
+    legacy = import_module("crackpy.fracture_analysis.crack_tip")
+    owner = import_module("crackpy.fracture_analysis.crack_tip_fields." + module)
+    renamed = {
+        "williams_stress_field": "williams_in_plane_stress_field",
+        "williams_displ_field_xy": "williams_in_plane_displacement_field",
+        "williams_stress_field_3d": "williams_combined_stress_field",
+        "williams_displ_field_z": "williams_out_of_plane_displacement_field",
+        "eigenfunction": "williams_in_plane_eigenfunction",
+    }
+    for name in names:
+        assert getattr(legacy, name) is getattr(owner, renamed.get(name, name))

@@ -1,3 +1,5 @@
+"""Configure neural-network crack detection and interpret its predictions."""
+
 import torch
 import numpy as np
 from scipy.ndimage import label
@@ -47,7 +49,13 @@ class CrackDetection:
             angle_det_radius: radius in mm around crack tip considered for angle detection
             device: (torch.device)
 
+        Raises:
+            ValueError: If ``side`` is not ``'left'`` or ``'right'``.
+
         """
+        if side not in ('left', 'right'):
+            raise ValueError("side must be 'left' or 'right'")
+
         self.side = side
         self.detection_window_size = detection_window_size
         self.offset = offset

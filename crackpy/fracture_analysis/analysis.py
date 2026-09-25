@@ -1,13 +1,58 @@
+"""FractureAnalysis coordinates configured fracture-analysis techniques and
+stores their latest results.
+"""
+
 import logging
 import warnings
-from typing import Union, Optional, Mapping, Any, MutableMapping
+from typing import MutableMapping, Optional, Union
 
 import numpy as np
 import rich.progress as progress_rich
 
-from crackpy.fracture_analysis import line_integration
-from crackpy.fracture_analysis.line_integration import (IntegralProperties,
-                                                        LineIntegral)
+from crackpy.fracture_analysis._interpolation_cache import InterpolatorCache
+from crackpy.fracture_analysis.crack_tip_fields.cjp import (
+    CjpMixedModeCoefficients,
+    CjpMixedModeQuantities,
+    CjpModeICoefficients,
+    CjpModeIQuantities,
+)
+from crackpy.fracture_analysis.crack_tip_fields.williams import (
+    WilliamsInPlaneCoefficients,
+    WilliamsInPlaneQuantities,
+    WilliamsOutOfPlaneCoefficients,
+    WilliamsOutOfPlaneQuantities,
+)
+from crackpy.fracture_analysis.crack_tip_fields.williams.quantities import (
+    derive_williams_in_plane_fracture_quantities,
+)
+from crackpy.fracture_analysis.line_integrals import (
+    ContourSet,
+    ContourWiseLineIntegralResult,
+)
+from crackpy.fracture_analysis.line_integrals._compatibility import (
+    mutable_integration_points,
+    mutable_path_result,
+    mutable_path_size,
+    mutable_williams_a_n,
+    mutable_williams_b_n,
+    mutable_williams_coefficients,
+)
+from crackpy.fracture_analysis.line_integrals.contours import (
+    build_rectangular_integration_contour,
+)
+from crackpy.fracture_analysis.line_integrals.runners import _LineIntegralExecution
+from crackpy.fracture_analysis.line_integration import IntegralProperties, LineIntegral
+from crackpy.fracture_analysis.odm._compatibility import (
+    _project_cjp_mixed_mode_compatibility,
+    _project_cjp_mode_i_compatibility,
+    _project_williams_compatibility,
+)
+from crackpy.fracture_analysis.odm.results import OdmFitResult
+from crackpy.fracture_analysis.odm.runners import (
+    _run_cjp_mixed_mode_odm,
+    _run_cjp_mode_i_odm,
+    _run_williams_odm,
+)
 from crackpy.fracture_analysis.optimization import Optimization, OptimizationProperties
 from crackpy.input.crack_tip_info import CrackTipInfo
 from crackpy.input.input_data import InputData
@@ -75,8 +120,13 @@ class FractureAnalysis:
         self.williams_fit_b_n = None
         self.williams_fit_c_n = None
         self.williams_fit_res = None
+        self._cjp_mode_i_odm_result = None
+        self._cjp_mixed_mode_odm_result = None
+        self._williams_in_plane_odm_result = None
+        self._williams_out_of_plane_odm_result = None
 
         # Available Line Integral results
+        self._contour_results = []
         self.path_results = []
         self.williams_int_a_n = []
         self.williams_int_b_n = []
@@ -97,16 +147,68 @@ class FractureAnalysis:
 
         self.integral_properties = integral_properties
         if self.integral_properties is not None:
-            LineIntegral.ensure_defaults_buckner_chen(self.integral_properties)
+            LineIntegral.ensure_defaults_bueckner_chen(self.integral_properties)
 
-    def run(self, progress_bar: Optional[Mapping[str, object]] = None, task_id=None):
-        """Run fracture analysis with the provided data, crack_tip_info, and integral_properties.
-        Results are stored as class instance attributes 'results', 'sifs', 'path_sizes', and 'path_nodes'.
+    @property
+    def cjp_mode_i_odm_result(
+        self,
+    ) -> OdmFitResult[CjpModeICoefficients, CjpModeIQuantities] | None:
+        """Return the latest CJP Mode I ODM result, if attempted."""
+        return self._cjp_mode_i_odm_result
+
+    @property
+    def cjp_mixed_mode_odm_result(
+        self,
+    ) -> OdmFitResult[CjpMixedModeCoefficients, CjpMixedModeQuantities] | None:
+        """Return the latest CJP mixed-mode ODM result, if attempted."""
+        return self._cjp_mixed_mode_odm_result
+
+    @property
+    def williams_in_plane_odm_result(
+        self,
+    ) -> OdmFitResult[
+        WilliamsInPlaneCoefficients,
+        WilliamsInPlaneQuantities,
+    ] | None:
+        """Return the latest in-plane Williams ODM result."""
+        return self._williams_in_plane_odm_result
+
+    @property
+    def williams_out_of_plane_odm_result(
+        self,
+    ) -> OdmFitResult[
+        WilliamsOutOfPlaneCoefficients,
+        WilliamsOutOfPlaneQuantities,
+    ] | None:
+        """Return the latest out-of-plane Williams ODM result."""
+        return self._williams_out_of_plane_odm_result
+
+    @property
+    def contour_results(self) -> tuple[ContourWiseLineIntegralResult, ...]:
+        """Return completed Contour-Wise Results in execution order."""
+        return tuple(self._contour_results)
+
+    def run(
+        self,
+        progress_bar: Optional[MutableMapping[int, dict[str, int]]] = None,
+        task_id: int | None = None,
+    ) -> None:
+        """Run configured CJP, Williams and line-integral analyses.
+
+        Fits replace previous results; line-integral results are appended and
+        aggregated. Empty or failed fits produce NaN outputs.
 
         Args:
-            progress_bar: whether to show progress bar for line integral calculation
-            task_id: task id for progress bar (handed-over automatically during pipeline, not needed for single run)
+            progress_bar: External contour-progress mapping, or ``None`` for
+                the built-in Rich display.
+            task_id: Entry to update in ``progress_bar``.
 
+        Returns:
+            None. Results are stored in the analysis properties and
+            compatibility attributes.
+
+        Raises:
+            Exception: Errors from result evaluation or aggregation.
         """
         logger.info("Starting fracture analysis for %s", self.nodemap_file)
         logger.debug(
@@ -149,217 +251,167 @@ class FractureAnalysis:
     def _run_cjp_optimization_modeI(self) -> None:
         """Run CJP optimization if optimization properties are provided."""
 
-        try:
-            cjp_results_m1 = self.optimization.optimize_cjp_displacements_modeI()
-            self.cjp_coeffs_m1 = cjp_results_m1.x
-            A, B, C, E, F = self.cjp_coeffs_m1
+        result = _run_cjp_mode_i_odm(
+            self.optimization._fit_cjp_displacements_modeI
+        )
+        coefficients, quantities = _project_cjp_mode_i_compatibility(result)
+        self._cjp_mode_i_odm_result = result
+        self.cjp_coeffs_m1 = coefficients
+        self.cjp_res_m1 = quantities
 
-            # from Camacho-Reyes et al. (2023) "A new crack tip plastic zone model for mixed mode I and mode II" formulas 4-8
-            K_F = np.sqrt(np.pi / 2) * (A - 3 * B - 8 * E)
-            K_R = -((2 * np.pi) ** (3 / 2)) * E
-            K_S = np.sqrt(np.pi / 2) * (A + B)
-            T_x = -C
-            T_y = -F
-
-            # MPa*sqrt(mm) to MPa*sqrt(m)
-            K_F /= np.sqrt(1000)
-            K_R /= np.sqrt(1000)
-            K_S /= np.sqrt(1000)
-
-            self.cjp_res_m1 = {'Error': cjp_results_m1.cost, 'K_F': K_F, 'K_R': K_R, 'K_S': K_S, 'T_x': T_x, 'T_y': T_y}
-
-            logger.debug(
-                "CJP Mode I optimization results: K_F=%.2f, K_R=%.2f, K_S=%.2f, T_x=%.2f, T_y=%.2f",
-                K_F, K_R, K_S, T_x, T_y,
-            )
-
-        except Exception:
-            logger.exception('CJP optimization (Mode I) failed. CJP Mode I optimization results set to NaN.')
-
-            self.cjp_res_m1 = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'T_x': np.nan,
-                               'T_y': np.nan}
+        logger.debug(
+            "CJP Mode I optimization results: K_F=%.2f, K_R=%.2f, K_S=%.2f, T_x=%.2f, T_y=%.2f",
+            result.quantities.k_f,
+            result.quantities.k_r,
+            result.quantities.k_s,
+            result.quantities.t_x,
+            result.quantities.t_y,
+        )
 
     def _run_cjp_optimization_mixedmode(self) -> None:
         """Run CJP optimization if optimization properties are provided."""
 
-        try:
-            # calculate CJP coefficients with fitting method
-            cjp_results = self.optimization.optimize_cjp_displacements_mixedmode()
-
-            self.cjp_coeffs_mm = cjp_results.x
-            A_r, B_r, B_i, C, E = self.cjp_coeffs_mm
-
-            # from Christopher et al. (2013) "Extension of the CJP model to mixed mode I and mode II" formulas 4-8
-            K_F = np.sqrt(np.pi / 2) * (A_r - 3 * B_r - 8 * E)
-            K_R = -4 * np.sqrt(np.pi / 2) * (2 * B_i + E * np.pi)
-            K_S = -np.sqrt(np.pi / 2) * (A_r + B_r)
-            K_II = 2 * np.sqrt(2 * np.pi) * B_i
-            T = -C
-
-            # MPa*sqrt(mm) to MPa*sqrt(m)
-            K_F /= np.sqrt(1000)
-            K_R /= np.sqrt(1000)
-            K_S /= np.sqrt(1000)
-            K_II /= np.sqrt(1000)
-
-            self.cjp_res_mm = {'Error': cjp_results.cost, 'K_F': K_F, 'K_R': K_R, 'K_S': K_S, 'K_II': K_II, 'T': T}
-            logger.debug(
-                "CJP Mixed Mode optimization (Mixed Mode) results: K_F=%.2f, K_R=%.2f, K_S=%.2f, K_II=%.2f, T=%.2f",
-                K_F, K_R, K_S, K_II, T,
-            )
-        except Exception:
-            logger.exception('CJP optimization failed. CJP Mixed Mode optimization results set to NaN.')
-
-            self.cjp_res_mm = {'Error': np.nan, 'K_F': np.nan, 'K_R': np.nan, 'K_S': np.nan, 'K_II': np.nan,
-                               'T': np.nan}
+        result = _run_cjp_mixed_mode_odm(
+            self.optimization._fit_cjp_displacements_mixedmode
+        )
+        coefficients, quantities = _project_cjp_mixed_mode_compatibility(result)
+        self._cjp_mixed_mode_odm_result = result
+        self.cjp_coeffs_mm = coefficients
+        self.cjp_res_mm = quantities
+        logger.debug(
+            "CJP Mixed Mode optimization (Mixed Mode) results: K_F=%.2f, K_R=%.2f, K_S=%.2f, K_II=%.2f, T=%.2f",
+            result.quantities.k_f,
+            result.quantities.k_r,
+            result.quantities.k_s,
+            result.quantities.k_ii,
+            result.quantities.t_stress,
+        )
 
     def _run_williams_optimization(self) -> None:
         """Run Williams optimization if optimization properties are provided."""
 
-        n_terms = len(self.optimization.terms)
+        terms = tuple(self.optimization.terms)
         skip_disp_z_optimization = self.data.disp_z is None or not np.any(
             self.data.disp_z)  # -> both None or all zeros mean no sensible z-displacements are provided
-
-        try:
-            # calculate Williams coefficients with fitting method in 2D (xy-plane)
-            williams_results_xy = self.optimization.optimize_williams_displacements_xy()
-            williams_coeffs_xy = williams_results_xy.x
-
-            a_n = williams_coeffs_xy[:n_terms]
-            b_n = williams_coeffs_xy[n_terms:]
-            self.williams_fit_a_n = self._coeff_map(a_n)
-            self.williams_fit_b_n = self._coeff_map(b_n)
-
-            # derive stress intensity factors and T-stress [Kuna formula 3.45]
-            K_I = np.sqrt(2 * np.pi) * self.williams_fit_a_n[1] / np.sqrt(1000)
-            K_II = -np.sqrt(2 * np.pi) * self.williams_fit_b_n[1] / np.sqrt(1000)
-            T = 4 * self.williams_fit_a_n[2]
-
-            # store intermediate results
-            self.williams_coeffs = williams_coeffs_xy
-            self.williams_fit_res = {'Error_xy': williams_results_xy.cost, 'K_I': K_I, 'K_II': K_II, 'T': T}
-
-            logger.debug(
-                "Williams optimization results in xy-plane: Error_xy=%s, K_I=%.2f, K_II=%.2f, T=%.2f",
-                williams_results_xy.cost, K_I, K_II, T,
-            )
-        except Exception:
-            logger.exception(
-                'Williams optimization for xy failed. Corresponding Williams optimization results set to NaN.')
-
-            self.williams_coeffs = np.array([np.nan] * (2 * n_terms))
-            self.williams_fit_a_n = self._coeff_map([np.nan] * n_terms)
-            self.williams_fit_b_n = self._coeff_map([np.nan] * n_terms)
-            self.williams_fit_res = {'Error_xy': np.nan, 'K_I': np.nan, 'K_II': np.nan, 'T': np.nan}
 
         if skip_disp_z_optimization:
             logging.info(
                 'No sensible z-displacements provided; skipping z-direction optimization. Corresponding Williams optimization results set to NaN. ')
+            fit_out_of_plane = None
+        else:
+            fit_out_of_plane = self.optimization._fit_williams_displacements_z
 
-            self.williams_coeffs = np.r_[self.williams_coeffs, np.array([np.nan] * n_terms)]
-            self.williams_fit_c_n = self._coeff_map([np.nan] * n_terms)
-            self.williams_fit_res.update({'Error_z': np.nan, 'K_III': np.nan})
-            return
+        in_plane_result, out_of_plane_result = _run_williams_odm(
+            terms,
+            self.optimization._fit_williams_displacements_xy,
+            fit_out_of_plane,
+        )
+        (
+            coefficients,
+            a_by_term,
+            b_by_term,
+            c_by_term,
+            quantities,
+        ) = _project_williams_compatibility(in_plane_result, out_of_plane_result)
+        self._williams_in_plane_odm_result = in_plane_result
+        self._williams_out_of_plane_odm_result = out_of_plane_result
+        self.williams_coeffs = coefficients
+        self.williams_fit_a_n = a_by_term
+        self.williams_fit_b_n = b_by_term
+        self.williams_fit_c_n = c_by_term
+        self.williams_fit_res = quantities
 
-        try:
-            # calculate Williams coefficients with fitting method in z-direction
-            williams_results_z = self.optimization.optimize_williams_displacements_z()
-            williams_coeffs_z = williams_results_z.x
-
-            c_n = williams_coeffs_z
-            self.williams_fit_c_n = self._coeff_map(c_n)
-
-            # derive stress intensity factors for Mode III
-            K_III = np.sqrt(0.5 * np.pi) * self.williams_fit_c_n[1] / np.sqrt(1000)
-
-            # update with final results
-            self.williams_coeffs = np.r_[self.williams_coeffs, williams_coeffs_z]
-            self.williams_fit_res.update({'Error_z': williams_results_z.cost, 'K_III': K_III})
-
+        if in_plane_result.status == "completed":
+            logger.debug(
+                "Williams optimization results in xy-plane: Error_xy=%s, K_I=%.2f, K_II=%.2f, T=%.2f",
+                in_plane_result.cost,
+                in_plane_result.quantities.k_i,
+                in_plane_result.quantities.k_ii,
+                in_plane_result.quantities.t_stress,
+            )
+        if out_of_plane_result.status == "completed":
             logger.debug(
                 "Williams optimization results in z-plane: Error_z=%s, K_III=%.2f",
-                williams_results_z.cost, K_III,
+                out_of_plane_result.cost,
+                out_of_plane_result.quantities.k_iii,
             )
-        except Exception:
-            logger.exception(
-                'Williams optimization for z-displacements failed. Corresponding Williams optimization results set to NaN.')
 
-            self.williams_coeffs = np.r_[self.williams_coeffs, np.array([np.nan] * n_terms)]
-            self.williams_fit_c_n = self._coeff_map([np.nan] * n_terms)
-            self.williams_fit_res.update({'Error_z': np.nan, 'K_III': np.nan})
-
-    def _run_line_integrals(self, progress_bar: Optional[MutableMapping[str, Any]] = None, task_id=None) -> None:
+    def _run_line_integrals(
+        self,
+        progress_bar: Optional[MutableMapping[int, dict[str, int]]] = None,
+        task_id: int | None = None,
+    ) -> None:
         """Run line integrals if integral properties are provided."""
 
-        # calculate Williams coefficients with Bueckner-Chen integral method
+        contour_set = self._build_contour_set()
+
+        if progress_bar is None:
+            iterator = progress_rich.track(
+                enumerate(contour_set.contours),
+                total=len(contour_set.contours),
+                description='Calculating integrals',
+            )
+        else:
+            iterator = enumerate(contour_set.contours)
+
+        interpolator_cache = InterpolatorCache(max_interpolators=4)
+        for n, contour in iterator:
+            execution = _LineIntegralExecution(
+                contour,
+                self.data,
+                self.material,
+                self.integral_properties.mask_tolerance,
+                self.integral_properties.bueckner_williams_terms,
+                interpolator_cache,
+            )
+            contour_result = execution.evaluate_all()
+
+            self._contour_results.append(contour_result)
+            self.path_results.append(mutable_path_result(contour_result))
+            self.williams_int_a_n.append(mutable_williams_a_n(contour_result))
+            self.williams_int_b_n.append(mutable_williams_b_n(contour_result))
+            self.williams_int.append(mutable_williams_coefficients(contour_result))
+            geometry = contour_result.geometry
+            self.path_sizes.append(mutable_path_size(contour_result))
+            self.integration_points.append(mutable_integration_points(contour_result))
+            self.num_of_path_nodes.append(geometry.number_of_nodes)
+            self.tick_sizes.append(geometry.tick_size)
+
+            # Update progress bar
+            if progress_bar is not None:
+                progress_bar[task_id] = {
+                    "progress": n + 1,
+                    "total": self.integral_properties.number_of_paths,
+                }
+
+        # Aggregate results
+        self._aggregate_integral_results()
+
+    def _build_contour_set(self) -> ContourSet:
+        """Build the ordered Contour Set for the configured analysis."""
         current_size_left = self.integral_properties.integral_size_left
         current_size_right = self.integral_properties.integral_size_right
         current_size_top = self.integral_properties.integral_size_top
         current_size_bottom = self.integral_properties.integral_size_bottom
-
-        if progress_bar is None:
-            iterator = progress_rich.track(range(self.integral_properties.number_of_paths),
-                                           description='Calculating integrals')
-        else:
-            iterator = range(self.integral_properties.number_of_paths)
-
-        for n in iterator:
-            # Define path properties
-            path_properties = line_integration.PathProperties(current_size_left,
-                                                              current_size_right,
-                                                              current_size_bottom,
-                                                              current_size_top,
-                                                              self.integral_properties.integral_tick_size,
-                                                              self.integral_properties.number_of_nodes,
-                                                              self.integral_properties.top_offset,
-                                                              self.integral_properties.bottom_offset)
-
-            # Define integration path
-            integration_path = line_integration.IntegrationPath(0, 0, path_properties=path_properties)
-
-            # Define line integration methods
-            line_integral = line_integration.LineIntegral(integration_path, self.data, self.material,
-                                                          self.integral_properties.mask_tolerance,
-                                                          self.integral_properties.buckner_williams_terms)
-
-            # Calculate integral results
-            line_integral.integrate_all()
-
-            # Store path results
-            self.path_results.append([line_integral.j_integral,
-                                      line_integral.sif_k_j,
-                                      line_integral.sif_k_i,
-                                      line_integral.sif_k_ii,
-                                      line_integral.t_stress_chen,
-                                      line_integral.t_stress_sdm,
-                                      line_integral.t_stress_int,
-                                      line_integral.decomp_j_integral_I,
-                                      line_integral.decomp_j_integral_II,
-                                      line_integral.decomp_j_integral_III,
-                                      line_integral.decomp_j_integral_K_I,
-                                      line_integral.decomp_j_integral_K_II,
-                                      line_integral.decomp_j_integral_K_III])
-            self.williams_int_a_n.append(line_integral.williams_a_n)
-            self.williams_int_b_n.append(line_integral.williams_b_n)
-            self.williams_int.append(line_integral.williams_coefficients)
-            self.path_sizes.append([current_size_left, current_size_right, current_size_bottom, current_size_top])
-            self.integration_points.append([list(line_integral.np_integration_points[:, 0]),
-                                            list(line_integral.np_integration_points[:, 1])])
-            self.num_of_path_nodes.append(line_integral.integration_path.path_properties.number_of_nodes)
-            self.tick_sizes.append(line_integral.integration_path.path_properties.tick_size)
-
-            # Update path
+        contours = []
+        for _ in range(self.integral_properties.number_of_paths):
+            contours.append(build_rectangular_integration_contour(
+                origin_x=0.0,
+                origin_y=0.0,
+                size_left=current_size_left,
+                size_right=current_size_right,
+                size_bottom=current_size_bottom,
+                size_top=current_size_top,
+                tick_size=self.integral_properties.integral_tick_size,
+                number_of_nodes=self.integral_properties.number_of_nodes,
+                top_offset=self.integral_properties.top_offset,
+                bottom_offset=self.integral_properties.bottom_offset,
+            ))
             current_size_left -= self.integral_properties.paths_distance_left
             current_size_right += self.integral_properties.paths_distance_right
             current_size_bottom -= self.integral_properties.paths_distance_bottom
             current_size_top += self.integral_properties.paths_distance_top
-
-            # Update progress bar
-            if progress_bar:
-                progress_bar[task_id] = {"progress": n + 1, "total": self.integral_properties.number_of_paths}
-
-        # Aggregate results
-        self._aggregate_integral_results()
+        return ContourSet(tuple(contours))
 
     def _aggregate_integral_results(self) -> None:
         """Aggregate results from line integrals into class attributes."""
@@ -372,11 +424,11 @@ class FractureAnalysis:
             self.williams_int_a_n = np.asarray(self.williams_int_a_n)
             self.williams_int_b_n = np.asarray(self.williams_int_b_n)
 
-            # replace any None values with 0 -> None means that the integral wasn't set to be calculated
-            res_array[res_array == None] = 0
-            self.williams_int[self.williams_int == None] = 0
-            self.williams_int_a_n[self.williams_int_a_n == None] = 0
-            self.williams_int_b_n[self.williams_int_b_n == None] = 0
+            # These object arrays require elementwise comparison; ``is None`` would be scalar.
+            res_array[res_array == None] = 0  # noqa: E711
+            self.williams_int[self.williams_int == None] = 0  # noqa: E711
+            self.williams_int_a_n[self.williams_int_a_n == None] = 0  # noqa: E711
+            self.williams_int_b_n[self.williams_int_b_n == None] = 0  # noqa: E711
 
             # Calculate means
             mean_j, mean_sif_j, mean_sif_k_i, mean_sif_k_ii, mean_t_stress_chen, mean_t_stress_sdm, mean_t_stress_int, \
@@ -401,14 +453,30 @@ class FractureAnalysis:
             rej_out_mean_williams_int_a_n = self.mean_wo_outliers(self.williams_int_a_n, m=2)
             rej_out_mean_williams_int_b_n = self.mean_wo_outliers(self.williams_int_b_n, m=2)
 
-        # calculate SIFs with Bueckner-Chen integral method
-        term_index = self.integral_properties.buckner_williams_terms.index(1)
-        mean_k_i_chen = np.sqrt(2 * np.pi) * mean_williams_int_a_n[term_index] / np.sqrt(1000)
-        med_k_i_chen = np.sqrt(2 * np.pi) * med_williams_int_a_n[term_index] / np.sqrt(1000)
-        rej_out_mean_k_i_chen = np.sqrt(2 * np.pi) * rej_out_mean_williams_int_a_n[term_index] / np.sqrt(1000)
-        mean_k_ii_chen = -np.sqrt(2 * np.pi) * mean_williams_int_b_n[term_index] / np.sqrt(1000)
-        med_k_ii_chen = -np.sqrt(2 * np.pi) * med_williams_int_b_n[term_index] / np.sqrt(1000)
-        rej_out_mean_k_ii_chen = -np.sqrt(2 * np.pi) * rej_out_mean_williams_int_b_n[term_index] / np.sqrt(1000)
+        # Map aggregated Williams coefficients through the model-owned quantity
+        # transformation while retaining the established aggregation policy.
+        terms = self.integral_properties.bueckner_williams_terms
+        mean_k_i_chen, mean_k_ii_chen, _ = (
+            derive_williams_in_plane_fracture_quantities(
+                terms,
+                mean_williams_int_a_n,
+                mean_williams_int_b_n,
+            )
+        )
+        med_k_i_chen, med_k_ii_chen, _ = (
+            derive_williams_in_plane_fracture_quantities(
+                terms,
+                med_williams_int_a_n,
+                med_williams_int_b_n,
+            )
+        )
+        rej_out_mean_k_i_chen, rej_out_mean_k_ii_chen, _ = (
+            derive_williams_in_plane_fracture_quantities(
+                terms,
+                rej_out_mean_williams_int_a_n,
+                rej_out_mean_williams_int_b_n,
+            )
+        )
 
         # bundle means / medians / means using outlier rejection
         self.sifs_int = {
@@ -455,14 +523,6 @@ class FractureAnalysis:
                              'decomp_K_2': rej_decomp_K_2,
                              'decomp_K_3': rej_decomp_K_3}
         }
-
-    ###########
-    # Helpers #
-    ###########
-
-    def _coeff_map(self, values):
-        """Map optimization term indices to their corresponding coefficient values."""
-        return {n: values[i] for i, n in enumerate(self.optimization.terms)}
 
     @staticmethod
     def mean_wo_outliers(data: np.ndarray, m=2) -> list:

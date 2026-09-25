@@ -150,6 +150,17 @@ Just install via pip from the GitHub repository
 pip install --upgrade git+https://github.com/dlr-wf/crackpy.git
 ```
 
+## Development setup
+
+Install the editable project and its development group with pip 25.1 or newer.
+The development group includes Playwright for validating Mermaid diagrams.
+
+```bash
+python -m pip install -e .
+python -m pip install --group dev
+python -m playwright install chromium
+```
+
 ## How to use?
 To check out how to use the package, please read our [Wiki](https://github.com/dlr-wf/crackpy/wiki).
 
@@ -182,6 +193,7 @@ and was developed in the Institute of Materials Research. Feel free to check out
 _Tobias Strohmann_\
 _David Melching_\
 _Florian Paysan_\
+_Ferdinand Dömling_\
 _Eric Dietrich_\
 _Guillermo Requena_\
 _Eric Breitbarth_
@@ -191,5 +203,4 @@ We thank\
 _Alina Klein_\
 _Erik Schultheis_\
 _Vanessa Schöne_\
-_Ferdinand Dömling_\
 for continuous support regarding tests and user feedback for the package.

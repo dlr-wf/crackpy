@@ -94,10 +94,16 @@ def interpolate(input_data_object: InputData, size: int or float, offset=(0, 0),
 
     x_grid, y_grid = np.meshgrid(x_coor_interp, y_coor_interp)
 
-    x_disp_interp = griddata((x_coordinate, y_coordinate), x_displacement, (x_grid, y_grid))
-    y_disp_interp = griddata((x_coordinate, y_coordinate), y_displacement, (x_grid, y_grid))
-
-    interp_eps_vm = griddata((x_coordinate, y_coordinate), eps_vm, (x_grid, y_grid))
+    # Interpolate all fields together so SciPy builds the spatial triangulation once.
+    field_values = np.column_stack((x_displacement, y_displacement, eps_vm))
+    interpolated_fields = griddata(
+        (x_coordinate, y_coordinate),
+        field_values,
+        (x_grid, y_grid),
+    )
+    x_disp_interp = interpolated_fields[..., 0]
+    y_disp_interp = interpolated_fields[..., 1]
+    interp_eps_vm = interpolated_fields[..., 2]
 
     # If size is negative, then the left-hand side of the specimen is flipped such that the crack
     # always starts from the left and the x-displacement is multiplied by -1

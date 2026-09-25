@@ -57,7 +57,7 @@ data.calc_stresses(material)
 # Crack detection with line intercept
 ######################################
 cd = CrackDetectionLineIntercept(
-    x_min=0.0,
+    x_min=-25.0,
     x_max=25.0,
     y_min=-10.0,
     y_max=10.0,
@@ -67,7 +67,8 @@ cd = CrackDetectionLineIntercept(
     grid_component='uy',
     eps_vm_threshold=0.5/100,
     window_size=3,
-    angle_estimation_mm_radius=5.0
+    angle_estimation_mm_radius=5.0,
+    side='left',
 )
 cd.run()
 
@@ -106,7 +107,7 @@ ax.set_xlabel('x [mm]')
 ax.set_ylabel('y [mm]')
 ax.legend(loc='upper left')
 ax.axis('image')
-ax.set_xlim(0, 25)
+ax.set_xlim(-25, 25)
 ax.set_ylim(-10, 10)
 ax.tick_params(axis='x', pad=15)
 plt.savefig(str(OUTPUT_PATH / f"{Path(NODEMAP_FILE).stem}.png"), bbox_inches='tight', dpi=300)

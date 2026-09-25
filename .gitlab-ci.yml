@@ -1,11 +1,11 @@
-# Official language image. Look for the different tagged releases at:
-# https://hub.docker.com/r/library/python/tags/
-image: python:latest
+# The shell runners provide virtualenv and Python 3.12 for bootstrapping.
 
 # Change pip's cache directory to be inside the project directory since we can
 # only cache local items.
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
+  UV_PYTHON_INSTALL_DIR: "$CI_PROJECT_DIR/.cache/python"
 
 # Pip's cache doesn't store the python packages
 # https://pip.pypa.io/en/stable/reference/pip_install/#caching
@@ -16,17 +16,23 @@ variables:
     #- .cache/pip
     #- venv/
 
-# This script gets executed before every job.
+# Provision the selected stable interpreter independently of the runner's PATH.
+.python_setup:
+  before_script: &python_setup
+    - virtualenv --python=python3.12 .ci-bootstrap
+    - .ci-bootstrap/bin/python -m pip install uv==0.12.13
+    - .ci-bootstrap/bin/uv venv --managed-python --python "$PYTHON_VERSION" --seed venv
+    - source venv/bin/activate
+    - python --version
+
 before_script:
-  # Initialize and activate virtual environment
-  - which virtualenv
-  - virtualenv --python=python3.12 venv
-  - source venv/bin/activate
-  # Install required packages
-  - pip install --upgrade pip
-  - pip list
-  - pip install . --quiet
-  - pip list
+  - *python_setup
+  - python -m pip install . --quiet
+
+.python_versions:
+  parallel: &python_versions
+    matrix:
+      - PYTHON_VERSION: ["3.12", "3.14"]
 
 stages:
   - Build
@@ -34,7 +40,18 @@ stages:
   - Unit Tests
   - Integration Tests
 
+.crack_detection_model_cache:
+  cache:
+    key:
+      files:
+        - crackpy/tests/test_crack_detection/_model_download.py
+      prefix: "crack-detection-models"
+    paths:
+      - crackpy/crack_detection/models/
+    policy: pull-push
+
 building:
+  parallel: *python_versions
   stage: Build
   script:
     # Check Python version and installed packages
@@ -43,8 +60,31 @@ building:
     - which pip
     - pip list
 
+installed_wheel:
+  parallel: *python_versions
+  stage: Build
+  variables:
+    MPLBACKEND: "Agg"
+  before_script: *python_setup
+  script:
+    - python -m pip wheel --no-deps --wheel-dir dist .
+    - WHEEL_ENV=$(mktemp -d /tmp/crackpy-wheel-venv.XXXXXX)
+    - trap 'rm -rf "$WHEEL_ENV"' EXIT
+    - python -m venv "$WHEEL_ENV"
+    - '"$WHEEL_ENV/bin/python" -m pip install dist/*.whl'
+    - '"$WHEEL_ENV/bin/python" -m pip check'
+    - '"$WHEEL_ENV/bin/python" -m pip freeze > dist/installed-requirements.txt'
+    - sha256sum dist/*.whl > dist/SHA256SUMS
+    - cd /tmp
+    - '"$WHEEL_ENV/bin/python" -I "$CI_PROJECT_DIR/scripts/check_installed_wheel.py"'
+  artifacts:
+    when: always
+    paths:
+      - dist/
+
 # Check PEP-8-Guidelines with Pylint
 lint_analysis:
+  parallel: *python_versions
   stage: Static Code Analysis
   allow_failure: true
   script:
@@ -53,6 +93,7 @@ lint_analysis:
 #    - pylint crackpy/tests/test_fracture_analysis --rcfile='.pylintrc'
 
 lint_crack_detection:
+  parallel: *python_versions
   stage: Static Code Analysis
   allow_failure: true
   script:
@@ -63,8 +104,11 @@ lint_crack_detection:
 
 # Run Unit Tests
 crack_detection:
+  parallel: *python_versions
+  extends: .crack_detection_model_cache
   stage: Unit Tests
   script:
+    - python -m crackpy.tests.test_crack_detection._model_download
     - pip install pytest --quiet
     - pytest crackpy/tests/test_crack_detection --junitxml=report.xml
   artifacts:
@@ -73,6 +117,7 @@ crack_detection:
       junit: report.xml
 
 fracture_analysis:
+  parallel: *python_versions
   stage: Unit Tests
   script:
     - pip install pytest --quiet
@@ -83,10 +128,11 @@ fracture_analysis:
       junit: report.xml
 
 test_utils:
+  parallel: *python_versions
   stage: Unit Tests
   script:
     - pip install pytest --quiet
-    - pytest crackpy/tests/test_utils --junitxml=report.xml
+    - pytest crackpy/tests/test_utils crackpy/tests/test_structure_elements --junitxml=report.xml
   artifacts:
     when: always
     reports:
@@ -94,8 +140,11 @@ test_utils:
 
 # Run test scripts
 test_crack_detection:
+  parallel: *python_versions
+  extends: .crack_detection_model_cache
   stage: Integration Tests
   script:
+    - python -m crackpy.tests.test_crack_detection._model_download
     - pip install pytest --quiet
     - pytest test_scripts/test_crack_detection.py --junitxml=report.xml
   artifacts:
@@ -104,6 +153,7 @@ test_crack_detection:
       junit: report.xml
 
 test_fracture_analysis:
+  parallel: *python_versions
   stage: Integration Tests
   script:
     - pip install pytest --quiet

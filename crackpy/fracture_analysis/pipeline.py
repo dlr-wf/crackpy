@@ -1,3 +1,5 @@
+"""Coordinate fracture analyses and result production across nodemap collections."""
+
 import logging
 import multiprocessing
 import time
@@ -5,7 +7,7 @@ import warnings
 from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 from pathlib import Path
-from typing import MutableMapping, Any
+from typing import MutableMapping
 
 import numpy as np
 import pandas as pd
@@ -18,7 +20,7 @@ from crackpy.input.crack_tip_info import CrackTipInfo
 from crackpy.input.input_data import InputData
 from crackpy.results.plot import PlotSettings, Plotter
 from crackpy.results.write import OutputWriter
-from crackpy.structure_elements.data_files import NodemapStructure, Nodemap
+from crackpy.structure_elements.data_files import Nodemap, NodemapStructure
 from crackpy.structure_elements.material import Material
 
 logger = logging.getLogger(__name__)
@@ -34,25 +36,28 @@ def single_run(
         opt_props: OptimizationProperties,
         output_path: str,
         plot_sets: PlotSettings | None,
-        prog: MutableMapping[str, Any],
-        task_id
-):
-    """Run fracture analysis of a single nodemap.
+        prog: MutableMapping[int, dict[str, int]],
+        task_id: int,
+) -> None:
+    """Evaluate and persist fracture-analysis outputs for one pipeline row.
 
     Args:
-        index: running index of data
-        data: input data as data frame
-        material: obj of class Material
-        nodemap_path: path of nodemap
-        nodemap_structure: data structure of nodemap
-        integral_props_by_nodemap: dictionary of the line integral path properties with *index* as keys
-                                   If nodemap is not in dictionary, the integral evaluation is skipped.
-        opt_props: obj of class OptimizationProperties
-        output_path: path where the plots and results are saved
-        plot_sets: settings for plotting the results
-        prog: shared dictionary to update the progress bar of the main process
-        task_id: task id of progress bar
+        index: Row index used to select configured Integral Properties.
+        data: Pipeline input row containing the nodemap and Crack-Tip Position.
+        material: Material used to derive stresses and evaluate the techniques.
+        nodemap_path: Directory containing the nodemap file.
+        nodemap_structure: Field layout used to read the nodemap.
+        integral_props_by_nodemap: Integral Properties keyed by pipeline row.
+            A missing row skips Line-Integral Evaluation.
+        opt_props: Properties for the Over-Deterministic Method.
+        output_path: Directory receiving text, JSON, and plot outputs.
+        plot_sets: Plot configuration, or ``None`` to omit plots.
+        prog: Process-shared progress payloads keyed by integer task identifiers.
+            Each payload contains integer ``progress`` and ``total`` values.
+        task_id: Progress-task identifier for this nodemap.
 
+    Returns:
+        None.
     """
     # get crack tip info from data
     crack_tip = CrackTipInfo(
