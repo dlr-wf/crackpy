@@ -27,3 +27,4 @@ __pycache__
 *.iml
 *.pyc
 *.log
+.scratch

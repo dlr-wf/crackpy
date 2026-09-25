@@ -68,7 +68,7 @@ with open(out_txt, "w") as out_file:
     )
     out_file.write(
         f"{'Filename':>60},"
-        f"{'CT x [mm]':>12},{'ĆT y [mm]':>12},"
+        f"{'CT x [mm]':>12},{'CT y [mm]':>12},"
         f"{'SymReg Corr x [mm]':>20},{'SymReg Corr y [mm]':>20},"
         f"{'Rethore Corr x [mm]':>20},{'Rethore Corr y [mm]':>20}"
         f"\n"
@@ -98,7 +98,8 @@ with open(out_txt, "w") as out_file:
                     grid_component='uy',
                     eps_vm_threshold=0.01,
                     window_size=3,
-                    angle_estimation_mm_radius=5.0
+                    angle_estimation_mm_radius=5.0,
+                    side='right',
                 )
                 cd.run()
 

@@ -1,12 +1,17 @@
+import logging
 from pathlib import Path
 
 import numpy as np
 import torch
-import logging
 
+from crackpy.crack_detection.detection import (
+    CrackAngleEstimation,
+    CrackDetection,
+    CrackPathDetection,
+    CrackTipDetection,
+)
 from crackpy.crack_detection.utils.plot import plot_prediction
 from crackpy.crack_detection.utils.utilityfunctions import get_nodemaps_and_stage_nums
-from crackpy.crack_detection.detection import CrackTipDetection, CrackPathDetection, CrackAngleEstimation, CrackDetection
 from crackpy.input.input_data import InputData
 from crackpy.structure_elements.data_files import Nodemap
 
@@ -18,12 +23,13 @@ class CrackDetectionSetup:
     def __init__(
             self,
             specimen_size: float,
-            sides: list = None,
+            sides: list | None = None,
             stage_nums: range = 'All',
-            detection_window_size: float = None,
-            detection_boundary: tuple = None,
+            detection_window_size: float | None = None,
+            detection_boundary: tuple | None = None,
             start_offset: tuple = (0, 0),
-            angle_det_radius: float = 10
+            angle_det_radius: float = 10,
+            tip_only: bool = False,
     ):
         """Wrapper for crack detection pipeline settings.
 
@@ -34,14 +40,17 @@ class CrackDetectionSetup:
             detection_window_size: window size used to predict the crack tip
                                    (if None: detection_window_size is equal to specimen_size / 2 - 10)
             detection_boundary: (x_min, x_max, y_min, y_max) hard boundary of the crack detection window (to avoid NaNs)
-                                The 'left' side is mirrored to the 'right' side.
+                                The x bounds describe the 'right' side and are mirrored to
+                                (-x_max, -x_min) for the 'left' side.
                                 Example: (0, 70, -35, 35) for MT160 specimen
                                 If None: detection_boundary is set to
                                 (0, specimen_size / 2, -specimen_size / 4, specimen_size / 4)
             start_offset: (offset_x, offset_y) offset from the standard starting window
                                                adapted automatically during the pipeline
             angle_det_radius: radius (in mm) around the crack tip
-
+            tip_only: whether to skip crack-path and angle estimation for faster inference. Use only when the crack-tip
+                        position is sufficient; downstream crack tip field analyses require the omitted angle
+                        to establish the local crack-tip coordinate system
         """
 
         self.specimen_size = specimen_size
@@ -53,6 +62,7 @@ class CrackDetectionSetup:
         else:
             self.detection_boundary = (0, specimen_size / 2, -specimen_size / 4, specimen_size / 4)
         self.angle_det_radius = angle_det_radius
+        self.tip_only = tip_only
 
         self.stage_nums = stage_nums
 
@@ -97,8 +107,8 @@ class CrackDetectionPipeline:
 
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.tip_detector = tip_detector_model.to(self.device)
-        self.path_detector = path_detector_model
-        if path_detector_model is not None:
+        self.path_detector = None if setup.tip_only else path_detector_model
+        if self.path_detector is not None:
             self.path_detector = self.path_detector.to(self.device)
 
         self.setup = setup
@@ -167,7 +177,8 @@ class CrackDetectionPipeline:
         sides_to_results = {}
 
         for side in self.setup.sides:
-            logger.info(f"Predicting crack tip/path for side: {side} …")
+            prediction_target = "crack tip" if self.setup.tip_only else "crack tip/path"
+            logger.info(f"Predicting {prediction_target} for side: {side} …")
 
             # Init
             offset_x, offset_y = self.setup.start_offset
@@ -217,31 +228,34 @@ class CrackDetectionPipeline:
                 logger.debug(f"Stage {stage} ({side}): crack tip detected at pixels {crack_tip_pixels}, "
                            f"position: ({crack_tip_x:.2f}, {crack_tip_y:.2f}) mm")
 
-                #####################
-                # Path detection
-                #####################
-                # load crack path detector model
-                cp_det = CrackPathDetection(detection=det, path_detector=self.path_detector)
+                cp_skeleton = None
+                angle = np.nan
+                if not self.setup.tip_only:
+                    #####################
+                    # Path detection
+                    #####################
+                    # load crack path detector model
+                    cp_det = CrackPathDetection(detection=det, path_detector=self.path_detector)
 
-                # predict segmentation and path skeleton
-                cp_segmentation, cp_skeleton = cp_det.predict_path(input_ch)
+                    # predict segmentation and path skeleton
+                    cp_segmentation, cp_skeleton = cp_det.predict_path(input_ch)
 
-                ##########################
-                # Crack angle estimation
-                ##########################
-                angle_est = CrackAngleEstimation(detection=det, crack_tip_in_px=crack_tip_pixels)
+                    ##########################
+                    # Crack angle estimation
+                    ##########################
+                    angle_est = CrackAngleEstimation(detection=det, crack_tip_in_px=crack_tip_pixels)
 
-                if crack_tip_pixels == [np.nan, np.nan]:
-                    cp_segmentation_masked = cp_segmentation
-                else:
-                    # Consider only crack path close to crack tip
-                    cp_segmentation_masked = angle_est.apply_circular_mask(cp_segmentation)
+                    if crack_tip_pixels == [np.nan, np.nan]:
+                        cp_segmentation_masked = cp_segmentation
+                    else:
+                        # Consider only crack path close to crack tip
+                        cp_segmentation_masked = angle_est.apply_circular_mask(cp_segmentation)
 
-                # Filter for largest connected crack path
-                cp_segmentation_largest_region = angle_est.get_largest_region(cp_segmentation_masked)
+                    # Filter for largest connected crack path
+                    cp_segmentation_largest_region = angle_est.get_largest_region(cp_segmentation_masked)
 
-                # Estimate the angle
-                angle = angle_est.predict_angle(cp_segmentation_largest_region)
+                    # Estimate the angle
+                    angle = angle_est.predict_angle(cp_segmentation_largest_region)
 
                 # Adjust crack detection window
                 ###############################
@@ -249,19 +263,27 @@ class CrackDetectionPipeline:
                 old_offset_x, old_offset_y = offset_x, offset_y
 
                 # Case distinction for left and right side
+                if (side == 'right'
+                        and crack_tip_x > offset_x + self.setup.window_size / 2):
+                    offset_x += (crack_tip_x - offset_x - self.setup.window_size / 2)
+                if (side == 'left'
+                        and crack_tip_x < offset_x - self.setup.window_size / 2):
+                    offset_x -= (offset_x - self.setup.window_size / 2 - crack_tip_x)
+                if crack_tip_y > offset_y + self.setup.window_size / 8:
+                    offset_y += (crack_tip_y - offset_y - self.setup.window_size / 8)
+                elif crack_tip_y < offset_y - self.setup.window_size / 8:
+                    offset_y -= (offset_y - self.setup.window_size / 8 - crack_tip_y)
+
+                # Bound the new window, including its full extent and the mirrored left side.
                 if side == 'right':
-                    if offset_x <= x_max - self.setup.window_size:  # check detection boundary
-                        if crack_tip_x > offset_x + self.setup.window_size / 2:  # check if crack tip passed middle
-                            offset_x += (crack_tip_x - offset_x - self.setup.window_size / 2)
-                if side == 'left':  # offset is negative
-                    if offset_x >= x_min + self.setup.window_size:  # check detection boundary
-                        if crack_tip_x < offset_x - self.setup.window_size / 2:
-                            offset_x -= (offset_x - self.setup.window_size / 2 - crack_tip_x)
-                if y_min + self.setup.window_size / 2 <= offset_y <= y_max - self.setup.window_size / 2:
-                    if crack_tip_y > offset_y + self.setup.window_size / 8:
-                        offset_y += (crack_tip_y - offset_y - self.setup.window_size / 8)
-                    if crack_tip_y < offset_y - self.setup.window_size / 8:
-                        offset_y -= (offset_y - self.setup.window_size / 8 - crack_tip_y)
+                    offset_x = np.clip(offset_x, x_min, x_max - self.setup.window_size)
+                else:
+                    offset_x = np.clip(offset_x, self.setup.window_size - x_max, -x_min)
+                offset_y = np.clip(
+                    offset_y,
+                    y_min + self.setup.window_size / 2,
+                    y_max - self.setup.window_size / 2,
+                )
 
                 if offset_x != old_offset_x or offset_y != old_offset_y:
                     logger.debug(f"Stage {stage} ({side}): detection window adjusted from ({old_offset_x:.2f}, {old_offset_y:.2f}) "
@@ -272,12 +294,17 @@ class CrackDetectionPipeline:
                 results['crack_tip_y'] = crack_tip_y
                 results['angle'] = angle
                 stages_to_results[stage] = results
-                logger.info(f"Stage {stage}/{sorted(self.detection_stages)[-1]} - crack tip: {crack_tip_x:.2f} mm, {crack_tip_y:.2f} mm, angle: {angle:.2f}°")
+                if self.setup.tip_only:
+                    logger.info(f"Stage {stage}/{max(self.detection_stages)} - crack tip: "
+                                f"{crack_tip_x:.2f} mm, {crack_tip_y:.2f} mm")
+                else:
+                    logger.info(f"Stage {stage}/{max(self.detection_stages)} - crack tip: "
+                                f"{crack_tip_x:.2f} mm, {crack_tip_y:.2f} mm, angle: {angle:.2f}°")
 
                 # Plot crack detection
                 plot_prediction(background=interp_eps_vm * 100,
                                 interp_size=self.setup.window_size if side == 'right' else -self.setup.window_size,
-                                offset=(offset_x, offset_y),
+                                offset=det.offset,
                                 save_name=Path(nodemap).stem,
                                 crack_tip_prediction=np.asarray([crack_tip_pixels]),
                                 crack_tip_seg=crack_tip_seg,

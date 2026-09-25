@@ -66,7 +66,8 @@ cd = CrackDetectionLineIntercept(
     grid_component='uy',
     eps_vm_threshold=0.01,
     window_size=3,
-    angle_estimation_mm_radius=5.0
+    angle_estimation_mm_radius=5.0,
+    side='right',
 )
 cd.run()
 crack_tip = cd.crack_tip

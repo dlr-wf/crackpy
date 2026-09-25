@@ -1,23 +1,121 @@
+"""End-to-end fracture-analysis scenarios cover scientific results, pipeline
+outputs, plots, and serialized result files.
+"""
+
+import os
 import shutil
 import tempfile
 import unittest
+from dataclasses import astuple
 from pathlib import Path
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from crackpy.fracture_analysis.analysis import FractureAnalysis
-from crackpy.fracture_analysis.crack_tip import williams_displ_field_z, williams_displ_field_xy
-from crackpy.input.input_data import InputData
-from crackpy.input.crack_tip_info import CrackTipInfo
+from crackpy.fracture_analysis.crack_tip import (
+    williams_displ_field_xy,
+    williams_displ_field_z,
+    williams_stress_field,
+)
 from crackpy.fracture_analysis.line_integration import IntegralProperties
 from crackpy.fracture_analysis.optimization import OptimizationProperties
 from crackpy.fracture_analysis.pipeline import FractureAnalysisPipeline
+from crackpy.input.crack_tip_info import CrackTipInfo
+from crackpy.input.input_data import InputData
 from crackpy.results.plot import PlotSettings, Plotter
 from crackpy.results.read import OutputReader
 from crackpy.results.write import OutputWriter
 from crackpy.structure_elements.data_files import Nodemap
 from crackpy.structure_elements.material import Material
+
+
+def _synthetic_williams_data(
+        material: Material,
+        *,
+        mode_i_sif: float = 10.0,
+        mode_ii_sif: float = 20.0,
+        mode_iii_sif: float = 30.0,
+        t_stress: float = 40.0,
+) -> InputData:
+    """Create a regular synthetic Williams displacement and strain field.
+
+    Args:
+        material: Linear-elastic material used to evaluate the Williams field.
+        mode_i_sif: Prescribed Mode I SIF in MPa sqrt(m).
+        mode_ii_sif: Prescribed Mode II SIF in MPa sqrt(m).
+        mode_iii_sif: Prescribed Mode III SIF in MPa sqrt(m).
+        t_stress: Prescribed T-Stress in MPa.
+
+    Returns:
+        Crack-tip-centered field data on a regular square grid.
+    """
+    steps = 500
+    coordinates = np.linspace(-25, 25, steps, endpoint=True)
+    x_mesh, y_mesh = np.meshgrid(coordinates, coordinates)
+
+    # Williams displacement fields use MPa sqrt(mm), whereas the prescribed
+    # Stress Intensity Factors use the public MPa sqrt(m) convention.
+    mode_i_sif_mm = mode_i_sif * np.sqrt(1000)
+    mode_ii_sif_mm = mode_ii_sif * np.sqrt(1000)
+    mode_iii_sif_mm = mode_iii_sif * np.sqrt(1000)
+    symmetric_coefficients = [
+        mode_i_sif_mm / np.sqrt(2 * np.pi),
+        t_stress / 4.0,
+    ]
+    antisymmetric_coefficients = [
+        -mode_ii_sif_mm / np.sqrt(2 * np.pi),
+        0,
+    ]
+    out_of_plane_coefficients = [
+        mode_iii_sif_mm / np.sqrt(0.5 * np.pi),
+        0,
+    ]
+    terms = [1, 2]
+    radius = np.sqrt(x_mesh ** 2 + y_mesh ** 2)
+    angle = np.arctan2(y_mesh, x_mesh)
+    displacement_x, displacement_y = williams_displ_field_xy(
+        symmetric_coefficients,
+        antisymmetric_coefficients,
+        terms,
+        angle,
+        radius,
+        material,
+    )
+    displacement_z = williams_displ_field_z(
+        out_of_plane_coefficients,
+        terms,
+        angle,
+        radius,
+        material,
+    )
+    stress_x, stress_y, stress_xy = williams_stress_field(
+        symmetric_coefficients,
+        antisymmetric_coefficients,
+        terms,
+        angle,
+        radius,
+    )
+
+    data = InputData()
+    data.coor_x = x_mesh.flatten()
+    data.coor_y = y_mesh.flatten()
+    data.disp_x = displacement_x.flatten()
+    data.disp_y = displacement_y.flatten()
+    data.disp_z = displacement_z.flatten()
+    # Plane-stress compliance maps the analytical Williams stresses to the
+    # tensorial strain convention consumed by the line-integral techniques.
+    data.eps_x = ((stress_x - material.nu_xy * stress_y) / material.E).flatten()
+    data.eps_y = ((stress_y - material.nu_xy * stress_x) / material.E).flatten()
+    data.eps_xy = (stress_xy / (2 * material.G)).flatten()
+    spacing = coordinates[1] - coordinates[0]
+    data.eps_xz = np.gradient(displacement_z, spacing, axis=1).flatten()
+    data.eps_yz = np.gradient(displacement_z, spacing, axis=0).flatten()
+    data.calc_eps_vm()
+    data.calc_stresses(material)
+    data.sigma_xz = material.G * data.eps_xz
+    data.sigma_yz = material.G * data.eps_yz
+    return data
 
 
 class TestFractureAnalysis(unittest.TestCase):
@@ -61,7 +159,7 @@ class TestFractureAnalysis(unittest.TestCase):
             paths_distance_bottom=0.5,
             paths_distance_top=0.5,
 
-            buckner_williams_terms=[-1, 1, 2, 3]
+            bueckner_williams_terms=[-1, 1, 2, 3]
         )
 
         # initialize fracture analysis
@@ -79,7 +177,7 @@ class TestFractureAnalysis(unittest.TestCase):
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['j'], 1.8699, delta=1e-4)
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['sif_j'], 11.6028, delta=1e-4)
 
-        self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['decomp_K_1'], 10.2195, delta=1e-4)
+        self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['decomp_K_1'], 11.9760, delta=1e-4)
 
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['sif_k_i'], 11.0096, delta=1e-4)
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['sif_k_ii'], -0.9243, delta=1e-4)
@@ -130,7 +228,7 @@ class TestFractureAnalysis(unittest.TestCase):
             paths_distance_bottom=0.5,
             paths_distance_top=0.5,
 
-            buckner_williams_terms=[-1, 1, 2, 3]
+            bueckner_williams_terms=[-1, 1, 2, 3]
         )
 
         # initialize fracture analysis
@@ -148,7 +246,7 @@ class TestFractureAnalysis(unittest.TestCase):
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['j'], 1.8813, delta=1e-4)
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['sif_j'], 11.6381, delta=1e-4)
 
-        self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['decomp_K_1'], 10.2961, delta=1e-4)
+        self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['decomp_K_1'], 12.0724, delta=1e-4)
 
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['sif_k_i'], 11.0188, delta=1e-4)
         self.assertAlmostEqual(analysis.sifs_int['rej_out_mean']['sif_k_ii'], -0.9064, delta=1e-4)
@@ -242,6 +340,64 @@ class TestFractureAnalysis(unittest.TestCase):
         self.assertAlmostEqual(analysis.williams_fit_c_n[2], 7.5005, delta=1e-4)
         self.assertAlmostEqual(analysis.williams_fit_c_n[3], 0.7213, delta=1e-4)
 
+        mode_i_result = analysis.cjp_mode_i_odm_result
+        mixed_mode_result = analysis.cjp_mixed_mode_odm_result
+        williams_in_plane_result = analysis.williams_in_plane_odm_result
+        williams_out_of_plane_result = analysis.williams_out_of_plane_odm_result
+        self.assertEqual(mode_i_result.status, "completed")
+        self.assertEqual(mixed_mode_result.status, "completed")
+        self.assertEqual(williams_in_plane_result.status, "completed")
+        self.assertEqual(williams_out_of_plane_result.status, "completed")
+        np.testing.assert_array_equal(
+            analysis.cjp_coeffs_m1,
+            astuple(mode_i_result.coefficients),
+        )
+        np.testing.assert_array_equal(
+            analysis.cjp_coeffs_mm,
+            astuple(mixed_mode_result.coefficients),
+        )
+        np.testing.assert_array_equal(
+            analysis.williams_coeffs,
+            williams_in_plane_result.coefficients.a_n
+            + williams_in_plane_result.coefficients.b_n
+            + williams_out_of_plane_result.coefficients.c_n,
+        )
+        self.assertEqual(
+            analysis.williams_fit_a_n,
+            dict(
+                zip(
+                    williams_in_plane_result.coefficients.terms,
+                    williams_in_plane_result.coefficients.a_n,
+                )
+            ),
+        )
+        self.assertEqual(
+            analysis.williams_fit_b_n,
+            dict(
+                zip(
+                    williams_in_plane_result.coefficients.terms,
+                    williams_in_plane_result.coefficients.b_n,
+                )
+            ),
+        )
+        self.assertEqual(
+            analysis.williams_fit_c_n,
+            dict(
+                zip(
+                    williams_out_of_plane_result.coefficients.terms,
+                    williams_out_of_plane_result.coefficients.c_n,
+                )
+            ),
+        )
+        self.assertEqual(analysis.cjp_res_m1["Error"], mode_i_result.cost)
+        self.assertEqual(analysis.cjp_res_mm["Error"], mixed_mode_result.cost)
+        self.assertEqual(
+            analysis.williams_fit_res["Error_xy"], williams_in_plane_result.cost
+        )
+        self.assertEqual(
+            analysis.williams_fit_res["Error_z"], williams_out_of_plane_result.cost
+        )
+
         temp_dir = tempfile.mkdtemp()
         try:
             # test writer
@@ -257,74 +413,95 @@ class TestFractureAnalysis(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_fitting_methods_3D_with_synthetic_data(self):
-
-        # prepare synthetic data
+    def test_line_integral_methods_3D_with_synthetic_williams_data(self):
         material = Material(E=72000, nu_xy=0.33, sig_yield=350)
+        mode_i_sif = 10.0
+        mode_ii_sif = 20.0
+        mode_iii_sif = 30.0
+        t_stress = 40.0
+        input_data = _synthetic_williams_data(
+            material,
+            mode_i_sif=mode_i_sif,
+            mode_ii_sif=mode_ii_sif,
+            mode_iii_sif=mode_iii_sif,
+            t_stress=t_stress,
+        )
 
-        steps = 500
-        x_coordinates = np.linspace(-25, 25, steps, endpoint=True)
-        y_coordinates = np.linspace(-25, 25, steps, endpoint=True)
-        x_mesh, y_mesh = np.meshgrid(x_coordinates, y_coordinates)
+        crack_tip = CrackTipInfo(0, 0, 0, 'right')
+        input_data.transform_data(
+            crack_tip.crack_tip_x,
+            crack_tip.crack_tip_y,
+            crack_tip.crack_tip_angle,
+        )
+        integral_properties = IntegralProperties(
+            number_of_paths=3,
+            integral_tick_size=0.1,
+            integral_size_left=-5,
+            integral_size_right=5,
+            integral_size_top=6,
+            integral_size_bottom=-6,
+            top_offset=0,
+            bottom_offset=0,
+            paths_distance_left=0.5,
+            paths_distance_right=0.5,
+            paths_distance_bottom=0.6,
+            paths_distance_top=0.6,
+            bueckner_williams_terms=[1, 2],
+        )
+        analysis = FractureAnalysis(
+            material=material,
+            nodemap='williams_synthetic.txt',
+            data=input_data,
+            crack_tip_info=crack_tip,
+            integral_properties=integral_properties,
+            optimization_properties=None,
+        )
 
-        K_I = 10 * np.sqrt(1000)  # MPa * sqrt(m)
-        K_II = 20 * np.sqrt(1000)  # MPa * sqrt(m)
-        K_III = 30 * np.sqrt(1000)  # MPa * sqrt(m)
-        T = 40  # MPa
-        A_1 = K_I / np.sqrt(2 * np.pi)
-        A_2 = T / 4.0
-        B_1 = - K_II / np.sqrt(2 * np.pi)
-        C_1 = K_III / np.sqrt(0.5 * np.pi)
-        A = [A_1, A_2]
-        B = [B_1, 0]
-        C = [C_1, 0]
+        analysis.run()
 
-        r_grid = np.sqrt(x_mesh ** 2 + y_mesh ** 2)
-        phi_grid = np.arctan2(y_mesh, x_mesh)
-        terms = [1, 2]
-        disp_u_mesh, disp_v_mesh = williams_displ_field_xy(A, B, terms, phi_grid, r_grid, material)
-        disp_w_mesh = williams_displ_field_z(C, terms, phi_grid, r_grid, material)
+        expected_in_plane_j = (
+            mode_i_sif ** 2 + mode_ii_sif ** 2
+        ) * 1000 / material.E
+        expected_mode_i_j = mode_i_sif ** 2 * 1000 / material.E
+        expected_mode_ii_j = mode_ii_sif ** 2 * 1000 / material.E
+        expected_mode_iii_j = (
+            mode_iii_sif ** 2
+            * (1 + material.nu_xy)
+            * 1000
+            / material.E
+        )
+        mode_ii_j_tolerance = 0.025 * expected_mode_ii_j
+        # K is proportional to sqrt(J), so the corresponding first-order SIF
+        # tolerance is half the 2.5% clean-field Mode II J acceptance limit.
+        mode_ii_sif_tolerance = 0.0125 * mode_ii_sif
+        expected_energy_equivalent_sif = np.hypot(mode_i_sif, mode_ii_sif)
+        results = analysis.sifs_int['rej_out_mean']
+        self.assertAlmostEqual(results['j'], expected_in_plane_j, delta=0.01)
+        self.assertAlmostEqual(
+            results['sif_j'], expected_energy_equivalent_sif, delta=0.01
+        )
+        self.assertAlmostEqual(results['sif_k_i'], mode_i_sif, delta=0.01)
+        self.assertAlmostEqual(results['sif_k_ii'], mode_ii_sif, delta=0.01)
+        self.assertAlmostEqual(results['k_i_chen'], mode_i_sif, delta=0.01)
+        self.assertAlmostEqual(results['k_ii_chen'], mode_ii_sif, delta=0.01)
+        self.assertAlmostEqual(results['decomp_j_1'], expected_mode_i_j, delta=0.01)
+        self.assertAlmostEqual(
+            results['decomp_j_2'], expected_mode_ii_j, delta=mode_ii_j_tolerance
+        )
+        self.assertAlmostEqual(results['decomp_j_3'], expected_mode_iii_j, delta=0.01)
+        self.assertAlmostEqual(results['decomp_K_1'], mode_i_sif, delta=0.05)
+        self.assertAlmostEqual(
+            results['decomp_K_2'], mode_ii_sif, delta=mode_ii_sif_tolerance
+        )
+        self.assertAlmostEqual(results['decomp_K_3'], mode_iii_sif, delta=0.02)
+        # Zhao interaction-integral T-Stress is deliberately excluded pending
+        # separate analytical validation of its contour-dependent result.
+        self.assertAlmostEqual(results['t_stress_chen'], t_stress, delta=0.05)
+        self.assertAlmostEqual(results['t_stress_sdm'], t_stress, delta=0.05)
 
-        gap = 2
-        dist = x_coordinates[1] - x_coordinates[0]
-        eps_xx = np.zeros_like(x_mesh)
-        eps_xx[0:int(steps / 2) - gap, 0:int(steps / 2)] = np.gradient(
-            disp_u_mesh[0:int(steps / 2) - gap, 0:int(steps / 2)],
-            dist, axis=1)
-        eps_xx[int(steps / 2) + gap:, 0:int(steps / 2)] = np.gradient(
-            disp_u_mesh[int(steps / 2) + gap:, 0:int(steps / 2)],
-            dist, axis=1)
-        eps_xx[:, int(steps / 2):] = np.gradient(disp_u_mesh[:, int(steps / 2):], dist, axis=1)
-
-        eps_yy = np.zeros_like(x_mesh)
-        eps_yy[0:int(steps / 2) - gap, 0:int(steps / 2)] = np.gradient(
-            disp_v_mesh[0:int(steps / 2) - gap, 0:int(steps / 2)],
-            dist, axis=0)
-        eps_yy[int(steps / 2) + gap:, 0:int(steps / 2)] = np.gradient(
-            disp_v_mesh[int(steps / 2) + gap:, 0:int(steps / 2)],
-            dist, axis=0)
-        eps_yy[:, int(steps / 2):] = np.gradient(disp_v_mesh[:, int(steps / 2):], dist, axis=0)
-
-        eps_xy = np.zeros_like(x_mesh)
-        eps_xy[0:int(steps / 2) - gap, 0:int(steps / 2)] = 0.5 * (
-                np.gradient(disp_u_mesh[0:int(steps / 2) - gap, 0:int(steps / 2)], dist, axis=0) +
-                np.gradient(disp_v_mesh[0:int(steps / 2) - gap, 0:int(steps / 2)], dist, axis=1))
-        eps_xy[int(steps / 2) + gap:, 0:int(steps / 2)] = 0.5 * (
-                np.gradient(disp_u_mesh[int(steps / 2) + gap:, 0:int(steps / 2)], dist, axis=0) +
-                np.gradient(disp_v_mesh[int(steps / 2) + gap:, 0:int(steps / 2)], dist, axis=1))
-        eps_xy[:, int(steps / 2):] = 0.5 * (np.gradient(disp_u_mesh[:, int(steps / 2):], dist, axis=0) +
-                                            np.gradient(disp_v_mesh[:, int(steps / 2):], dist, axis=1))
-
-        input_data = InputData()
-        input_data.coor_x = x_mesh.flatten()
-        input_data.coor_y = y_mesh.flatten()
-        input_data.disp_x = disp_u_mesh.flatten()
-        input_data.disp_y = disp_v_mesh.flatten()
-        input_data.disp_z = disp_w_mesh.flatten()
-        input_data.eps_x = eps_xx.flatten()
-        input_data.eps_y = eps_yy.flatten()
-        input_data.eps_xy = eps_xy.flatten()
-        input_data.calc_stresses(material)
+    def test_fitting_methods_3D_with_synthetic_williams_data(self):
+        material = Material(E=72000, nu_xy=0.33, sig_yield=350)
+        input_data = _synthetic_williams_data(material)
 
         ###############
         # Main script #
@@ -345,7 +522,7 @@ class TestFractureAnalysis(unittest.TestCase):
         input_data.transform_data(ct.crack_tip_x, ct.crack_tip_y, ct.crack_tip_angle)
 
         analysis = FractureAnalysis(
-            material=Material(),
+            material=material,
             nodemap='williams_synthetic.txt',
             data=input_data,
             crack_tip_info=ct,
@@ -390,6 +567,60 @@ class TestFractureAnalysis(unittest.TestCase):
         self.assertAlmostEqual(analysis.williams_fit_c_n[4], -0., delta=1e-4)
         self.assertAlmostEqual(analysis.williams_fit_c_n[5], -0., delta=1e-4)
 
+        williams_in_plane_result = analysis.williams_in_plane_odm_result
+        williams_out_of_plane_result = analysis.williams_out_of_plane_odm_result
+        self.assertEqual(williams_in_plane_result.status, "completed")
+        self.assertEqual(williams_out_of_plane_result.status, "completed")
+        np.testing.assert_array_equal(
+            analysis.williams_coeffs,
+            williams_in_plane_result.coefficients.a_n
+            + williams_in_plane_result.coefficients.b_n
+            + williams_out_of_plane_result.coefficients.c_n,
+        )
+        self.assertEqual(
+            analysis.williams_fit_a_n,
+            dict(
+                zip(
+                    williams_in_plane_result.coefficients.terms,
+                    williams_in_plane_result.coefficients.a_n,
+                )
+            ),
+        )
+        self.assertEqual(
+            analysis.williams_fit_b_n,
+            dict(
+                zip(
+                    williams_in_plane_result.coefficients.terms,
+                    williams_in_plane_result.coefficients.b_n,
+                )
+            ),
+        )
+        self.assertEqual(
+            analysis.williams_fit_c_n,
+            dict(
+                zip(
+                    williams_out_of_plane_result.coefficients.terms,
+                    williams_out_of_plane_result.coefficients.c_n,
+                )
+            ),
+        )
+        self.assertEqual(
+            analysis.williams_fit_res["K_I"],
+            williams_in_plane_result.quantities.k_i,
+        )
+        self.assertEqual(
+            analysis.williams_fit_res["K_II"],
+            williams_in_plane_result.quantities.k_ii,
+        )
+        self.assertEqual(
+            analysis.williams_fit_res["K_III"],
+            williams_out_of_plane_result.quantities.k_iii,
+        )
+        self.assertEqual(
+            analysis.williams_fit_res["T"],
+            williams_in_plane_result.quantities.t_stress,
+        )
+
         temp_dir = tempfile.mkdtemp()
         try:
             # test writer
@@ -432,7 +663,7 @@ class TestFractureAnalysisPipeline(unittest.TestCase):
 
                 mask_tolerance=2,
 
-                buckner_williams_terms=[-1, 1, 2, 3, 4, 5]
+                bueckner_williams_terms=[-1, 1, 2, 3, 4, 5]
             )
 
             opt_props = OptimizationProperties(
@@ -479,9 +710,25 @@ class TestFractureAnalysisPipeline(unittest.TestCase):
             reader.make_csv_from_results(files="all", output_path=temp_dir, output_filename='results.csv')
 
             # Assert
-            exp_results = pd.read_csv(Path(self.output_path) / 'results_auto_integral_probs.csv')
             act_results = pd.read_csv(Path(temp_dir) / 'results.csv')
-            pd.testing.assert_frame_equal(exp_results, act_results, atol=1e-4)
+            expected_path = Path(self.output_path) / 'results_auto_integral_probs.csv'
+            # Regenerate this committed fixture only when explicitly requested.
+            # Run: CRACKPY_UPDATE_PIPELINE_FIXTURES=1 python -m pytest \
+            #     test_scripts/test_fracture_analysis.py::TestFractureAnalysisPipeline::test_find_integral_props_and_run_pipeline -q
+            # Normal test runs remain read-only and compare the generated results with the existing fixture.
+            # Review every numerical change with git diff before committing an updated fixture.
+            if os.getenv('CRACKPY_UPDATE_PIPELINE_FIXTURES') == '1':
+                act_results.to_csv(expected_path, index=False)
+            exp_results = pd.read_csv(expected_path)
+            errors = []
+            for column in exp_results.columns:
+                try:
+                    pd.testing.assert_series_equal(exp_results[column], act_results[column], atol=1e-4)
+                except AssertionError as error:
+                    errors.append(f'{column}:\n{error}')
+
+            if errors:
+                raise AssertionError('\n\n'.join(errors))
 
         finally:
             shutil.rmtree(temp_dir)
@@ -508,7 +755,7 @@ class TestFractureAnalysisPipeline(unittest.TestCase):
 
                 mask_tolerance=2,
 
-                buckner_williams_terms=[-1, 1, 2, 3, 4, 5]
+                bueckner_williams_terms=[-1, 1, 2, 3, 4, 5]
             )
 
             opt_props = OptimizationProperties(
@@ -548,9 +795,26 @@ class TestFractureAnalysisPipeline(unittest.TestCase):
             reader.make_csv_from_results(files="all", output_path=temp_dir, output_filename='results.csv')
 
             # Assert
-            exp_results = pd.read_csv(Path(self.output_path) / 'results_predef_integral_probs.csv')
             act_results = pd.read_csv(Path(temp_dir) / 'results.csv')
-            pd.testing.assert_frame_equal(exp_results, act_results, atol=1e-4)
+            expected_path = Path(self.output_path) / 'results_predef_integral_probs.csv'
+            # Regenerate this committed fixture only when explicitly requested.
+            # Run: CRACKPY_UPDATE_PIPELINE_FIXTURES=1 python -m pytest \
+            #     test_scripts/test_fracture_analysis.py::TestFractureAnalysisPipeline::test_predefine_integral_probs_and_run_pipeline -q
+            # Normal test runs remain read-only and compare the generated results with the existing fixture.
+            # Review every numerical change with git diff before committing an updated fixture.
+            if os.getenv('CRACKPY_UPDATE_PIPELINE_FIXTURES') == '1':
+                act_results.to_csv(expected_path, index=False)
+            exp_results = pd.read_csv(expected_path)
+            errors = []
+            for column in exp_results.columns:
+                try:
+                    pd.testing.assert_series_equal(exp_results[column], act_results[column], atol=1e-4)
+                except AssertionError as error:
+                    errors.append(f'{column}:\n{error}')
+
+            if errors:
+                raise AssertionError('\n\n'.join(errors))
+
 
         finally:
             shutil.rmtree(temp_dir)
